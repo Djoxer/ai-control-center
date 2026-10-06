@@ -27,6 +27,11 @@ export interface LogsEntries$Params {
   logger?: (string | null);
 
 /**
+ * logger prefixes to hide, e.g. uvicorn.access
+ */
+  exclude?: Array<string>;
+
+/**
  * case-insensitive text search
  */
   q?: (string | null);
@@ -46,6 +51,7 @@ export function logsEntries(http: HttpClient, rootUrl: string, params: LogsEntri
     rb.query('source', params.source, {});
     rb.query('level', params.level, {});
     rb.query('logger', params.logger, {});
+    rb.query('exclude', params.exclude, {});
     rb.query('q', params.q, {});
     rb.query('since', params.since, {});
     rb.query('until', params.until, {});

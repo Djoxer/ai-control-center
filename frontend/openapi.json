@@ -303,7 +303,7 @@
   },
   "info": {
     "title": "AI Control Center",
-    "version": "0.2.0"
+    "version": "0.3.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -384,6 +384,20 @@
               ],
               "description": "logger prefix, e.g. control_center.modules.logs",
               "title": "Logger"
+            }
+          },
+          {
+            "description": "logger prefixes to hide, e.g. uvicorn.access",
+            "in": "query",
+            "name": "exclude",
+            "required": false,
+            "schema": {
+              "description": "logger prefixes to hide, e.g. uvicorn.access",
+              "items": {
+                "type": "string"
+              },
+              "title": "Exclude",
+              "type": "array"
             }
           },
           {

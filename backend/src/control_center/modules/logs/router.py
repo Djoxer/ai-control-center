@@ -34,13 +34,15 @@ async def entries(
     source: str = Query(description="source key from /sources, e.g. control-center"),
     level: Level | None = Query(None, description="minimum level; hides lines without a level"),
     logger: str | None = Query(None, description="logger prefix, e.g. control_center.modules.logs"),
+    exclude: list[str] = Query(default_factory=list, description="logger prefixes to hide, e.g. uvicorn.access"),
     q: str | None = Query(None, min_length=1, description="case-insensitive text search"),
     since: datetime | None = None,
     until: datetime | None = None,
     limit: int = Query(200, ge=1),
     cursor: str | None = Query(None, description="nextCursor of the previous page"),
 ) -> LogPage:
-    flt = EntryFilter(min_level=level, logger_prefix=logger, query=q, since=since, until=until)
+    flt = EntryFilter(min_level=level, logger_prefix=logger, exclude_prefixes=tuple(p for p in exclude if p),
+                      query=q, since=since, until=until)
     try:
         return await service(request).page(source, flt, limit, cursor)
     except UnknownSource:

@@ -65,3 +65,17 @@ def test_invalid_module_config_fails_only_this_module(settings):
         logs = next(m for m in health["modules"] if m["key"] == "logs")
         assert logs["state"] == "failed" and "tail_interval_s" in logs["error"]
         assert c.get("/api/v1/logs/sources").status_code == 503
+
+
+def test_exclude_hides_access_log(client):
+    # TestClient bypasses uvicorn, so write the access line ourselves (same logger, same file)
+    logging.getLogger("uvicorn.access").info('127.0.0.1 - "GET /api/v1/health HTTP/1.1" 200')
+    logging.getLogger("control_center.modules.logs").info("keep-me")
+    for name in ("uvicorn.access", "control_center"):
+        for h in logging.getLogger(name).handlers:
+            h.flush()
+    base = [("source", "control-center"), ("limit", "500")]
+    loggers = lambda extra: {e["logger"] for e in client.get("/api/v1/logs/entries", params=base + extra).json()["entries"]}  # noqa: E731
+    assert "uvicorn.access" in loggers([])
+    hidden = loggers([("exclude", "uvicorn.access"), ("exclude", "")])            # empty value is ignored
+    assert "uvicorn.access" not in hidden and "control_center.modules.logs" in hidden

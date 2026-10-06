@@ -1,6 +1,6 @@
 [project]
 name = "ai-control-center"
-version = "0.2.0"
+version = "0.3.0"
 description = "Control plane for the local AI box: health, models, catalog, logs"
 requires-python = ">=3.12"
 dependencies = [

@@ -101,6 +101,7 @@ def test_filters(tmp_path):
     by = lambda **kw: [e.msg for e in read_page(files, "json", "s", EntryFilter(**kw), 50)[0]]  # noqa: E731
     assert by(min_level="INFO") == ["Disk FULL", "line 2"]          # raw line hidden by level filter
     assert by(logger_prefix="control_center.modules") == ["line 2"]
+    assert by(exclude_prefixes=("control_center",)) == ["raw line without level"]   # raw lines have no logger
     assert by(query="disk full") == ["Disk FULL"]                   # case-insensitive
     assert by(query="raw") == ["raw line without level"]            # text search still finds raw lines
     since = datetime(2026, 10, 6, 12, 0, 2, tzinfo=timezone.utc)

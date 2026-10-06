@@ -38,7 +38,7 @@ def main() -> None:
     try:
         Server(config).run()
     except KeyboardInterrupt:
-        pass                # uvicorn re-raises Ctrl+C after a clean shutdown; nothing left to do
+        pass            # uvicorn re-raises Ctrl+C after a clean shutdown; nothing left to do
 
 
 if __name__ == "__main__":

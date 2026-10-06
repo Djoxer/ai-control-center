@@ -1,1 +1,132 @@
-<p>logs works!</p>
+<div class="space-y-4">
+  <!-- Sources: one tab per log source; unavailable ones stay visible but greyed out -->
+  <section class="flex flex-wrap items-center gap-2">
+    @for (s of sources(); track s.key) {
+      <button type="button" (click)="selectSource(s.key)"
+              [attr.aria-pressed]="s.key === source()"
+              [class.opacity-50]="!s.available"
+              class="rounded-lg border px-3 py-1.5 text-sm font-medium
+                     border-white/10 text-gray-300 hover:bg-white/5
+                     aria-pressed:border-sky-400/50 aria-pressed:bg-sky-400/10 aria-pressed:text-white">
+        {{ s.title }}
+        @if (!s.available) {
+          <span class="ml-1 text-xs text-gray-500">(keine Datei)</span>
+        }
+      </button>
+    }
+
+    @if (currentSource(); as cs) {
+      <span class="ml-auto text-xs text-gray-500">
+        {{ cs.files.length }} Datei(en) · {{ formatSize(totalSize(cs)) }}
+        @if (cs.files.length) { · aktuell: {{ cs.files[0].name }} }
+      </span>
+    }
+  </section>
+
+  <!-- Filters -->
+  <section class="grid grid-cols-1 gap-3 rounded-xl border border-white/10 bg-white/5 p-4
+                  sm:grid-cols-2 xl:grid-cols-[10rem_1fr_1fr_auto_auto]">
+    <label class="block text-xs font-medium tracking-wide text-gray-400 uppercase">
+      Level ab
+      <select (change)="setLevel($any($event.target).value)"
+              class="mt-1 w-full rounded-lg border border-white/10 bg-gray-900 px-3 py-2 text-sm text-white normal-case">
+        <option value="" [selected]="level() === null">alle</option>
+        @for (l of levels; track l) {
+          <option [value]="l" [selected]="level() === l">{{ l }}</option>
+        }
+      </select>
+    </label>
+
+    <label class="block text-xs font-medium tracking-wide text-gray-400 uppercase">
+      Logger beginnt mit
+      <input [value]="logger()" (input)="setText('logger', $any($event.target).value)"
+             placeholder="z. B. control_center.modules"
+             class="mt-1 w-full rounded-lg border border-white/10 bg-gray-900 px-3 py-2 text-sm text-white normal-case placeholder:text-gray-600" />
+    </label>
+
+    <label class="block text-xs font-medium tracking-wide text-gray-400 uppercase">
+      Suche
+      <input type="search" [value]="query()" (input)="setText('query', $any($event.target).value)"
+             placeholder="Text in Meldung oder Traceback"
+             class="mt-1 w-full rounded-lg border border-white/10 bg-gray-900 px-3 py-2 text-sm text-white normal-case placeholder:text-gray-600" />
+    </label>
+
+    <label class="flex items-center gap-2 self-end pb-2 text-sm text-gray-300">
+      <input type="checkbox" [checked]="hideAccess()" (change)="setHideAccess($any($event.target).checked)"
+             class="size-4 accent-sky-400" />
+      API-Zugriffe ausblenden
+    </label>
+
+    <label class="flex items-center gap-2 self-end pb-2 text-sm text-gray-300"
+           [title]="streamState() === 'open' ? 'Neue Zeilen erscheinen sofort' : 'Live-Verbindung getrennt'">
+      <input type="checkbox" [checked]="live()" (change)="setLive($any($event.target).checked)"
+             class="size-4 accent-emerald-400" />
+      Live
+      <span class="size-2 rounded-full"
+            [class.bg-emerald-400]="live() && streamState() === 'open'"
+            [class.animate-pulse]="live() && streamState() === 'open'"
+            [class.bg-gray-600]="!live() || streamState() !== 'open'"></span>
+    </label>
+  </section>
+
+  @if (error(); as err) {
+    <p class="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-300">{{ err }}</p>
+  }
+
+  <!-- Entries, newest first -->
+  <section class="overflow-hidden rounded-xl border border-white/10 bg-white/5">
+    <div class="overflow-x-auto">
+      <table class="w-full text-left text-sm">
+        <thead class="text-xs text-gray-500">
+          <tr class="border-b border-white/10">
+            <th class="px-4 py-3 font-medium whitespace-nowrap">Zeit</th>
+            <th class="px-2 py-3 font-medium">Level</th>
+            <th class="px-2 py-3 font-medium">Logger</th>
+            <th class="px-4 py-3 font-medium">Meldung</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-white/5 font-mono text-xs">
+          @for (e of entries(); track $index) {
+            <tr class="align-top hover:bg-white/5" [class.cursor-pointer]="!!e.exc" (click)="e.exc && toggle(e)">
+              <td class="px-4 py-2 whitespace-nowrap text-gray-500">{{ formatTime(e.ts) }}</td>
+              <td class="px-2 py-2">
+                <span class="inline-block rounded-md px-1.5 py-0.5 ring-1 ring-inset" [class]="levelClass(e.level)">
+                  {{ e.level ?? '—' }}
+                </span>
+              </td>
+              <td class="max-w-56 truncate px-2 py-2 text-gray-400" [title]="e.logger ?? ''">{{ e.logger ?? '—' }}</td>
+              <td class="px-4 py-2 break-all whitespace-pre-wrap text-gray-200">
+                {{ e.msg }}
+                @if (e.exc) {
+                  @if (expanded().has(e)) {
+                    <pre class="mt-2 overflow-x-auto rounded-lg bg-black/40 p-3 text-red-300">{{ e.exc }}</pre>
+                  } @else {
+                    <span class="ml-2 text-red-400">[Traceback anzeigen]</span>
+                  }
+                }
+              </td>
+            </tr>
+          } @empty {
+            <tr>
+              <td colspan="4" class="px-4 py-10 text-center font-sans text-sm text-gray-500">
+                {{ loading() ? 'Lade …' : 'Keine Einträge für diese Filter.' }}
+              </td>
+            </tr>
+          }
+        </tbody>
+      </table>
+    </div>
+
+    <div class="flex items-center justify-between border-t border-white/10 px-4 py-3 text-xs text-gray-500">
+      <span>{{ entries().length }} Einträge geladen</span>
+      @if (nextCursor()) {
+        <button type="button" (click)="loadOlder()" [disabled]="loading()"
+                class="rounded-lg border border-white/10 px-3 py-1.5 text-sm text-gray-300 hover:bg-white/5 disabled:opacity-50">
+          {{ loading() ? 'Lade …' : 'Ältere laden' }}
+        </button>
+      } @else if (entries().length) {
+        <span>Anfang erreicht</span>
+      }
+    </div>
+  </section>
+</div>

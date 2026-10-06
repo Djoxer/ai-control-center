@@ -126,6 +126,7 @@ def iter_lines_reverse(path: Path, end: int | None = None) -> Iterator[tuple[int
 class EntryFilter:
     min_level: str | None = None     # normalized level name
     logger_prefix: str | None = None
+    exclude_prefixes: tuple[str, ...] = ()   # hide these loggers, e.g. uvicorn.access (own API noise)
     query: str | None = None         # case-insensitive substring over msg, exc and logger
     since: datetime | None = None
     until: datetime | None = None
@@ -136,6 +137,8 @@ class EntryFilter:
             if e.level is None or LEVEL_RANK[e.level] < LEVEL_RANK[self.min_level]:
                 return False
         if self.logger_prefix and not (e.logger or "").startswith(self.logger_prefix):
+            return False
+        if self.exclude_prefixes and (e.logger or "").startswith(self.exclude_prefixes):
             return False
         if self.since or self.until:
             if e.ts is None:
