@@ -30,3 +30,12 @@ def test_disabled_module_not_mounted(make_client, settings):
 def test_service_registered(make_client):
     with make_client() as c:
         assert c.app.state.ctx.service("good.lookup")("x") == "info:x"
+
+
+def test_operation_ids_readable_and_unique(make_client):
+    with make_client() as c:
+        spec = c.get("/openapi.json").json()
+    ids = [op["operationId"] for path in spec["paths"].values() for op in path.values()]
+    assert {"core_health", "core_modules", "good_ping"} <= set(ids)
+    assert "/api/v1/stream" not in spec["paths"]
+    assert len(ids) == len(set(ids))      # duplicates break the Angular generator

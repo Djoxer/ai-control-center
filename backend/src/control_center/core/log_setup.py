@@ -45,7 +45,10 @@ def setup_logging(settings: Settings) -> None:
     # our own loggers plus uvicorn's, so access/errors land in the same searchable file
     for name in (ROOT_LOGGER, "uvicorn", "uvicorn.error", "uvicorn.access"):
         logger = logging.getLogger(name)
-        logger.handlers.clear()                            # idempotent: create_app() may run twice in tests
+        for old in list(logger.handlers):
+            # close, not just detach: on Windows an open log file cannot be deleted or rotated
+            logger.removeHandler(old)
+            old.close()
         logger.addHandler(file_handler)
         logger.addHandler(console)
         logger.setLevel(level)

@@ -5,6 +5,7 @@ import logging
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request
+from fastapi.routing import APIRoute
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
@@ -22,9 +23,24 @@ from control_center.core.spa import mount_spa
 log = logging.getLogger("control_center.main")
 
 
-def create_app(settings: Settings | None = None, modules_package: str = "control_center.modules") -> FastAPI:
+def operation_id(route: APIRoute) -> str:
+    """Readable, unique OpenAPI operationIds: <tag>_<function>, e.g. core_health.
+
+    The Angular generator turns these into method names. FastAPI's default would be
+    "health_api_v1_health_get" -> healthApiV1HealthGet() in TypeScript.
+    """
+    tag = route.tags[0] if route.tags else "misc"
+    return f"{tag}_{route.name}"
+
+
+def create_app(
+    settings: Settings | None = None,
+    modules_package: str = "control_center.modules",
+    configure_logging: bool = True,     # False for tools like the OpenAPI export: no log file is opened
+) -> FastAPI:
     settings = settings or load_settings()
-    setup_logging(settings)
+    if configure_logging:
+        setup_logging(settings)
     ctx = AppContext(settings=settings, db=Database(settings.db_path), events=EventBus())
 
     # 1) discover and register every module folder, including broken ones (for the health view)
@@ -68,7 +84,8 @@ def create_app(settings: Settings | None = None, modules_package: str = "control
                         log.exception("module %s failed to stop", s.key)
             await ctx.db.close()
 
-    app = FastAPI(title="AI Control Center", version=__version__, lifespan=lifespan)
+    app = FastAPI(title="AI Control Center", version=__version__, lifespan=lifespan,
+                  generate_unique_id_function=operation_id)
     app.state.ctx = ctx
 
     if settings.cors_origins:

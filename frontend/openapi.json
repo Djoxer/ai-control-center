@@ -1,0 +1,146 @@
+{
+  "components": {
+    "schemas": {
+      "HealthInfo": {
+        "properties": {
+          "database": {
+            "title": "Database",
+            "type": "boolean"
+          },
+          "modules": {
+            "items": {
+              "$ref": "#/components/schemas/ModuleInfo"
+            },
+            "title": "Modules",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "ok",
+              "degraded"
+            ],
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "version",
+          "database",
+          "modules"
+        ],
+        "title": "HealthInfo",
+        "type": "object"
+      },
+      "ModuleInfo": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "icon": {
+            "title": "Icon",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "order": {
+            "title": "Order",
+            "type": "integer"
+          },
+          "state": {
+            "enum": [
+              "loaded",
+              "starting",
+              "running",
+              "failed",
+              "disabled"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "icon",
+          "order",
+          "state"
+        ],
+        "title": "ModuleInfo",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "AI Control Center",
+    "version": "0.2.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "operationId": "core_health",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health",
+        "tags": [
+          "core"
+        ]
+      }
+    },
+    "/api/v1/meta/modules": {
+      "get": {
+        "description": "The Angular shell builds its menu from this - disabled or failed modules show up greyed out.",
+        "operationId": "core_modules",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ModuleInfo"
+                  },
+                  "title": "Response Core Modules",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Modules",
+        "tags": [
+          "core"
+        ]
+      }
+    }
+  }
+}

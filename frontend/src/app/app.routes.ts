@@ -2,38 +2,33 @@ import { Routes } from '@angular/router';
 import { Dashboard } from './dashboard/dashboard';
 import { Catalog } from './catalog/catalog';
 import { Settings } from './settings/settings';
-import { Documents } from './documents/documents';
 import { Logs } from './logs/logs';
 
+// data.module = backend module key (folder name under backend/.../modules/).
+// The sidebar looks up its state in /api/v1/health; routes without 'module' are always available.
 export const routes: Routes = [
   {
     path: '',
     component: Dashboard,
     title: 'Dashboard',
-    data: { nav: 'main', icon: 'dashboard' }
+    data: { nav: 'main', icon: 'dashboard', module: 'dashboard' }
   },
   {
     path: 'catalog',
     component: Catalog,
     title: 'Catalog',
-    data: { nav: 'main', icon: 'list' }
-  },
-  {
-    path: 'documents',
-    component: Documents,
-    title: 'Documents',
-    data: { nav: 'main', icon: 'file-text' }
+    data: { nav: 'main', icon: 'list', module: 'catalog' }
   },
   {
     path: 'logs',
     component: Logs,
     title: 'Logs',
-    data: { nav: 'footer', icon: 'log' }
+    data: { nav: 'footer', icon: 'log', module: 'logs' }
   },
   {
     path: 'settings',
     component: Settings,
     title: 'Settings',
-    data: { nav: 'footer', icon: 'settings' }
+    data: { nav: 'footer', icon: 'settings', module: 'settings' }
   }
 ];

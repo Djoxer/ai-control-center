@@ -3,13 +3,13 @@ from __future__ import annotations
 
 import asyncio
 import json
-from typing import AsyncIterator
+from typing import AsyncIterator, Literal
 
 from fastapi import APIRouter, Query, Request
 from fastapi.responses import StreamingResponse
 
 from control_center import __version__
-from control_center.core.context import AppContext
+from control_center.core.context import AppContext, ModuleState
 from control_center.core.schemas import CamelModel
 
 router = APIRouter(prefix="/api/v1", tags=["core"])
@@ -22,12 +22,12 @@ class ModuleInfo(CamelModel):
     title: str
     icon: str
     order: int
-    state: str
+    state: ModuleState              # Literal -> becomes a TypeScript union, not a plain string
     error: str | None = None
 
 
 class HealthInfo(CamelModel):
-    status: str                     # "ok" | "degraded"
+    status: Literal["ok", "degraded"]
     version: str
     database: bool
     modules: list[ModuleInfo]
@@ -66,7 +66,9 @@ async def modules(request: Request) -> list[ModuleInfo]:
     return module_infos(ctx_of(request))
 
 
-@router.get("/stream")
+# Not in OpenAPI: SSE is consumed with EventSource, not HttpClient. A generated client method
+# would try to read an endless response as JSON and never resolve.
+@router.get("/stream", include_in_schema=False)
 async def stream(
     request: Request,
     topics: list[str] = Query(default_factory=list, description="topic prefixes, e.g. dashboard"),

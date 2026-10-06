@@ -1,13 +1,18 @@
-import { Component, signal } from '@angular/core';
+import { Component, OnInit, inject } from '@angular/core';
 import { RouterOutlet } from '@angular/router';
 import { Sidebar } from './layout/sidebar';
 import { Topbar } from './layout/topbar';
+import { ShellStore } from './core/shell.store';
 
 @Component({
   selector: 'app-root',
   imports: [Sidebar, Topbar, RouterOutlet],
   templateUrl: './app.html'
 })
-export class App {
-  protected readonly title = signal('ai-control-center');
+export class App implements OnInit {
+  private readonly shell = inject(ShellStore);
+
+  ngOnInit(): void {
+    void this.shell.refresh();   // one health call feeds topbar status and sidebar module states
+  }
 }

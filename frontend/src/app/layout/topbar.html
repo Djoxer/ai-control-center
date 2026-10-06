@@ -21,6 +21,23 @@
     </form>
 
     <div class="flex items-center gap-x-4 lg:gap-x-6">
+      <!-- Backend status: click re-checks /api/v1/health -->
+      <button type="button" (click)="shell.refresh()" [disabled]="shell.loading()"
+              [title]="shell.error() ?? 'Backend-Status neu laden'"
+              class="flex items-center gap-x-2 rounded-full border border-white/10 px-3 py-1 text-xs text-gray-300 hover:bg-white/5">
+        <span class="size-2 rounded-full"
+              [class.bg-emerald-400]="shell.status() === 'ok'"
+              [class.bg-amber-400]="shell.status() === 'degraded' || shell.status() === 'unknown'"
+              [class.bg-red-500]="shell.status() === 'offline'"></span>
+        <span>{{ shell.status() }}</span>
+        @if (shell.health(); as h) {
+          <span class="hidden text-gray-500 sm:inline">v{{ h.version }}</span>
+        }
+      </button>
+
+      <!-- Separator -->
+      <div aria-hidden="true" class="hidden lg:block lg:h-6 lg:w-px lg:bg-gray-100/10"></div>
+
       <button type="button" class="-m-2.5 flex items-center p-2.5 text-gray-400 hover:text-gray-300">
         <span class="sr-only">View notifications</span>
         <app-icon name="bell" class="size-6" />
