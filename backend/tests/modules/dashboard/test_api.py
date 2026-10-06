@@ -22,10 +22,12 @@ from control_center.modules.dashboard.settings import DashboardSettings
 
 
 @pytest.fixture
-def client_for(settings):
+def client_for(settings, tmp_path):
     def make(scenario="normal", **dashboard) -> TestClient:
         adapters = settings.adapters.model_copy(update={"fake_scenario": scenario})
-        mods = type(settings.modules).model_validate({"dashboard": {"probes": [], **dashboard}})
+        # own log folder: on the AI box the real %LOCALAPPDATA%/Ollama/server.log would otherwise be found
+        dash = {"probes": [], "ollama_log_paths": [str(tmp_path / "ollama" / "server*.log")], **dashboard}
+        mods = type(settings.modules).model_validate({"dashboard": dash})
         return TestClient(create_app(settings.model_copy(update={"adapters": adapters, "modules": mods})))
     return make
 
@@ -79,7 +81,9 @@ def test_contract(client_for):
 def _service(settings, **cfg) -> tuple[DashboardService, EventBus]:
     bus = EventBus()
     ctx = AppContext(settings=settings, db=Database(settings.db_path), events=bus)
-    return DashboardService(ctx, DashboardSettings(probes=[], **cfg)), bus
+    # never the machine's real Ollama log (tests also run on the AI box)
+    no_log = [str(settings.data_dir / "no-ollama-log" / "server*.log")]
+    return DashboardService(ctx, DashboardSettings(**{"probes": [], "ollama_log_paths": no_log, **cfg})), bus
 
 
 def test_sse_carries_the_full_snapshot(settings):
@@ -184,11 +188,16 @@ def test_history_endpoint(client_for):
     assert only["resolution"] == "hour" and [s["metric"] for s in only["series"]] == ["temp_c"]
 
 
-def test_events_endpoint_reports_crash_watch(client_for):
-    with client_for() as c:
+def test_events_endpoint_reports_crash_watch(client_for, tmp_path):
+    with client_for() as c:                                     # no log file yet
         page = c.get("/api/v1/dashboard/events").json()
     assert page["events"] == [] and page["nextBefore"] is None
-    assert page["crashWatch"]["active"] is False and page["crashWatch"]["reason"]
+    assert page["crashWatch"] == {"active": False, "file": None, "reason": "keine Ollama-Logdatei gefunden"}
+    (tmp_path / "ollama").mkdir()
+    (tmp_path / "ollama" / "server.log").write_text("time=x level=INFO msg=started\n", encoding="utf-8")
+    with client_for() as c:                                     # log present: watching it
+        page = c.get("/api/v1/dashboard/events").json()
+    assert page["crashWatch"] == {"active": True, "file": "server.log", "reason": None}
 
 
 def _open_service(settings, **cfg):
