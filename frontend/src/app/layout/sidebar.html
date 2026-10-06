@@ -1,0 +1,75 @@
+<!-- Link stamp: one nav link, receives the NavItem as implicit context -->
+<ng-template #navLink let-item>
+  <a [routerLink]="item.path"
+     routerLinkActive
+     ariaCurrentWhenActive="page"
+     [routerLinkActiveOptions]="{ exact: item.exact }"
+     class="group flex items-center gap-x-3 rounded-md p-2 text-sm/6 font-semibold text-gray-400
+            hover:bg-white/5 hover:text-white
+            aria-[current=page]:bg-white/5 aria-[current=page]:text-white">
+    @if (item.icon) {
+      <!-- aria-hidden: the label already describes the link -->
+      <app-icon [name]="item.icon" class="size-5" />
+    }
+    {{ item.label }}
+  </a>
+</ng-template>
+
+<!-- Sidebar content stamp: logo + both nav groups, used by mobile AND desktop -->
+<ng-template #sidebarContent>
+  <div class="flex grow flex-col gap-y-5 overflow-y-auto bg-black/10 px-6 pb-4">
+    <div class="flex h-16 shrink-0 items-center">
+      <a href="http://iseo.de" target="_blank">
+        <img src="/logo-text.png" alt="ISEO" class="mt-4 h-16 w-auto" />
+      </a>
+    </div>
+
+    <nav class="flex flex-1 flex-col">
+      <ul role="list" class="flex flex-1 flex-col gap-y-7">
+        <!-- Main group -->
+        <li>
+          <ul role="list" class="-mx-2 space-y-1">
+            @for (item of mainItems; track item.path) {
+              <li><ng-container *ngTemplateOutlet="navLink; context: { $implicit: item }" /></li>
+            }
+          </ul>
+        </li>
+
+        <!-- Footer group, pushed to the bottom by mt-auto -->
+        @if (footerItems.length) {
+          <li class="mt-auto">
+            <ul role="list" class="-mx-2 space-y-1">
+              @for (item of footerItems; track item.path) {
+                <li><ng-container *ngTemplateOutlet="navLink; context: { $implicit: item }" /></li>
+              }
+            </ul>
+          </li>
+        }
+      </ul>
+    </nav>
+  </div>
+</ng-template>
+
+<!-- Mobile: native modal dialog, only below lg -->
+<dialog #mobileDialog
+        (close)="sidebar.close()"
+        (click)="onDialogClick($event)"
+        class="m-0 h-dvh max-h-none w-full max-w-xs bg-transparent p-0
+               backdrop:bg-gray-900/80 lg:hidden">
+  <!-- Layout lives on the inner wrapper: 'flex' on <dialog> would break its closed state -->
+  <div class="relative flex h-full flex-col bg-gray-900">
+    <button type="button" (click)="sidebar.close()"
+            class="absolute right-3 top-4 z-10 cursor-pointer p-2 text-gray-400 hover:text-white">
+      <span class="sr-only">Close sidebar</span>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="size-6">
+        <path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" />
+      </svg>
+    </button>
+    <ng-container *ngTemplateOutlet="sidebarContent" />
+  </div>
+</dialog>
+
+<!-- Desktop: fixed column, only from lg upward -->
+<div class="hidden bg-gray-900 ring-1 ring-white/10 lg:fixed lg:inset-y-0 lg:z-50 lg:flex lg:w-72 lg:flex-col">
+  <ng-container *ngTemplateOutlet="sidebarContent" />
+</div>

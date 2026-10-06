@@ -1,44 +1,15 @@
-# See https://docs.github.com/get-started/getting-started-with-git/ignoring-files for more about ignoring files.
+# runtime data
+data/*
+!data/.gitkeep
+backend/control-center.toml
 
-# Compiled output
-/dist
-/tmp
-/out-tsc
-/bazel-out
+# python
+__pycache__/
+*.pyc
+.venv/
+.pytest_cache/
 
-# Node
-/node_modules
-npm-debug.log
-yarn-error.log
-
-# IDEs and editors
-.idea/
-.project
-.classpath
-.c9/
-*.launch
-.settings/
-*.sublime-workspace
-
-# Visual Studio Code
-.vscode/*
-!.vscode/settings.json
-!.vscode/tasks.json
-!.vscode/launch.json
-!.vscode/extensions.json
-!.vscode/mcp.json
-.history/*
-
-# Miscellaneous
-/.angular/cache
-.sass-cache/
-/connect.lock
-/coverage
-/libpeerconnection.log
-testem.log
-/typings
-__screenshots__/
-
-# System files
-.DS_Store
-Thumbs.db
+# angular
+frontend/node_modules/
+frontend/dist/
+frontend/.angular/

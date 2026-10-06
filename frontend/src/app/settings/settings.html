@@ -1,0 +1,38 @@
+<div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
+  <article class="rounded-xl border border-white/10 bg-white/5 p-4">
+    <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">Ollama</p>
+    <label class="mt-4 block text-sm text-gray-300">
+      Host
+      <input value="http://127.0.0.1:11434" class="mt-1 w-full rounded-lg border border-white/10 bg-gray-900 px-3 py-2 text-white" />
+    </label>
+    <label class="mt-4 block text-sm text-gray-300">
+      Poll-Intervall
+      <select class="mt-1 w-full rounded-lg border border-white/10 bg-gray-900 px-3 py-2 text-white">
+        <option>2 Sekunden</option>
+        <option>5 Sekunden</option>
+        <option>10 Sekunden</option>
+      </select>
+    </label>
+  </article>
+
+  <article class="rounded-xl border border-white/10 bg-white/5 p-4">
+    <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">Agent</p>
+    <label class="mt-4 flex items-center justify-between text-sm text-gray-300">
+      Debuglog überwachen
+      <input type="checkbox" checked class="accent-sky-400" />
+    </label>
+    <label class="mt-4 block text-sm text-gray-300">
+      Log-Pfad
+      <input value="~/.claude/debug.log" class="mt-1 w-full rounded-lg border border-white/10 bg-gray-900 px-3 py-2 text-white" />
+    </label>
+  </article>
+
+  <article class="rounded-xl border border-white/10 bg-white/5 p-4 xl:col-span-2">
+    <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">Anzeige</p>
+    <div class="mt-4 flex flex-wrap gap-3 text-sm text-gray-300">
+      <label class="flex items-center gap-2"><input type="radio" name="density" checked class="accent-sky-400" /> Kompakt</label>
+      <label class="flex items-center gap-2"><input type="radio" name="density" class="accent-sky-400" /> Normal</label>
+      <label class="flex items-center gap-2"><input type="checkbox" checked class="accent-sky-400" /> Temperatur in °C</label>
+    </div>
+  </article>
+</div>

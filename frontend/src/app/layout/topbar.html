@@ -1,0 +1,51 @@
+<!-- topbar.html -->
+<div class="sticky top-0 z-40 flex h-16 shrink-0 items-center gap-x-4 border-b border-white/10 bg-gray-900 px-4 shadow-xs sm:gap-x-6 sm:px-6 lg:px-8">
+
+  <!-- flex + items-center on the button centers the icon inside the padding box -->
+  <button type="button" (click)="sidebar.open()"
+          class="-m-2.5 flex items-center p-2.5 text-gray-400 hover:text-white lg:hidden">
+    <span class="sr-only">Open sidebar</span>
+    <app-icon name="menu" class="size-6" />
+  </button>
+
+  <!-- Separator -->
+  <div aria-hidden="true" class="h-6 w-px bg-white/10 lg:hidden"></div>
+
+  <div class="flex flex-1 gap-x-4 self-stretch lg:gap-x-6">
+    <!-- Input and icon share one grid cell; self-center centers the icon vertically in it -->
+    <form action="#" method="GET" class="grid flex-1 grid-cols-1">
+      <input name="search" placeholder="Search" aria-label="Search"
+             class="col-start-1 row-start-1 block size-full bg-gray-900 pl-8 text-base text-white outline-hidden placeholder:text-gray-500 sm:text-sm/6" />
+      <!-- pointer-events-none: clicks fall through to the input underneath -->
+      <app-icon name="search" class="pointer-events-none col-start-1 row-start-1 size-5 self-center text-gray-400" />
+    </form>
+
+    <div class="flex items-center gap-x-4 lg:gap-x-6">
+      <button type="button" class="-m-2.5 flex items-center p-2.5 text-gray-400 hover:text-gray-300">
+        <span class="sr-only">View notifications</span>
+        <app-icon name="bell" class="size-6" />
+      </button>
+
+      <!-- Separator -->
+      <div aria-hidden="true" class="hidden lg:block lg:h-6 lg:w-px lg:bg-gray-100/10"></div>
+
+      <!-- Profile dropdown -->
+      <el-dropdown class="relative">
+        <button class="relative flex items-center">
+          <span class="absolute -inset-1.5"></span>
+          <span class="sr-only">Open user menu</span>
+          <img src="https://images.unsplash.com/photo-1472099645785-5658abf4ff4e?ixlib=rb-1.2.1&ixid=eyJhcHBfaWQiOjEyMDd9&auto=format&fit=facearea&facepad=2&w=256&h=256&q=80"
+               alt="" class="size-8 rounded-full bg-gray-800 outline -outline-offset-1 outline-white/10" />
+          <span class="hidden lg:flex lg:items-center">
+            <span aria-hidden="true" class="ml-4 text-sm/6 font-semibold text-white">Tom Cook</span>
+            <app-icon name="chevron-down" class="ml-2 size-5 text-gray-500" />
+          </span>
+        </button>
+        <el-menu anchor="bottom end" popover class="w-32 origin-top-right rounded-md bg-gray-800 py-2 outline -outline-offset-1 outline-white/10 transition transition-discrete [--anchor-gap:--spacing(2.5)] data-closed:scale-95 data-closed:transform data-closed:opacity-0 data-enter:duration-100 data-enter:ease-out data-leave:duration-75 data-leave:ease-in">
+          <a href="#" class="block px-3 py-1 text-sm/6 text-white focus:bg-white/5 focus:outline-hidden">Your profile</a>
+          <a href="#" class="block px-3 py-1 text-sm/6 text-white focus:bg-white/5 focus:outline-hidden">Sign out</a>
+        </el-menu>
+      </el-dropdown>
+    </div>
+  </div>
+</div>
