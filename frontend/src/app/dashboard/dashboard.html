@@ -180,8 +180,9 @@
     </div>
   </section>
 
-  <!-- Services + system -->
-  <section class="grid grid-cols-1 gap-4 xl:grid-cols-2">
+  <!-- Events (live) next to the services -->
+  <section class="grid grid-cols-1 gap-4 xl:grid-cols-3">
+    <app-events-panel class="min-w-0 xl:col-span-2" />
     <article class="rounded-xl border border-white/10 bg-white/5 p-4">
       <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">Dienste</p>
       <ul class="mt-3 divide-y divide-white/5">
@@ -204,7 +205,12 @@
         }
       </ul>
     </article>
+  </section>
 
+  <app-history-panel />
+
+  <!-- System next to the processes -->
+  <section class="grid grid-cols-1 gap-4 xl:grid-cols-3">
     <article class="rounded-xl border border-white/10 bg-white/5 p-4">
       <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">System</p>
       @if (s.host; as h) {
@@ -238,37 +244,35 @@
         <p class="mt-3 text-sm text-gray-500">{{ sourceError('host') ?? 'Keine Host-Daten' }}</p>
       }
     </article>
-  </section>
-
-  <!-- Processes (filtered by process_names in the backend config) -->
-  <section class="rounded-xl border border-white/10 bg-white/5">
-    <p class="px-4 pt-4 text-xs font-medium tracking-wide text-gray-400 uppercase">Prozesse</p>
-    <div class="overflow-x-auto">
-      <table class="mt-2 w-full min-w-[40rem] text-left text-sm text-gray-300">
-        <thead class="text-xs text-gray-500">
-          <tr class="border-b border-white/10">
-            <th class="px-4 py-2 font-medium">Prozess</th>
-            <th class="px-4 py-2 font-medium">PID</th>
-            <th class="px-4 py-2 text-right font-medium">CPU</th>
-            <th class="px-4 py-2 text-right font-medium">RAM</th>
-            <th class="px-4 py-2 font-medium">Befehl</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-white/5">
-          @for (p of s.host?.processes ?? []; track p.pid) {
-            <tr>
-              <td class="px-4 py-2 whitespace-nowrap text-white">{{ p.name }}</td>
-              <td class="px-4 py-2 text-gray-400 tabular-nums">{{ p.pid }}</td>
-              <td class="px-4 py-2 text-right whitespace-nowrap tabular-nums">{{ p.cpuPercent === null ? '—' : fmt.num(p.cpuPercent, 1) + ' %' }}</td>
-              <td class="px-4 py-2 text-right whitespace-nowrap tabular-nums">{{ fmt.bytes(p.rssBytes) }}</td>
-              <td class="max-w-md truncate px-4 py-2 font-mono text-xs text-gray-400" [title]="p.cmdline ?? ''">{{ p.cmdline ?? '—' }}</td>
+    <section class="min-w-0 rounded-xl border border-white/10 bg-white/5 xl:col-span-2">
+      <p class="px-4 pt-4 text-xs font-medium tracking-wide text-gray-400 uppercase">Prozesse</p>
+      <div class="overflow-x-auto">
+        <table class="mt-2 w-full min-w-[40rem] text-left text-sm text-gray-300">
+          <thead class="text-xs text-gray-500">
+            <tr class="border-b border-white/10">
+              <th class="px-4 py-2 font-medium">Prozess</th>
+              <th class="px-4 py-2 font-medium">PID</th>
+              <th class="px-4 py-2 text-right font-medium">CPU</th>
+              <th class="px-4 py-2 text-right font-medium">RAM</th>
+              <th class="px-4 py-2 font-medium">Befehl</th>
             </tr>
-          } @empty {
-            <tr><td colspan="5" class="px-4 py-6 text-center text-sm text-gray-500">Keine passenden Prozesse</td></tr>
-          }
-        </tbody>
-      </table>
-    </div>
+          </thead>
+          <tbody class="divide-y divide-white/5">
+            @for (p of s.host?.processes ?? []; track p.pid) {
+              <tr>
+                <td class="px-4 py-2 whitespace-nowrap text-white">{{ p.name }}</td>
+                <td class="px-4 py-2 text-gray-400 tabular-nums">{{ p.pid }}</td>
+                <td class="px-4 py-2 text-right whitespace-nowrap tabular-nums">{{ p.cpuPercent === null ? '—' : fmt.num(p.cpuPercent, 1) + ' %' }}</td>
+                <td class="px-4 py-2 text-right whitespace-nowrap tabular-nums">{{ fmt.bytes(p.rssBytes) }}</td>
+                <td class="max-w-md truncate px-4 py-2 font-mono text-xs text-gray-400" [title]="p.cmdline ?? ''">{{ p.cmdline ?? '—' }}</td>
+              </tr>
+            } @empty {
+              <tr><td colspan="5" class="px-4 py-6 text-center text-sm text-gray-500">Keine passenden Prozesse</td></tr>
+            }
+          </tbody>
+        </table>
+      </div>
+    </section>
   </section>
 
   <!-- Data sources that failed: technical, so small and at the bottom -->

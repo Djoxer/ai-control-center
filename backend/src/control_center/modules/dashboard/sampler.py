@@ -126,13 +126,17 @@ class Sampler:
         try:
             result = await asyncio.wait_for(fn(), self._timeout)
         except Exception as exc:
-            self._failed(source, exc)
+            self.record_failure(source, exc)
             return _FAILED
-        if self.readings.errors.pop(source, None) is not None:
-            log.info("dashboard source %s is back", source)
+        self.record_ok(source)
         return result
 
-    def _failed(self, source: str, exc: Exception) -> None:
+    def record_ok(self, source: str) -> None:
+        if self.readings.errors.pop(source, None) is not None:
+            log.info("dashboard source %s is back", source)
+
+    def record_failure(self, source: str, exc: Exception) -> None:
+        """Also used by the service for its own sources (history database)."""
         message = (f"no answer within {self._timeout:g} s" if isinstance(exc, TimeoutError)
                    else describe(exc))
         state = self.readings.errors.get(source)

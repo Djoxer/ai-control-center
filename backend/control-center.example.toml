@@ -55,6 +55,22 @@ process_names = ["ollama*", "llama-server*", "com.docker.backend", "python*"]   
 process_cmdline = "short"        # full | short | off - the dashboard is visible in the LAN
 disk_paths = ["%OLLAMA_MODELS%", "%USERPROFILE%/.ollama/models"]   # unset variables are skipped
 
+# History in SQLite (data_dir/control-center.db): a raw row every n fast ticks, condensed to
+# minute and hour rows (average + peak). Older rows are deleted automatically.
+persist_every_n_ticks = 5        # 5 x 2 s = one raw row every 10 s
+retention_raw_h = 24
+retention_minute_d = 30
+retention_hour_d = 365
+retention_events_d = 90
+
+# Events
+restart_window_s = 30            # Ollama back within this = one "restarted" event instead of down + up
+event_quiet_models = ["nomic-embed-text"]   # loads are only counted (embedding model during indexing)
+# Crash detection reads Ollama's log - only when ai_host is local (on the AI box itself)
+ollama_log_paths = ["%LOCALAPPDATA%/Ollama/server*.log"]
+crash_patterns = ["0xc0000409", "CUDA error"]
+crash_cooldown_s = 30            # one crash writes many lines -> one event
+
 # Neighbouring services. Defining [[modules.dashboard.probes]] REPLACES the default list.
 # "Up" = any HTTP answer below 500 (a 405 from the MCP endpoint is an alive server).
 [[modules.dashboard.probes]]

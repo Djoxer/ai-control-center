@@ -1,6 +1,8 @@
 """Dashboard end to end: real module package, fake adapters, HTTP + SSE + capture round trip."""
 import asyncio
 import json
+import time
+from datetime import datetime
 
 import pytest
 import respx
@@ -156,3 +158,88 @@ def test_capture_round_trip(settings, tmp_path, monkeypatch):
     host = FakeHost(target)
     assert host.read([], "short").cpu_count >= 1 and host.disks([])[0].total_bytes > 0
     assert sample_gpu.read().vram_total_mib == 16303
+
+
+# ---- history + events (step 4c) ----------------------------------------------------------------
+
+def test_history_endpoint(client_for):
+    with client_for() as c:
+        c.get("/api/v1/dashboard/snapshot")                         # waits for the first tick
+        for _ in range(50):                                         # its row is written right after the snapshot
+            h = c.get("/api/v1/dashboard/history", params={"range": "1h"}).json()
+            if h["ts"]:
+                break
+            time.sleep(0.05)
+        assert c.get("/api/v1/dashboard/history", params={"range": "2h"}).status_code == 422
+        only = c.get("/api/v1/dashboard/history", params=[("range", "7d"), ("metrics", "temp_c")]).json()
+    assert h["resolution"] == "raw" and h["stepS"] == 10
+    since, until = datetime.fromisoformat(h["since"]), datetime.fromisoformat(h["until"])
+    assert (until - since).total_seconds() == pytest.approx(3600)
+    assert len(h["ts"]) >= 1                                     # first tick is stored right away
+    series = {s["metric"]: s for s in h["series"]}
+    assert set(series) == {"gpu_util", "vram_used_mib", "temp_c", "power_w", "cpu_percent", "ram_percent"}
+    assert series["gpu_util"]["scaleMax"] == 100
+    assert series["vram_used_mib"]["scaleMax"] == 16303 and series["vram_used_mib"]["warn"] == 16303 - 1500
+    assert series["temp_c"]["warn"] == 83 and len(series["temp_c"]["avg"]) == len(h["ts"])
+    assert only["resolution"] == "hour" and [s["metric"] for s in only["series"]] == ["temp_c"]
+
+
+def test_events_endpoint_reports_crash_watch(client_for):
+    with client_for() as c:
+        page = c.get("/api/v1/dashboard/events").json()
+    assert page["events"] == [] and page["nextBefore"] is None
+    assert page["crashWatch"]["active"] is False and page["crashWatch"]["reason"]
+
+
+def _open_service(settings, **cfg):
+    svc, bus = _service(settings, **cfg)
+
+    async def open_all():
+        await svc.ctx.db.open()
+        await svc.ctx.adapters.open()
+        await svc.init_storage()
+
+    async def close_all():
+        await svc.ctx.adapters.close()
+        await svc.ctx.db.close()
+    return svc, bus, open_all, close_all
+
+
+def test_events_flow_into_database_and_stream(settings):
+    async def go():
+        svc, bus, open_all, close_all = _open_service(settings)
+        await open_all()
+        try:
+            with bus.subscription() as q:
+                await svc.tick()                                       # baseline: normal scenario
+                svc.ctx.adapters.ollama.folder = SAMPLES_DIR / "offload"
+                await svc.tick()
+                live = []
+                while not q.empty():
+                    live.append(q.get_nowait())
+            page = await svc.events(10, None)
+            history = await svc.history("1h", [])
+        finally:
+            await close_all()
+        return live, page, history
+    live, page, history = asyncio.run(go())
+    kinds = [ev.data["kind"] for ev in live if ev.topic == "dashboard.event"]
+    assert kinds == ["model_loaded", "offload_started", "model_unloaded"]   # nomic leaves silently (quiet)
+    assert [e.kind for e in page.events] == list(reversed(kinds))           # stored, newest first
+    assert all(e.id is not None for e in page.events)
+    assert len(history.ts) == 1                                             # tick 1 stored, tick 2 not (every 5th)
+
+
+def test_database_failure_is_visible_not_fatal(settings):
+    async def go():
+        svc, _bus, open_all, close_all = _open_service(settings)
+        await open_all()
+        try:
+            await svc.ctx.db.close()                                   # simulate a broken database
+            await svc.tick()
+            return await svc.tick()
+        finally:
+            await close_all()
+    snap = asyncio.run(go())
+    assert "history" in [e.source for e in snap.errors]
+    assert snap.models                                                  # live data unaffected

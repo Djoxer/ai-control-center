@@ -113,4 +113,5 @@ export const THROTTLE_SERIOUS = new Set(['hw_slowdown', 'sw_thermal', 'hw_therma
 
 export const SOURCE_LABELS: Record<string, string> = {
   ollama: 'Ollama', ollama_version: 'Ollama-Version', gpu: 'GPU', host: 'Host', disks: 'Laufwerke',
+  history: 'Verlauf (Datenbank)', ollama_log: 'Ollama-Log',
 };

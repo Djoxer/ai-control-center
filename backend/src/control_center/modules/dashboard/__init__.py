@@ -1,5 +1,6 @@
 """Dashboard module: live state of the AI box - loaded models with GPU/CPU placement, GPU, host,
-services - as one snapshot (GET /snapshot) and as SSE stream (topic dashboard.snapshot)."""
+services - as one snapshot (GET /snapshot, SSE dashboard.snapshot), plus history in SQLite
+(GET /history) and events such as loads, offload, restarts and crashes (GET /events, SSE dashboard.event)."""
 from __future__ import annotations
 
 from control_center.core.context import AppContext
@@ -11,6 +12,7 @@ from control_center.modules.dashboard.settings import DashboardSettings
 
 async def startup(ctx: AppContext) -> None:
     svc = DashboardService(ctx, ctx.module_config("dashboard", DashboardSettings))
+    await svc.init_storage()                    # tables + crash log position before the first tick
     svc.start()
     ctx.services["dashboard.service"] = svc
 

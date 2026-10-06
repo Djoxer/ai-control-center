@@ -10,7 +10,7 @@ export const routes: Routes = [
   {
     path: '',
     component: Dashboard,
-    title: 'Dashboard',
+    title: 'Übersicht',
     data: { nav: 'main', icon: 'dashboard', module: 'dashboard' }
   },
   {
@@ -22,7 +22,7 @@ export const routes: Routes = [
   {
     path: 'logs',
     component: Logs,
-    title: 'Logs',
+    title: 'Protokoll',
     data: { nav: 'footer', icon: 'log', module: 'logs' }
   },
   {

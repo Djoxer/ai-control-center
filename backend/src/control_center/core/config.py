@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -47,6 +47,16 @@ class AdaptersConfig(BaseModel):
     # built-in scenario folder in control_center/adapters/samples/ that the fake adapters replay
     fake_scenario: str = Field("normal", pattern=r"^[a-z0-9][a-z0-9-]*$")
     timeout_s: float = Field(2.0, gt=0, le=30)          # per call; a hanging source must not stall the others
+
+    @field_validator("ai_host")
+    @classmethod
+    def _host_only(cls, value: str) -> str:
+        """'http://192.168.5.54/' would become 'http://http://192.168.5.54/:11434' - stop it at boot."""
+        value = value.strip()
+        if not value or "://" in value or "/" in value or " " in value:
+            raise ValueError(f"ai_host must be a host name or IP only, e.g. 192.168.5.54 "
+                             f"(no http://, no /), got {value!r}")
+        return value
 
     def expand(self, url: str) -> str:
         """'http://{ai_host}:3000' -> 'http://192.168.x.y:3000'. Lets the second PC change one value only."""

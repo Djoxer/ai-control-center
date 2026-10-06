@@ -9,7 +9,9 @@ import { DiskUsage } from '../api/models/disk-usage';
 import { LoadedModel } from '../api/models/loaded-model';
 import { StreamService } from '../core/stream.service';
 import { Icon } from '../layout/icon';
+import { EventsPanel } from './events-panel';
 import * as fmt from './format';
+import { HistoryPanel } from './history-panel';
 import { Meter, MeterTone } from './meter';
 
 export const SNAPSHOT_TOPIC = 'dashboard.snapshot';
@@ -18,7 +20,7 @@ export const STALE_AFTER_MS = 10_000;
 
 @Component({
   selector: 'app-dashboard',
-  imports: [Icon, Meter],
+  imports: [Icon, Meter, EventsPanel, HistoryPanel],
   templateUrl: './dashboard.html',
 })
 export class Dashboard implements OnInit {

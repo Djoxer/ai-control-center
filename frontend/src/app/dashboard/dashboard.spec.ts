@@ -1,3 +1,4 @@
+import { Component } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -8,8 +9,16 @@ import { StreamService } from '../core/stream.service';
 import { FakeEventSource, fakeEventSourceProvider } from '../testing/fake-event-source';
 import { Dashboard, SNAPSHOT_TOPIC, STALE_AFTER_MS } from './dashboard';
 import { GIB } from './format';
+import { Meter } from './meter';
+import { Icon } from '../layout/icon';
 
 const settle = () => new Promise((r) => setTimeout(r, 0));
+
+@Component({ selector: 'app-events-panel', template: '' })
+class EventsPanelStub {}
+
+@Component({ selector: 'app-history-panel', template: '' })
+class HistoryPanelStub {}
 
 const split = (over: Partial<LoadedModel> = {}): LoadedModel => ({
   name: 'qwen2.5-coder:14b', digest: 'd1', family: 'qwen2', parameterSize: '14.8B', quantization: 'Q4_K_M',
@@ -46,6 +55,8 @@ describe('Dashboard page', () => {
       imports: [Dashboard],
       providers: [provideHttpClient(), provideHttpClientTesting(), fakeEventSourceProvider],
     });
+    // the panels have their own specs and requests; here only the page itself is under test
+    TestBed.overrideComponent(Dashboard, { set: { imports: [Icon, Meter, EventsPanelStub, HistoryPanelStub] } });
     http = TestBed.inject(HttpTestingController);
     TestBed.inject(StreamService).connect();
     fixture = TestBed.createComponent(Dashboard);

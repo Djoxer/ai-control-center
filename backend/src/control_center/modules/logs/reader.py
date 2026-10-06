@@ -5,7 +5,6 @@ Every function opens, reads and closes - no handle stays open (Windows rotation 
 """
 from __future__ import annotations
 
-import glob
 import json
 import os
 import re
@@ -14,6 +13,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Iterator
 
+from control_center.core.tail import resolve_files  # noqa: F401  (moved to core, re-exported)
 from control_center.modules.logs.schemas import LogEntry
 from control_center.modules.logs.settings import LogFormat
 
@@ -62,19 +62,6 @@ def parse_line(line: str, fmt: LogFormat, source: str, file: str) -> LogEntry:
                         msg=kv.get("msg", line))
     # llama.cpp output, [GIN] access lines, half-written lines, ...
     return LogEntry(source=source, file=file, ts=None, level=None, logger=None, msg=line)
-
-
-def resolve_files(patterns: list[str]) -> list[Path]:
-    """All files matching the patterns, newest (by modification time) first, duplicates removed."""
-    found: dict[str, Path] = {}
-    for pattern in patterns:
-        expanded = os.path.expandvars(os.path.expanduser(pattern))
-        for name in glob.glob(expanded):
-            p = Path(name)
-            if p.is_file():
-                found[str(p.resolve())] = p
-    # mtime desc: base file (being written) first, then .1, .2 ... / server-1.log, server-2.log ...
-    return sorted(found.values(), key=lambda p: p.stat().st_mtime, reverse=True)
 
 
 def _end_of_last_complete_line(f, size: int) -> int:

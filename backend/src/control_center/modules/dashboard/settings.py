@@ -42,6 +42,21 @@ class DashboardSettings(BaseModel):
         "%USERPROFILE%/.ollama/models",                     # Ollama's default model store on Windows
     ])
 
+    # history in SQLite: raw sample every n fast ticks, condensed to minute and hour averages/peaks
+    persist_every_n_ticks: int = Field(5, ge=1, le=600)     # 5 x 2 s = one raw row every 10 s
+    retention_raw_h: int = Field(24, ge=1, le=24 * 7)
+    retention_minute_d: int = Field(30, ge=1, le=365)
+    retention_hour_d: int = Field(365, ge=1, le=3650)
+    retention_events_d: int = Field(90, ge=1, le=3650)
+
+    # events
+    restart_window_s: float = Field(30, ge=0, le=600)       # Ollama back within this = one "restarted" event
+    event_quiet_models: list[str] = Field(default_factory=lambda: ["nomic-embed-text"])   # only counted
+    # crash detection: only when Ollama runs on THIS machine (ai_host local), the log lives there
+    ollama_log_paths: list[str] = Field(default_factory=lambda: ["%LOCALAPPDATA%/Ollama/server*.log"])
+    crash_patterns: list[str] = Field(default_factory=lambda: ["0xc0000409", "CUDA error"])
+    crash_cooldown_s: float = Field(30, ge=0, le=3600)      # one crash writes many lines -> one event
+
     probes: list[ProbeConfig] = Field(default_factory=lambda: [
         ProbeConfig(key="mcp", title="MCP-Server", url="http://{ai_host}:8000/mcp"),
         ProbeConfig(key="openwebui", title="OpenWebUI", url="http://{ai_host}:3000/health"),

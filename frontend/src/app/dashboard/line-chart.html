@@ -1,0 +1,65 @@
+<article class="rounded-xl border border-white/10 bg-white/5 p-4">
+  <header class="flex items-baseline justify-between gap-2">
+    <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">
+      {{ label() }} <span class="text-gray-500 normal-case">· {{ unit() }}</span>
+    </p>
+    <p class="text-sm text-white tabular-nums">{{ value(latest()) }}</p>
+  </header>
+  @if (showMax()) {
+    <!-- two marks -> legend; values stay in neutral ink, the mark carries the identity -->
+    <p class="mt-1 flex gap-3 text-[11px] text-gray-500">
+      <span class="flex items-center gap-1"><span class="h-0.5 w-3 rounded-full bg-sky-400"></span>Durchschnitt</span>
+      <span class="flex items-center gap-1"><span class="w-3 border-t border-dashed border-sky-300"></span>Spitze</span>
+    </p>
+  }
+
+  <div #plot class="relative mt-2">
+    <svg [attr.width]="width()" [attr.height]="height" class="block touch-none" role="img"
+         [attr.aria-label]="ariaLabel()" (pointermove)="onMove($event)" (pointerleave)="hover.set(null)">
+      @for (t of yTicks(); track t.v) {
+        <line [attr.x1]="margin.left" [attr.x2]="width() - margin.right" [attr.y1]="t.y" [attr.y2]="t.y"
+              class="stroke-white/5" />
+        <text [attr.x]="margin.left - 6" [attr.y]="t.y + 3" text-anchor="end" class="fill-gray-500 text-[10px]">{{ t.label }}</text>
+      }
+      @for (t of xTicks(); track $index) {
+        <text [attr.x]="t.x" [attr.y]="height - 4" [attr.text-anchor]="t.anchor" class="fill-gray-500 text-[10px]">{{ t.label }}</text>
+      }
+      @if (warnY() !== null) {
+        <line [attr.x1]="margin.left" [attr.x2]="width() - margin.right" [attr.y1]="warnY()" [attr.y2]="warnY()"
+              class="stroke-amber-400/60" stroke-dasharray="4 3" />
+      }
+      @for (d of areaPaths(); track $index) {
+        <path [attr.d]="d" class="fill-sky-400/10" />
+      }
+      @for (d of maxPaths(); track $index) {
+        <path [attr.d]="d" fill="none" class="stroke-sky-300/60" stroke-width="1" stroke-dasharray="3 3" />
+      }
+      @for (d of avgPaths(); track $index) {
+        <path [attr.d]="d" fill="none" class="stroke-sky-400" stroke-width="2" stroke-linejoin="round"
+              stroke-linecap="round" />
+      }
+      @if (hoverPoint(); as h) {
+        <line [attr.x1]="h.x" [attr.x2]="h.x" [attr.y1]="margin.top" [attr.y2]="height - margin.bottom"
+              class="stroke-white/30" />
+        @if (h.y !== null) {
+          <circle [attr.cx]="h.x" [attr.cy]="h.y" r="4" class="fill-sky-400 stroke-gray-900" stroke-width="2" />
+        }
+      }
+      <!-- hit area bigger than the line: the whole plot reacts to the pointer -->
+      <rect [attr.x]="margin.left" y="0" [attr.width]="plotWidth()" [attr.height]="height" fill="transparent" />
+    </svg>
+
+    @if (hoverPoint(); as h) {
+      <div class="pointer-events-none absolute top-0 z-10 w-[150px] rounded-md border border-white/10 bg-gray-900/95
+                  px-2 py-1 text-[11px] text-gray-200 shadow-lg" [style.left.px]="tooltipLeft()">
+        <p class="text-gray-400">{{ h.label }}</p>
+        <p>Ø {{ value(h.avg) }}</p>
+        @if (showMax()) { <p>Spitze {{ value(h.max) }}</p> }
+        @if (warn() !== null) { <p class="text-gray-500">Schwelle {{ value(warn()) }}</p> }
+      </div>
+    }
+    @if (!avgRuns().length) {
+      <p class="absolute inset-0 flex items-center justify-center pl-10 text-xs text-gray-500">Noch keine Daten in diesem Zeitraum</p>
+    }
+  </div>
+</article>

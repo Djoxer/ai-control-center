@@ -9,21 +9,27 @@ from __future__ import annotations
 import asyncio
 import logging
 import socket
+import time
 from dataclasses import asdict
 from datetime import datetime, timezone
 
 from control_center.adapters.ollama import PINNED_AFTER, RunningModel
 from control_center.core.context import AppContext
+from control_center.modules.dashboard.events import CrashWatcher, EventDetector, NewEvent
+from control_center.modules.dashboard.repository import METRICS, DashboardRepository, SampleRow
 from control_center.modules.dashboard.sampler import Readings, Sampler
 from control_center.modules.dashboard.schemas import (
-    DashboardSnapshot, DashboardWarning, DiskUsage, GpuState, HostState, LoadedModel, Placement,
-    ProcessInfo, ServiceStatus, SourceError, WarningCode, WarningLevel,
+    CrashWatch, DashboardEvent, DashboardHistory, DashboardSnapshot, DashboardWarning, DiskUsage, EventPage,
+    GpuState, HistoryMetric, HistoryRange, HistorySeries, HostState, LoadedModel, Placement, ProcessInfo,
+    QuietCount, ServiceStatus, SourceError, WarningCode, WarningLevel,
 )
 from control_center.modules.dashboard.settings import DashboardSettings
 
 log = logging.getLogger("control_center.modules.dashboard")
 
 TOPIC = "dashboard.snapshot"
+EVENT_TOPIC = "dashboard.event"
+MAINTENANCE_S = 60                  # condense + prune once a minute
 GIB = 1024 ** 3
 MAX_PROCESSES = 30                  # "python*" can match dozens on a dev box; the biggest ones matter
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
@@ -158,6 +164,68 @@ def build_snapshot(r: Readings, cfg: DashboardSettings, *, now: datetime, node_i
     return snap
 
 
+# ---- history ------------------------------------------------------------------------------------
+
+# range -> (seconds back, resolution); keeps every chart between ~170 and ~1440 points
+HISTORY_RANGES: dict[str, tuple[int, str]] = {
+    "1h": (3600, "raw"), "6h": (6 * 3600, "minute"), "24h": (86400, "minute"),
+    "7d": (7 * 86400, "hour"), "30d": (30 * 86400, "hour"),
+}
+UNITS = {"gpu_util": "%", "vram_used_mib": "MiB", "temp_c": "°C", "power_w": "W", "cpu_percent": "%",
+         "ram_percent": "%"}
+
+
+def sample_values(s: DashboardSnapshot) -> dict[str, float | None]:
+    """The numbers of one snapshot that go into the history table. Missing source -> None (a gap)."""
+    g, h = s.gpu, s.host
+    ram = h.ram_used_bytes / h.ram_total_bytes * 100 if h and h.ram_total_bytes else None
+    return {
+        "gpu_util": g.util_percent if g else None,
+        "vram_used_mib": g.vram_used_mib if g else None,
+        "temp_c": g.temp_c if g else None,
+        "power_w": g.power_w if g else None,
+        "cpu_percent": h.cpu_percent if h else None,
+        "ram_percent": round(ram, 2) if ram is not None else None,
+    }
+
+
+def scale_and_warn(metric: str, latest: DashboardSnapshot | None,
+                   cfg: DashboardSettings) -> tuple[float | None, float | None]:
+    """Fixed y-axis top and threshold line per metric, so the frontend needs no knowledge of limits."""
+    g = latest.gpu if latest else None
+    match metric:
+        case "gpu_util" | "cpu_percent":
+            return 100.0, None
+        case "ram_percent":
+            return 100.0, cfg.ram_warn_percent
+        case "vram_used_mib":
+            return (float(g.vram_total_mib), float(g.vram_total_mib - cfg.vram_headroom_warn_mib)) if g else (None, None)
+        case "temp_c":
+            return None, float(cfg.temp_warn_c)
+        case "power_w":
+            return (g.power_limit_w if g else None), None
+    return None, None
+
+
+def _rounded(v: float | None) -> float | None:
+    return None if v is None else round(v, 2)
+
+
+def build_history(rows: list[SampleRow], span: HistoryRange, resolution: str, step_s: int,
+                  metrics: list[str], latest: DashboardSnapshot | None, cfg: DashboardSettings,
+                  since: float, until: float) -> DashboardHistory:
+    series = []
+    for m in metrics:
+        scale, warn = scale_and_warn(m, latest, cfg)
+        avg = [_rounded(r.avg[m]) for r in rows]
+        peak = [_rounded(r.max[m]) if r.max[m] is not None else a for r, a in zip(rows, avg, strict=True)]
+        series.append(HistorySeries(metric=m, unit=UNITS[m], scale_max=scale, warn=warn, avg=avg, max=peak))
+    return DashboardHistory(range=span, resolution=resolution, step_s=step_s,
+                            since=datetime.fromtimestamp(since, tz=timezone.utc),
+                            until=datetime.fromtimestamp(until, tz=timezone.utc),
+                            ts=[datetime.fromtimestamp(r.ts, tz=timezone.utc) for r in rows], series=series)
+
+
 # ---- the running service ------------------------------------------------------------------------
 
 class DashboardService:
@@ -170,6 +238,18 @@ class DashboardService:
         self._ready = asyncio.Event()
         self._task: asyncio.Task | None = None
         self._tick_failing = False
+        self.repo = DashboardRepository(ctx.db)
+        self.detector = EventDetector(cfg)
+        local = ctx.settings.adapters.ai_host in LOCAL_HOSTS
+        self.crash = CrashWatcher(cfg, enabled=local)
+        self._crash_reason = None if local else f"Ollama läuft auf {ctx.settings.adapters.ai_host}, das Log liegt dort"
+        self._ticks = 0
+        self._last_maintenance: float | None = None
+
+    async def init_storage(self) -> None:
+        """Tables + crash log position. Called once by the module startup, before start()."""
+        await self.repo.create()
+        await asyncio.to_thread(self.crash.attach)
 
     @property
     def latest(self) -> DashboardSnapshot | None:
@@ -197,7 +277,85 @@ class DashboardService:
         self._ready.set()
         if self.ctx.events.subscriber_count:            # nobody listening -> skip the serialization
             self.ctx.events.publish(TOPIC, snap.model_dump(mode="json", by_alias=True))
+        # everything below is bookkeeping: it runs after the live picture is out
+        new = self.detector.observe(snap)
+        new += await self._crashes(snap.ts)
+        for ev in new:
+            await self._record(ev)
+        self._ticks += 1
+        if (self._ticks - 1) % self.cfg.persist_every_n_ticks == 0:   # tick 1, 6, 11 ...: first row right away
+            await self._store(self.repo.add_sample(snap.ts.timestamp(), sample_values(snap)))
+        mono = time.monotonic()
+        if self._last_maintenance is None or mono - self._last_maintenance >= MAINTENANCE_S:
+            self._last_maintenance = mono
+            now = time.time()
+            c = self.cfg
+            await self._store(self.repo.condense(now))
+            await self._store(self.repo.prune(now, c.retention_raw_h, c.retention_minute_d,
+                                              c.retention_hour_d, c.retention_events_d))
         return snap
+
+    async def _store(self, op) -> bool:
+        """Run one database operation; a full disk or locked file becomes a visible source error."""
+        try:
+            await op
+        except Exception as exc:
+            self.sampler.record_failure("history", exc)
+            return False
+        self.sampler.record_ok("history")
+        return True
+
+    async def _crashes(self, ts: datetime) -> list[NewEvent]:
+        try:
+            lines = await asyncio.to_thread(self.crash.poll)
+        except Exception as exc:                        # log unreadable: report, keep running
+            self.sampler.record_failure("ollama_log", exc)
+            return []
+        self.sampler.record_ok("ollama_log")
+        return [NewEvent(ts, "ollama_crash", "critical", f"Absturz im Ollama-Log: {line}") for line in lines]
+
+    async def _record(self, ev: NewEvent) -> None:
+        log.log(logging.WARNING if ev.level != "info" else logging.INFO, "event %s: %s", ev.kind, ev.message)
+        event_id: int | None = None
+        try:
+            event_id = await self.repo.add_event(ev.ts.timestamp(), ev.kind, ev.level, ev.subject, ev.message)
+            self.sampler.record_ok("history")
+        except Exception as exc:
+            self.sampler.record_failure("history", exc)  # still shown live, just not kept
+        out = DashboardEvent(id=event_id, ts=ev.ts, kind=ev.kind, level=ev.level, subject=ev.subject,
+                             message=ev.message)
+        self.ctx.events.publish(EVENT_TOPIC, out.model_dump(mode="json", by_alias=True))
+
+    # ---- read API ---------------------------------------------------------------------------
+
+    async def history(self, span: HistoryRange, metrics: list[HistoryMetric]) -> DashboardHistory:
+        seconds, resolution = HISTORY_RANGES[span]
+        until = time.time()
+        rows = await self.repo.history(resolution, until - seconds)
+        step = (self.cfg.interval_fast_s * self.cfg.persist_every_n_ticks if resolution == "raw"
+                else {"minute": 60, "hour": 3600}[resolution])
+        return build_history(rows, span, resolution, round(step), list(metrics) or list(METRICS),
+                             self._latest, self.cfg, since=until - seconds, until=until)
+
+    async def events(self, limit: int, before: int | None) -> EventPage:
+        rows = await self.repo.list_events(limit + 1, before)          # one extra: is there more?
+        more = len(rows) > limit
+        rows = rows[:limit]
+        events = [DashboardEvent(id=r.id, ts=datetime.fromtimestamp(r.ts, tz=timezone.utc), kind=r.kind,
+                                 level=r.level, subject=r.subject, message=r.message) for r in rows]
+        quiet = self.detector.quiet
+        if not self.crash.enabled:
+            watch = CrashWatch(active=False, file=None,
+                               reason=self._crash_reason or "keine Logpfade oder Muster konfiguriert")
+        elif self.crash.watching:
+            watch = CrashWatch(active=True, file=self.crash.watching, reason=None)
+        else:
+            watch = CrashWatch(active=False, file=None, reason="keine Ollama-Logdatei gefunden")
+        return EventPage(
+            events=events, next_before=rows[-1].id if more and rows else None,
+            quiet=[QuietCount(name=n, loads=c) for n, c in quiet.loads.most_common()],
+            quiet_since=quiet.since, crash_watch=watch,
+        )
 
     async def _run(self) -> None:
         loop = asyncio.get_running_loop()
