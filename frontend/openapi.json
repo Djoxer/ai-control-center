@@ -1,6 +1,19 @@
 {
   "components": {
     "schemas": {
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "title": "Detail",
+            "type": "array"
+          }
+        },
+        "title": "HTTPValidationError",
+        "type": "object"
+      },
       "HealthInfo": {
         "properties": {
           "database": {
@@ -34,6 +47,165 @@
           "modules"
         ],
         "title": "HealthInfo",
+        "type": "object"
+      },
+      "LogEntry": {
+        "properties": {
+          "exc": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Exc"
+          },
+          "file": {
+            "title": "File",
+            "type": "string"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Level"
+          },
+          "logger": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logger"
+          },
+          "msg": {
+            "title": "Msg",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "ts": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ts"
+          }
+        },
+        "required": [
+          "source",
+          "file",
+          "ts",
+          "level",
+          "logger",
+          "msg"
+        ],
+        "title": "LogEntry",
+        "type": "object"
+      },
+      "LogFileInfo": {
+        "properties": {
+          "modified": {
+            "format": "date-time",
+            "title": "Modified",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "sizeBytes": {
+            "title": "Sizebytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "sizeBytes",
+          "modified"
+        ],
+        "title": "LogFileInfo",
+        "type": "object"
+      },
+      "LogPage": {
+        "properties": {
+          "entries": {
+            "items": {
+              "$ref": "#/components/schemas/LogEntry"
+            },
+            "title": "Entries",
+            "type": "array"
+          },
+          "nextCursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Nextcursor"
+          }
+        },
+        "required": [
+          "entries",
+          "nextCursor"
+        ],
+        "title": "LogPage",
+        "type": "object"
+      },
+      "LogSourceInfo": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "files": {
+            "items": {
+              "$ref": "#/components/schemas/LogFileInfo"
+            },
+            "title": "Files",
+            "type": "array"
+          },
+          "format": {
+            "title": "Format",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "format",
+          "available",
+          "files"
+        ],
+        "title": "LogSourceInfo",
         "type": "object"
       },
       "ModuleInfo": {
@@ -86,6 +258,46 @@
         ],
         "title": "ModuleInfo",
         "type": "object"
+      },
+      "ValidationError": {
+        "properties": {
+          "ctx": {
+            "title": "Context",
+            "type": "object"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "title": "Location",
+            "type": "array"
+          },
+          "msg": {
+            "title": "Message",
+            "type": "string"
+          },
+          "type": {
+            "title": "Error Type",
+            "type": "string"
+          }
+        },
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError",
+        "type": "object"
       }
     }
   },
@@ -113,6 +325,200 @@
         "summary": "Health",
         "tags": [
           "core"
+        ]
+      }
+    },
+    "/api/v1/logs/entries": {
+      "get": {
+        "operationId": "logs_entries",
+        "parameters": [
+          {
+            "description": "source key from /sources, e.g. control-center",
+            "in": "query",
+            "name": "source",
+            "required": true,
+            "schema": {
+              "description": "source key from /sources, e.g. control-center",
+              "title": "Source",
+              "type": "string"
+            }
+          },
+          {
+            "description": "minimum level; hides lines without a level",
+            "in": "query",
+            "name": "level",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "enum": [
+                    "DEBUG",
+                    "INFO",
+                    "WARNING",
+                    "ERROR",
+                    "CRITICAL"
+                  ],
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "minimum level; hides lines without a level",
+              "title": "Level"
+            }
+          },
+          {
+            "description": "logger prefix, e.g. control_center.modules.logs",
+            "in": "query",
+            "name": "logger",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "logger prefix, e.g. control_center.modules.logs",
+              "title": "Logger"
+            }
+          },
+          {
+            "description": "case-insensitive text search",
+            "in": "query",
+            "name": "q",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minLength": 1,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "case-insensitive text search",
+              "title": "Q"
+            }
+          },
+          {
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Since"
+            }
+          },
+          {
+            "in": "query",
+            "name": "until",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Until"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "nextCursor of the previous page",
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "nextCursor of the previous page",
+              "title": "Cursor"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Entries",
+        "tags": [
+          "logs"
+        ]
+      }
+    },
+    "/api/v1/logs/sources": {
+      "get": {
+        "operationId": "logs_sources",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LogSourceInfo"
+                  },
+                  "title": "Response Logs Sources",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Sources",
+        "tags": [
+          "logs"
         ]
       }
     },

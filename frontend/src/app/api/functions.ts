@@ -5,3 +5,7 @@ export type { CoreHealth$Params as CoreHealth$Params } from './fn/core/core-heal
 export { coreHealth as coreHealth } from './fn/core/core-health';
 export type { CoreModules$Params as CoreModules$Params } from './fn/core/core-modules';
 export { coreModules as coreModules } from './fn/core/core-modules';
+export type { LogsEntries$Params as LogsEntries$Params } from './fn/logs/logs-entries';
+export { logsEntries as logsEntries } from './fn/logs/logs-entries';
+export type { LogsSources$Params as LogsSources$Params } from './fn/logs/logs-sources';
+export { logsSources as logsSources } from './fn/logs/logs-sources';

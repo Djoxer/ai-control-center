@@ -8,7 +8,7 @@ from __future__ import annotations
 import os
 from pathlib import Path
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 from pydantic_settings import (
     BaseSettings,
     PydanticBaseSettingsSource,
@@ -32,7 +32,18 @@ class LogConfig(BaseModel):
 
 
 class ModulesConfig(BaseModel):
+    """[modules] section. Besides 'disabled', every sub-table [modules.<key>] is passed to that module.
+
+    The core does not know the module schemas; each module validates its own table on startup.
+    """
+    model_config = ConfigDict(extra="allow")           # keeps [modules.logs] etc. in model_extra
+
     disabled: list[str] = Field(default_factory=list)  # discovered modules are on unless listed here
+
+    def section(self, key: str) -> dict:
+        """Raw config table for one module, {} if the toml has none."""
+        value = (self.model_extra or {}).get(key, {})
+        return value if isinstance(value, dict) else {}
 
 
 class Settings(BaseSettings):

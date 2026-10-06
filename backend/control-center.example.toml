@@ -15,3 +15,16 @@ backup_count = 5
 
 [modules]
 disabled = []                    # e.g. ["catalog"] to switch a module off without touching code
+
+# Per-module settings live in [modules.<key>]. Omit a table to use the module's defaults.
+[modules.logs]
+tail_interval_s = 1.0            # live tail: seconds between checks for new lines
+max_page_size = 1000             # upper limit for ?limit= on /api/v1/logs/entries
+
+# Extra log sources. "control-center" (our own log) is always present.
+# Defining [[modules.logs.sources]] REPLACES the default list (Ollama), so keep Ollama if you want it.
+[[modules.logs.sources]]
+key = "ollama"
+title = "Ollama"
+format = "text"                  # "json" only for our own JSON-line format
+paths = ["%LOCALAPPDATA%/Ollama/server*.log"]   # glob; matches server.log and rotated server-1.log ...

@@ -2,11 +2,15 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Any, Literal
+from typing import Any, Literal, TypeVar
+
+from pydantic import BaseModel
 
 from control_center.core.config import Settings
 from control_center.core.db import Database
 from control_center.core.events import EventBus
+
+M = TypeVar("M", bound=BaseModel)
 
 ModuleState = Literal["loaded", "starting", "running", "failed", "disabled"]
 
@@ -32,3 +36,10 @@ class AppContext:
     def service(self, name: str) -> Any | None:
         """None if the providing module is disabled or failed -> callers degrade gracefully."""
         return self.services.get(name)
+
+    def module_config(self, key: str, model: type[M]) -> M:
+        """Validate the [modules.<key>] toml table against the module's own settings model.
+
+        Raises on invalid values -> the module's startup fails and shows up as 'failed' in /health.
+        """
+        return model.model_validate(self.settings.modules.section(key))
