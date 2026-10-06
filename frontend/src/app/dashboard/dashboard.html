@@ -1,119 +1,291 @@
+@if (snapshot(); as s) {
 <div class="space-y-4">
+
+  <!-- Status line: live state, node, time of the snapshot, simulated sources -->
+  <section class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-400">
+    <span class="flex items-center gap-2" [title]="live() ? 'Neue Werte kommen per Live-Stream' : 'Keine neuen Werte'">
+      <span class="size-2 rounded-full"
+            [class.bg-emerald-400]="live()" [class.animate-pulse]="live()"
+            [class.bg-amber-400]="!live()"></span>
+      @if (live()) { Live } @else if (stale()) { Veraltet – keine neuen Werte } @else { Verbindung wird aufgebaut … }
+    </span>
+    <span>Knoten <span class="text-gray-200">{{ s.nodeId }}</span></span>
+    <span>Stand <span class="text-gray-200">{{ fmt.clockTime(s.ts) }}</span></span>
+    @if (s.simulated.length) {
+      <span class="flex items-center gap-1.5 rounded-full border border-amber-400/40 bg-amber-400/10 px-2.5 py-0.5 text-amber-200"
+            title="Diese Werte stammen aus einem aufgezeichneten Szenario ([adapters] fake_scenario), nicht vom echten Rechner.">
+        <app-icon name="info" class="size-3.5" />
+        Simulierte Daten: {{ simulatedLabel() }}
+      </span>
+    }
+  </section>
+
+  <!-- Warnings: critical first (backend order). Icon + level word, never color alone -->
+  @if (warnings().length) {
+    <section class="space-y-2" aria-label="Warnungen">
+      @for (w of warnings(); track w.code + ':' + (w.subject ?? '')) {
+        <div class="flex items-start gap-3 rounded-lg border px-4 py-3 text-sm" [class]="warningClass(w.level)"
+             [attr.role]="w.level === 'critical' ? 'alert' : 'status'">
+          <app-icon [name]="w.level === 'critical' ? 'error' : 'warning'" class="mt-0.5 size-5" />
+          <p><span class="font-semibold">{{ levelLabel(w.level) }}:</span> {{ w.message }}</p>
+        </div>
+      }
+    </section>
+  }
+
+  <!-- KPI row -->
   <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
     <article class="rounded-xl border border-white/10 bg-white/5 p-4">
       <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">GPU-Auslastung</p>
-      <p class="mt-3 text-3xl font-semibold text-white">0 %</p>
-      <div class="mt-4 h-1.5 rounded-full bg-white/10">
-        <div class="h-1.5 w-0 rounded-full bg-sky-400"></div>
-      </div>
-      <p class="mt-6 border-t border-white/10 pt-3 text-xs text-gray-400">NVIDIA GeForce RTX 5070 Ti</p>
+      @if (gpu(); as g) {
+        <p class="mt-3 text-3xl font-semibold text-white">{{ fmt.num(g.utilPercent) }} %</p>
+        <app-meter class="mt-4" [value]="g.utilPercent" label="GPU-Auslastung" />
+        <p class="mt-6 truncate border-t border-white/10 pt-3 text-xs text-gray-400" [title]="g.name">{{ g.name }}</p>
+        @if (g.driverVersion) { <p class="mt-1 text-xs text-gray-500">Treiber {{ g.driverVersion }}</p> }
+      } @else {
+        <p class="mt-3 text-3xl font-semibold text-gray-500">—</p>
+        <p class="mt-8 text-xs text-gray-500">{{ sourceError('gpu') ?? 'Keine GPU konfiguriert' }}</p>
+      }
     </article>
 
     <article class="rounded-xl border border-white/10 bg-white/5 p-4">
       <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">VRAM</p>
-      <p class="mt-3 text-3xl font-semibold text-white">8.3 %</p>
-      <div class="mt-4 h-1.5 rounded-full bg-white/10">
-        <div class="h-1.5 w-[8.3%] rounded-full bg-sky-400"></div>
-      </div>
-      <p class="mt-6 border-t border-white/10 pt-3 text-xs text-gray-400">1.355 / 16.303 MiB</p>
+      @if (gpu(); as g) {
+        <p class="mt-3 text-3xl font-semibold text-white">{{ fmt.num(vramPercent(), 1) }} %</p>
+        <app-meter class="mt-4" [value]="vramPercent()" [tone]="tone('vram_low')" label="VRAM belegt"
+                   [hint]="fmt.num(g.vramUsedMib) + ' von ' + fmt.num(g.vramTotalMib) + ' MiB belegt'" />
+        <p class="mt-6 border-t border-white/10 pt-3 text-xs text-gray-400">
+          {{ fmt.num(g.vramUsedMib) }} / {{ fmt.num(g.vramTotalMib) }} MiB ·
+          <span [class.text-amber-300]="tone('vram_low') === 'warning'">frei {{ fmt.num(vramFreeMib()) }} MiB</span>
+        </p>
+      } @else {
+        <p class="mt-3 text-3xl font-semibold text-gray-500">—</p>
+      }
     </article>
 
     <article class="rounded-xl border border-white/10 bg-white/5 p-4">
-      <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">Temperatur</p>
-      <p class="mt-3 text-3xl font-semibold text-white">41 °C</p>
-      <p class="mt-8 text-sm text-gray-400">Leistung: 24.51 W</p>
+      <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">Temperatur &amp; Leistung</p>
+      @if (gpu(); as g) {
+        <p class="mt-3 flex items-baseline gap-2 text-3xl font-semibold text-white">
+          {{ fmt.num(g.tempC) }} °C
+          @if (tone('gpu_hot') === 'warning') {
+            <span class="flex items-center gap-1 text-xs font-medium text-amber-300"><app-icon name="warning" class="size-3.5" /> heiß</span>
+          }
+        </p>
+        <p class="mt-3 flex justify-between text-xs text-gray-400">
+          <span>Leistung</span><span>{{ fmt.num(g.powerW, 1) }} / {{ fmt.num(g.powerLimitW) }} W</span>
+        </p>
+        <app-meter class="mt-1.5" [value]="fmt.share(g.powerW, g.powerLimitW)" label="Leistung im Verhältnis zum Limit"
+                   [hint]="fmt.num(g.powerW, 1) + ' W von ' + fmt.num(g.powerLimitW) + ' W'" />
+        <p class="mt-4 border-t border-white/10 pt-3 text-xs text-gray-400">
+          Lüfter {{ g.fanPercent === null ? 'k. A.' : g.fanPercent + ' %' }}
+        </p>
+        @if (g.throttleReasons.length) {
+          <p class="mt-2 flex flex-wrap gap-1.5">
+            @for (r of g.throttleReasons; track r) {
+              <span class="rounded-full border px-2 py-0.5 text-[11px]"
+                    [class]="fmt.THROTTLE_SERIOUS.has(r) ? 'border-amber-400/40 text-amber-200' : 'border-white/10 text-gray-400'">
+                {{ throttleLabel(r) }}
+              </span>
+            }
+          </p>
+        }
+      } @else {
+        <p class="mt-3 text-3xl font-semibold text-gray-500">—</p>
+      }
     </article>
 
     <article class="rounded-xl border border-white/10 bg-white/5 p-4">
       <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">Ollama</p>
-      <p class="mt-3 text-3xl font-semibold text-amber-400">idle</p>
-      <p class="mt-8 text-sm text-gray-400">Kein Modell geladen</p>
+      <p class="mt-3 flex items-center gap-2 text-3xl font-semibold text-white">
+        <span class="size-2.5 rounded-full" [class.bg-emerald-400]="s.ollamaOnline" [class.bg-red-500]="!s.ollamaOnline"></span>
+        {{ s.ollamaOnline ? 'online' : 'offline' }}
+      </p>
+      <p class="mt-8 text-sm text-gray-400">
+        @if (s.ollamaOnline) {
+          {{ s.models.length === 0 ? 'Kein Modell geladen' : s.models.length === 1 ? '1 Modell geladen' : s.models.length + ' Modelle geladen' }}
+        } @else {
+          nicht erreichbar
+          <span class="mt-1 line-clamp-2 block text-xs text-gray-500" [title]="sourceError('ollama') ?? ''">{{ sourceError('ollama') }}</span>
+        }
+      </p>
+      <p class="mt-2 text-xs text-gray-500">
+        @if (s.ollamaVersion) { Version {{ s.ollamaVersion }} }
+        @if (ollamaLatency() !== null) { · {{ fmt.ms(ollamaLatency()) }} }
+      </p>
     </article>
   </section>
 
-  <section class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-    <article class="rounded-xl border border-white/10 bg-white/5 p-4">
-      <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">Agentenstatus</p>
-      <p class="mt-3 text-xl font-semibold text-amber-400">Idle</p>
-      <p class="mt-2 text-sm text-gray-400">Kein aktuelles Claude-Code-Debuglog erkannt.</p>
-    </article>
-    <article class="rounded-xl border border-white/10 bg-white/5 p-4">
-      <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">Aktueller Task</p>
-      <p class="mt-3 text-xl font-semibold text-amber-400">kein Task</p>
-      <p class="mt-2 text-sm text-gray-500">–</p>
-    </article>
-    <article class="rounded-xl border border-white/10 bg-white/5 p-4">
-      <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">Turns / Tools</p>
-      <p class="mt-3 text-xl font-semibold text-white">–</p>
-      <p class="mt-2 text-sm text-gray-400">Tools: – · Read: – · Bash: – · Edit/Write: –</p>
-    </article>
-    <article class="rounded-xl border border-white/10 bg-white/5 p-4">
-      <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">Antwortlatenz</p>
-      <p class="mt-3 text-xl font-semibold text-white">–</p>
-      <p class="mt-2 text-sm text-gray-400">Laufzeit: –</p>
-    </article>
-  </section>
-
-  <section class="grid grid-cols-1 gap-4 xl:grid-cols-2">
-    <article class="min-h-64 rounded-xl border border-white/10 bg-white/5 p-4">
+  <!-- Loaded models -->
+  <section class="rounded-xl border border-white/10 bg-white/5">
+    <header class="flex items-center justify-between px-4 pt-4">
       <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">Geladene Modelle</p>
-      <p class="mt-6 text-sm text-gray-400">Keine Daten</p>
-    </article>
-
-    <article class="rounded-xl border border-white/10 bg-white/5 p-4">
-      <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">Lokale Prozesse</p>
-      <div class="mt-4 overflow-x-auto">
-        <table class="w-full text-left text-sm text-gray-300">
-          <thead class="text-xs text-gray-500">
-            <tr>
-              <th class="pb-3 font-medium">Prozess</th>
-              <th class="pb-3 font-medium">PID</th>
-              <th class="pb-3 font-medium">CPU-Zeit</th>
-              <th class="pb-3 font-medium">RAM</th>
-              <th class="pb-3 font-medium">Befehl</th>
+      <span class="text-xs text-gray-500">{{ s.models.length }}</span>
+    </header>
+    <div class="overflow-x-auto">
+      <table class="mt-2 w-full min-w-[46rem] text-left text-sm text-gray-300">
+        <thead class="text-xs text-gray-500">
+          <tr class="border-b border-white/10">
+            <th class="px-4 py-2 font-medium">Modell</th>
+            <th class="px-4 py-2 font-medium">GPU / CPU</th>
+            <th class="px-4 py-2 font-medium">Speicher</th>
+            <th class="px-4 py-2 font-medium">Kontext</th>
+            <th class="px-4 py-2 font-medium">Entladen</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-white/5">
+          @for (m of s.models; track m.digest + m.name) {
+            @let shares = fmt.placementShares(m);
+            <tr class="align-top">
+              <td class="px-4 py-3">
+                <p class="font-medium break-words text-white">{{ m.name }}</p>
+                <p class="mt-0.5 text-xs text-gray-500">{{ fmt.modelMeta(m) }}</p>
+              </td>
+              <td class="w-72 px-4 py-3">
+                <!-- two segments, 2px gap; the label below says the same in words -->
+                <div class="flex h-2 gap-0.5 overflow-hidden rounded-full bg-white/10"
+                     role="img" [attr.aria-label]="fmt.placementLabel(m)">
+                  @if (shares.gpu > 0) {
+                    <div class="h-2 basis-0 rounded-full bg-sky-400" [style.flex-grow]="shares.gpu"></div>
+                  }
+                  @if (shares.cpu > 0) {
+                    <div class="h-2 basis-0 rounded-full" [class]="cpuSegmentClass(m)" [style.flex-grow]="shares.cpu"></div>
+                  }
+                </div>
+                <p class="mt-1.5 flex items-center gap-1.5 text-xs"
+                   [class.text-gray-400]="m.placement === 'gpu' || m.placement === 'unknown'"
+                   [class.text-red-300]="m.placement === 'split'"
+                   [class.text-amber-300]="m.placement === 'cpu'">
+                  @if (m.placement === 'split') { <app-icon name="error" class="size-3.5" /> Teil-Offload: }
+                  @if (m.placement === 'cpu') { <app-icon name="warning" class="size-3.5" /> }
+                  {{ fmt.placementLabel(m) }}
+                </p>
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap">
+                {{ fmt.bytes(m.vramBytes) }} <span class="text-xs text-gray-500">VRAM</span>
+                <p class="mt-0.5 text-xs text-gray-500">gesamt {{ fmt.bytes(m.sizeBytes) }}</p>
+              </td>
+              <td class="px-4 py-3 whitespace-nowrap">{{ fmt.num(m.contextLength) }}</td>
+              <td class="px-4 py-3 whitespace-nowrap" [class.text-gray-500]="m.unloading">{{ fmt.expiry(m, s.ts) }}</td>
             </tr>
-          </thead>
-          <tbody class="divide-y divide-white/10">
+          } @empty {
             <tr>
-              <td class="py-3">com.docker.backend.exe</td>
-              <td>31176</td>
-              <td>439.7 s</td>
-              <td>64 MB</td>
-              <td class="max-w-48 truncate text-gray-400">C:\Program Files\Docker\...\com.docker.backend.exe</td>
+              <td colspan="5" class="px-4 py-8 text-center text-sm text-gray-500">
+                {{ s.ollamaOnline ? 'Kein Modell geladen' : 'Ollama nicht erreichbar' }}
+              </td>
             </tr>
-            <tr>
-              <td class="py-3">com.docker.backend.exe</td>
-              <td>29168</td>
-              <td>6898.8 s</td>
-              <td>271 MB</td>
-              <td class="max-w-48 truncate text-gray-400">C:\Program Files\Docker\...\services</td>
-            </tr>
-            <tr>
-              <td class="py-3">ollama.exe</td>
-              <td>20784</td>
-              <td>69.8 s</td>
-              <td>67 MB</td>
-              <td class="max-w-48 truncate text-gray-400">C:\Users\AppData\Local\Programs\Ollama\ollama.exe serve</td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </article>
+          }
+        </tbody>
+      </table>
+    </div>
   </section>
 
+  <!-- Services + system -->
   <section class="grid grid-cols-1 gap-4 xl:grid-cols-2">
     <article class="rounded-xl border border-white/10 bg-white/5 p-4">
-      <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">Letztes abgeschlossenes Agentenereignis</p>
-      <p class="mt-4 text-sm font-medium text-white">Noch kein abgeschlossenes Ergebnis vorhanden</p>
+      <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">Dienste</p>
+      <ul class="mt-3 divide-y divide-white/5">
+        @for (svc of s.services; track svc.key) {
+          <li class="flex items-center gap-3 py-2.5 text-sm" [title]="svc.error ?? ''">
+            <span class="size-2 shrink-0 rounded-full" [class.bg-emerald-400]="svc.up" [class.bg-red-500]="!svc.up"></span>
+            <span class="whitespace-nowrap text-white">{{ svc.title }}</span>
+            <span class="text-xs whitespace-nowrap" [class.text-gray-400]="svc.up" [class.text-red-300]="!svc.up">
+              {{ svc.up ? 'erreichbar' : 'nicht erreichbar' }}
+            </span>
+            <span class="ml-auto min-w-0 truncate text-xs text-gray-500">
+              @if (svc.up) {
+                @if (svc.latencyMs !== null) { {{ fmt.ms(svc.latencyMs) }} }
+                @if (svc.httpStatus && svc.httpStatus !== 200) { · HTTP {{ svc.httpStatus }} }
+              } @else {
+                {{ svc.error }}
+              }
+            </span>
+          </li>
+        }
+      </ul>
     </article>
+
     <article class="rounded-xl border border-white/10 bg-white/5 p-4">
-      <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">Aktuelle Aktivität</p>
-      <div class="mt-4 flex flex-wrap gap-2 text-xs text-gray-300">
-        <span class="rounded-full border border-white/10 px-3 py-1">Kein aktives Tool</span>
-        <span class="rounded-full border border-white/10 px-3 py-1">Letzte Aktivität: –</span>
-        <span class="rounded-full border border-white/10 px-3 py-1">Log: –</span>
-      </div>
-      <p class="mt-4 text-sm text-gray-400">Kein aktuelles Claude-Code-Debuglog erkannt.</p>
+      <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">System</p>
+      @if (s.host; as h) {
+        <dl class="mt-3 space-y-4 text-sm">
+          <div>
+            <div class="flex justify-between"><dt class="text-gray-400">CPU ({{ h.cpuCount }} Threads)</dt>
+              <dd class="text-white">{{ fmt.num(h.cpuPercent, 1) }} %</dd></div>
+            <app-meter class="mt-1.5" [value]="h.cpuPercent" label="CPU-Auslastung" />
+          </div>
+          <div>
+            <div class="flex justify-between"><dt class="text-gray-400">Arbeitsspeicher</dt>
+              <dd [class.text-white]="tone('ram_high') === 'normal'" [class.text-amber-300]="tone('ram_high') === 'warning'">
+                {{ fmt.bytes(h.ramUsedBytes) }} / {{ fmt.bytes(h.ramTotalBytes) }}</dd></div>
+            <app-meter class="mt-1.5" [value]="ramPercent()" [tone]="tone('ram_high')" label="Arbeitsspeicher belegt"
+                       [hint]="fmt.num(ramPercent(), 1) + ' % belegt'" />
+          </div>
+          @for (d of s.disks ?? []; track d.mount) {
+            <div>
+              <div class="flex justify-between"><dt class="text-gray-400">Laufwerk {{ d.mount }}</dt>
+                <dd [class.text-white]="tone('disk_low', d.mount) === 'normal'"
+                    [class.text-amber-300]="tone('disk_low', d.mount) === 'warning'">frei {{ fmt.bytes(d.freeBytes) }}</dd></div>
+              <app-meter class="mt-1.5" [value]="diskPercent(d)" [tone]="tone('disk_low', d.mount)"
+                         [label]="'Laufwerk ' + d.mount + ' belegt'" [hint]="fmt.bytes(d.usedBytes) + ' von ' + fmt.bytes(d.totalBytes)" />
+            </div>
+          }
+          <div class="flex justify-between border-t border-white/10 pt-3 text-xs">
+            <dt class="text-gray-400">Laufzeit seit Start</dt><dd class="text-gray-300">{{ fmt.duration(h.uptimeS) }}</dd>
+          </div>
+        </dl>
+      } @else {
+        <p class="mt-3 text-sm text-gray-500">{{ sourceError('host') ?? 'Keine Host-Daten' }}</p>
+      }
     </article>
   </section>
+
+  <!-- Processes (filtered by process_names in the backend config) -->
+  <section class="rounded-xl border border-white/10 bg-white/5">
+    <p class="px-4 pt-4 text-xs font-medium tracking-wide text-gray-400 uppercase">Prozesse</p>
+    <div class="overflow-x-auto">
+      <table class="mt-2 w-full min-w-[40rem] text-left text-sm text-gray-300">
+        <thead class="text-xs text-gray-500">
+          <tr class="border-b border-white/10">
+            <th class="px-4 py-2 font-medium">Prozess</th>
+            <th class="px-4 py-2 font-medium">PID</th>
+            <th class="px-4 py-2 text-right font-medium">CPU</th>
+            <th class="px-4 py-2 text-right font-medium">RAM</th>
+            <th class="px-4 py-2 font-medium">Befehl</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-white/5">
+          @for (p of s.host?.processes ?? []; track p.pid) {
+            <tr>
+              <td class="px-4 py-2 whitespace-nowrap text-white">{{ p.name }}</td>
+              <td class="px-4 py-2 text-gray-400 tabular-nums">{{ p.pid }}</td>
+              <td class="px-4 py-2 text-right whitespace-nowrap tabular-nums">{{ p.cpuPercent === null ? '—' : fmt.num(p.cpuPercent, 1) + ' %' }}</td>
+              <td class="px-4 py-2 text-right whitespace-nowrap tabular-nums">{{ fmt.bytes(p.rssBytes) }}</td>
+              <td class="max-w-md truncate px-4 py-2 font-mono text-xs text-gray-400" [title]="p.cmdline ?? ''">{{ p.cmdline ?? '—' }}</td>
+            </tr>
+          } @empty {
+            <tr><td colspan="5" class="px-4 py-6 text-center text-sm text-gray-500">Keine passenden Prozesse</td></tr>
+          }
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- Data sources that failed: technical, so small and at the bottom -->
+  @if (s.errors.length) {
+    <section class="rounded-xl border border-white/10 bg-white/5 p-4">
+      <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">Datenquellen mit Fehlern</p>
+      <ul class="mt-2 space-y-1 text-xs text-gray-400">
+        @for (e of s.errors; track e.source) {
+          <li><span class="text-gray-200">{{ sourceLabel(e.source) }}</span>
+            seit {{ fmt.clockTime(e.since) }}: <span class="font-mono">{{ e.message }}</span></li>
+        }
+      </ul>
+    </section>
+  }
 </div>
+} @else if (error(); as err) {
+  <p class="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300" role="alert">{{ err }}</p>
+} @else {
+  <p class="py-10 text-center text-sm text-gray-500">Lade Dashboard …</p>
+}

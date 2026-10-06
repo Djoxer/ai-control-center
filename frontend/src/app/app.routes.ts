@@ -16,7 +16,7 @@ export const routes: Routes = [
   {
     path: 'catalog',
     component: Catalog,
-    title: 'Catalog',
+    title: 'Katalog',
     data: { nav: 'main', icon: 'list', module: 'catalog' }
   },
   {
@@ -28,7 +28,7 @@ export const routes: Routes = [
   {
     path: 'settings',
     component: Settings,
-    title: 'Settings',
+    title: 'Einstellungen',
     data: { nav: 'footer', icon: 'settings', module: 'settings' }
   }
 ];
