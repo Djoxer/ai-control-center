@@ -3,13 +3,14 @@ import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
 import { provideRouter } from '@angular/router';
 import { sidebarServiceStub } from './testing/sidebar-service.stub';
+import { fakeEventSourceProvider } from './testing/fake-event-source';
 import { App } from './app';
 
 describe('App', () => {
   beforeEach(async () => {
     await TestBed.configureTestingModule({
       imports: [App],
-      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), sidebarServiceStub],
+      providers: [provideRouter([]), provideHttpClient(), provideHttpClientTesting(), sidebarServiceStub, fakeEventSourceProvider],
     }).compileComponents();
   });
 

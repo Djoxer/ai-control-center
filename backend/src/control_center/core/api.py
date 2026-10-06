@@ -10,6 +10,7 @@ from fastapi.responses import StreamingResponse
 
 from control_center import __version__
 from control_center.core.context import AppContext, ModuleState
+from control_center.core.events import CLOSED, EventBus
 from control_center.core.schemas import CamelModel
 
 router = APIRouter(prefix="/api/v1", tags=["core"])
@@ -66,6 +67,31 @@ async def modules(request: Request) -> list[ModuleInfo]:
     return module_infos(ctx_of(request))
 
 
+RETRY_MS = 3000                     # browser reconnect delay after the stream drops
+
+
+async def sse_events(bus: EventBus, topics: list[str], heartbeat: float = HEARTBEAT_SECONDS) -> AsyncIterator[str]:
+    """SSE wire format. Every event is an unnamed 'message' carrying {topic, data}.
+
+    Unnamed on purpose: EventSource cannot listen to wildcard event names, so one onmessage
+    handler in Angular receives everything and dispatches by topic prefix.
+    """
+    with bus.subscription() as queue:
+        yield f"retry: {RETRY_MS}\n: connected\n\n"      # retry delay + comment flushes headers immediately
+        while True:
+            try:
+                ev = await asyncio.wait_for(queue.get(), heartbeat)
+            except asyncio.TimeoutError:
+                yield ": heartbeat\n\n"
+                continue
+            if ev is CLOSED:
+                return                                  # server shuts down: end the response cleanly
+            if not topic_matches(ev.topic, topics):
+                continue
+            payload = json.dumps({"topic": ev.topic, "data": ev.data}, ensure_ascii=False)
+            yield f"data: {payload}\n\n"
+
+
 # Not in OpenAPI: SSE is consumed with EventSource, not HttpClient. A generated client method
 # would try to read an endless response as JSON and never resolve.
 @router.get("/stream", include_in_schema=False)
@@ -73,24 +99,8 @@ async def stream(
     request: Request,
     topics: list[str] = Query(default_factory=list, description="topic prefixes, e.g. dashboard"),
 ) -> StreamingResponse:
-    ctx = ctx_of(request)
-
-    async def body() -> AsyncIterator[str]:
-        with ctx.events.subscription() as queue:
-            yield ": connected\n\n"                         # comment line, flushes headers immediately
-            while True:
-                try:
-                    ev = await asyncio.wait_for(queue.get(), HEARTBEAT_SECONDS)
-                except asyncio.TimeoutError:
-                    yield ": heartbeat\n\n"
-                    continue
-                if not topic_matches(ev.topic, topics):
-                    continue
-                # "event:" lets Angular use addEventListener('dashboard.sample', ...)
-                yield f"event: {ev.topic}\ndata: {json.dumps(ev.data, ensure_ascii=False)}\n\n"
-
     return StreamingResponse(
-        body(),
+        sse_events(ctx_of(request).events, topics),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

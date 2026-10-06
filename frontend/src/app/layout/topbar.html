@@ -28,6 +28,8 @@
         <span class="size-2 rounded-full"
               [class.bg-emerald-400]="shell.status() === 'ok'"
               [class.bg-amber-400]="shell.status() === 'degraded' || shell.status() === 'unknown'"
+              [class.bg-sky-400]="shell.status() === 'reconnecting'"
+              [class.animate-pulse]="shell.status() === 'reconnecting'"
               [class.bg-red-500]="shell.status() === 'offline'"></span>
         <span>{{ shell.status() }}</span>
         @if (shell.health(); as h) {

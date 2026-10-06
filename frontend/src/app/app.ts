@@ -13,6 +13,6 @@ export class App implements OnInit {
   private readonly shell = inject(ShellStore);
 
   ngOnInit(): void {
-    void this.shell.refresh();   // one health call feeds topbar status and sidebar module states
+    this.shell.start();   // health check + live stream; feeds topbar status and sidebar module states
   }
 }
