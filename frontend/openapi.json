@@ -1,6 +1,301 @@
 {
   "components": {
     "schemas": {
+      "DashboardSnapshot": {
+        "properties": {
+          "disks": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/DiskUsage"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Disks"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/SourceError"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "gpu": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/GpuState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "host": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/HostState"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/LoadedModel"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "nodeId": {
+            "title": "Nodeid",
+            "type": "string"
+          },
+          "ollamaOnline": {
+            "title": "Ollamaonline",
+            "type": "boolean"
+          },
+          "ollamaVersion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ollamaversion"
+          },
+          "services": {
+            "items": {
+              "$ref": "#/components/schemas/ServiceStatus"
+            },
+            "title": "Services",
+            "type": "array"
+          },
+          "simulated": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Simulated",
+            "type": "array"
+          },
+          "ts": {
+            "format": "date-time",
+            "title": "Ts",
+            "type": "string"
+          },
+          "warnings": {
+            "items": {
+              "$ref": "#/components/schemas/DashboardWarning"
+            },
+            "title": "Warnings",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ts",
+          "nodeId",
+          "simulated",
+          "ollamaOnline",
+          "ollamaVersion",
+          "models",
+          "gpu",
+          "host",
+          "disks",
+          "services",
+          "warnings",
+          "errors"
+        ],
+        "title": "DashboardSnapshot",
+        "type": "object"
+      },
+      "DashboardWarning": {
+        "properties": {
+          "code": {
+            "enum": [
+              "ollama_offline",
+              "model_split",
+              "model_cpu",
+              "vram_low",
+              "gpu_hot",
+              "gpu_throttled",
+              "ram_high",
+              "disk_low",
+              "service_down"
+            ],
+            "title": "Code",
+            "type": "string"
+          },
+          "level": {
+            "enum": [
+              "critical",
+              "warning",
+              "info"
+            ],
+            "title": "Level",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          }
+        },
+        "required": [
+          "code",
+          "level",
+          "message",
+          "subject"
+        ],
+        "title": "DashboardWarning",
+        "type": "object"
+      },
+      "DiskUsage": {
+        "properties": {
+          "freeBytes": {
+            "title": "Freebytes",
+            "type": "integer"
+          },
+          "mount": {
+            "title": "Mount",
+            "type": "string"
+          },
+          "totalBytes": {
+            "title": "Totalbytes",
+            "type": "integer"
+          },
+          "usedBytes": {
+            "title": "Usedbytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "mount",
+          "totalBytes",
+          "usedBytes",
+          "freeBytes"
+        ],
+        "title": "DiskUsage",
+        "type": "object"
+      },
+      "GpuState": {
+        "properties": {
+          "driverVersion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Driverversion"
+          },
+          "fanPercent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fanpercent"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "powerLimitW": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Powerlimitw"
+          },
+          "powerW": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Powerw"
+          },
+          "tempC": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tempc"
+          },
+          "throttleReasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Throttlereasons",
+            "type": "array"
+          },
+          "utilPercent": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Utilpercent"
+          },
+          "vramTotalMib": {
+            "title": "Vramtotalmib",
+            "type": "integer"
+          },
+          "vramUsedMib": {
+            "title": "Vramusedmib",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "driverVersion",
+          "utilPercent",
+          "vramUsedMib",
+          "vramTotalMib",
+          "tempC",
+          "powerW",
+          "powerLimitW",
+          "fanPercent",
+          "throttleReasons"
+        ],
+        "title": "GpuState",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -47,6 +342,176 @@
           "modules"
         ],
         "title": "HealthInfo",
+        "type": "object"
+      },
+      "HostState": {
+        "properties": {
+          "cpuCount": {
+            "title": "Cpucount",
+            "type": "integer"
+          },
+          "cpuPercent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cpupercent"
+          },
+          "processes": {
+            "items": {
+              "$ref": "#/components/schemas/ProcessInfo"
+            },
+            "title": "Processes",
+            "type": "array"
+          },
+          "ramTotalBytes": {
+            "title": "Ramtotalbytes",
+            "type": "integer"
+          },
+          "ramUsedBytes": {
+            "title": "Ramusedbytes",
+            "type": "integer"
+          },
+          "uptimeS": {
+            "title": "Uptimes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "cpuPercent",
+          "cpuCount",
+          "ramUsedBytes",
+          "ramTotalBytes",
+          "uptimeS",
+          "processes"
+        ],
+        "title": "HostState",
+        "type": "object"
+      },
+      "LoadedModel": {
+        "properties": {
+          "contextLength": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contextlength"
+          },
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "expiresAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expiresat"
+          },
+          "family": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Family"
+          },
+          "gpuRatio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gpuratio"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "parameterSize": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parametersize"
+          },
+          "pinned": {
+            "title": "Pinned",
+            "type": "boolean"
+          },
+          "placement": {
+            "enum": [
+              "gpu",
+              "split",
+              "cpu",
+              "unknown"
+            ],
+            "title": "Placement",
+            "type": "string"
+          },
+          "quantization": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantization"
+          },
+          "sizeBytes": {
+            "title": "Sizebytes",
+            "type": "integer"
+          },
+          "unloading": {
+            "title": "Unloading",
+            "type": "boolean"
+          },
+          "vramBytes": {
+            "title": "Vrambytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "digest",
+          "family",
+          "parameterSize",
+          "quantization",
+          "sizeBytes",
+          "vramBytes",
+          "gpuRatio",
+          "placement",
+          "contextLength",
+          "expiresAt",
+          "pinned",
+          "unloading"
+        ],
+        "title": "LoadedModel",
         "type": "object"
       },
       "LogEntry": {
@@ -259,6 +724,143 @@
         "title": "ModuleInfo",
         "type": "object"
       },
+      "ProcessInfo": {
+        "properties": {
+          "cmdline": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cmdline"
+          },
+          "cpuPercent": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cpupercent"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "pid": {
+            "title": "Pid",
+            "type": "integer"
+          },
+          "rssBytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rssbytes"
+          }
+        },
+        "required": [
+          "name",
+          "pid",
+          "cpuPercent",
+          "rssBytes",
+          "cmdline"
+        ],
+        "title": "ProcessInfo",
+        "type": "object"
+      },
+      "ServiceStatus": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "httpStatus": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Httpstatus"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "latencyMs": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latencyms"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "up": {
+            "title": "Up",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "key",
+          "title",
+          "up",
+          "httpStatus",
+          "latencyMs",
+          "error"
+        ],
+        "title": "ServiceStatus",
+        "type": "object"
+      },
+      "SourceError": {
+        "properties": {
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "since": {
+            "format": "date-time",
+            "title": "Since",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source",
+          "message",
+          "since"
+        ],
+        "title": "SourceError",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -307,6 +909,27 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/dashboard/snapshot": {
+      "get": {
+        "operationId": "dashboard_snapshot",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DashboardSnapshot"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Snapshot",
+        "tags": [
+          "dashboard"
+        ]
+      }
+    },
     "/api/v1/health": {
       "get": {
         "operationId": "core_health",

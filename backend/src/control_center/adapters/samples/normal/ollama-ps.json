@@ -1,0 +1,42 @@
+{
+  "models": [
+    {
+      "name": "qwen3.5-9b-64k-code:latest",
+      "model": "qwen3.5-9b-64k-code:latest",
+      "size": 12138315776,
+      "digest": "fbfc32efd05860aa92bdcea009abbefdef0ca911b2c131fc2b8a3c4c585a1070",
+      "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "qwen3",
+        "families": [
+          "qwen3"
+        ],
+        "parameter_size": "9.0B",
+        "quantization_level": "Q4_K_M"
+      },
+      "expires_at": "2026-10-06T12:04:00.123456789+02:00",
+      "size_vram": 12138315776,
+      "context_length": 65536
+    },
+    {
+      "name": "nomic-embed-text:latest",
+      "model": "nomic-embed-text:latest",
+      "size": 605028352,
+      "digest": "10886753ec3b09dda767d55999092b801d783cdc24f9e0e5b10045071e2d9a06",
+      "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "nomic-bert",
+        "families": [
+          "nomic-bert"
+        ],
+        "parameter_size": "137M",
+        "quantization_level": "F16"
+      },
+      "expires_at": "2026-10-06T12:01:00.5+02:00",
+      "size_vram": 605028352,
+      "context_length": 8192
+    }
+  ]
+}

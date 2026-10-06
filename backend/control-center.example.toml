@@ -13,6 +13,18 @@ file_name = "control-center.log"
 max_bytes = 10485760
 backup_count = 5
 
+# Where the external systems are - shared by every module (dashboard now, catalog later).
+# Second PC: ai_host = the AI box's LAN IP, gpu = "fake", host = "fake"
+# (NVML and psutil only see the machine they run on; Ollama is reached over the LAN).
+[adapters]
+ai_host = "127.0.0.1"
+ollama = "http"                  # http | fake
+ollama_url = "http://{ai_host}:11434"    # {ai_host} is replaced by the value above
+gpu = "nvml"                     # nvml | fake | none (no NVIDIA GPU, no error)
+host = "psutil"                  # psutil | fake
+fake_scenario = "normal"         # normal | offload | idle | ollama-down (src/control_center/adapters/samples/)
+timeout_s = 2.0                  # per call; a hanging source must not stall the others
+
 [modules]
 disabled = []                    # e.g. ["catalog"] to switch a module off without touching code
 
@@ -28,3 +40,34 @@ key = "ollama"
 title = "Ollama"
 format = "text"                  # "json" only for our own JSON-line format
 paths = ["%LOCALAPPDATA%/Ollama/server*.log"]   # glob; matches server.log and rotated server-1.log ...
+
+[modules.dashboard]
+# node_id = "ai-box"             # label of the observed machine; default: host name, or ai_host when remote
+interval_fast_s = 2.0            # loaded models, GPU
+interval_medium_s = 10.0         # CPU/RAM/processes, service probes
+interval_slow_s = 60.0           # Ollama version, disks
+offload_threshold = 1.0          # GPU share below this = model partly on the CPU (crash risk on Blackwell)
+vram_headroom_warn_mib = 1500    # free VRAM below this -> warning
+temp_warn_c = 83
+ram_warn_percent = 90
+disk_warn_free_gib = 20
+process_names = ["ollama*", "llama-server*", "com.docker.backend", "python*"]   # globs, lower case, no .exe
+process_cmdline = "short"        # full | short | off - the dashboard is visible in the LAN
+disk_paths = ["%OLLAMA_MODELS%", "%USERPROFILE%/.ollama/models"]   # unset variables are skipped
+
+# Neighbouring services. Defining [[modules.dashboard.probes]] REPLACES the default list.
+# "Up" = any HTTP answer below 500 (a 405 from the MCP endpoint is an alive server).
+[[modules.dashboard.probes]]
+key = "mcp"
+title = "MCP-Server"
+url = "http://{ai_host}:8000/mcp"
+
+[[modules.dashboard.probes]]
+key = "openwebui"
+title = "OpenWebUI"
+url = "http://{ai_host}:3000/health"
+
+[[modules.dashboard.probes]]
+key = "qdrant"
+title = "Qdrant"
+url = "http://{ai_host}:6333/healthz"

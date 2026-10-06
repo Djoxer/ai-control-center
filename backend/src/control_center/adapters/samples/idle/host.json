@@ -1,0 +1,37 @@
+{
+  "cpu_percent": 2.1,
+  "cpu_count": 16,
+  "ram_total_bytes": 34163015680,
+  "ram_used_bytes": 9412034560,
+  "boot_time": "2026-10-06T06:12:00+00:00",
+  "processes": [
+    {
+      "name": "ollama app.exe",
+      "pid": 4120,
+      "cpu_percent": 0.0,
+      "rss_bytes": 48234496,
+      "cmdline": "ollama app.exe"
+    },
+    {
+      "name": "ollama.exe",
+      "pid": 6232,
+      "cpu_percent": 0.2,
+      "rss_bytes": 112074752,
+      "cmdline": "ollama.exe serve"
+    },
+    {
+      "name": "com.docker.backend.exe",
+      "pid": 3300,
+      "cpu_percent": 0.6,
+      "rss_bytes": 214597632,
+      "cmdline": "com.docker.backend.exe"
+    },
+    {
+      "name": "python.exe",
+      "pid": 7012,
+      "cpu_percent": 0.3,
+      "rss_bytes": 96468992,
+      "cmdline": "python.exe -m control_center"
+    }
+  ]
+}

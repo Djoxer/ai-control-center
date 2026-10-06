@@ -1,0 +1,14 @@
+{
+  "name": "NVIDIA GeForce RTX 5070 Ti",
+  "driver_version": "581.42",
+  "util_percent": 41,
+  "vram_used_mib": 15900,
+  "vram_total_mib": 16303,
+  "temp_c": 58,
+  "power_w": 162.8,
+  "power_limit_w": 300.0,
+  "fan_percent": 39,
+  "throttle_reasons": [
+    "power_cap"
+  ]
+}

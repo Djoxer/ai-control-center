@@ -6,6 +6,7 @@ from typing import Any, Literal, TypeVar
 
 from pydantic import BaseModel
 
+from control_center.adapters.registry import Adapters
 from control_center.core.config import Settings
 from control_center.core.db import Database
 from control_center.core.events import EventBus
@@ -32,6 +33,13 @@ class AppContext:
     events: EventBus
     modules: dict[str, ModuleStatus] = field(default_factory=dict)
     services: dict[str, Any] = field(default_factory=dict)
+    # shared connections to Ollama, GPU and OS; None only until __post_init__ has run
+    adapters: Adapters = None  # type: ignore[assignment]
+
+    def __post_init__(self) -> None:
+        if self.adapters is None:
+            # cheap: nothing connects here, open() runs in the app lifespan
+            self.adapters = Adapters(self.settings.adapters)
 
     def service(self, name: str) -> Any | None:
         """None if the providing module is disabled or failed -> callers degrade gracefully."""

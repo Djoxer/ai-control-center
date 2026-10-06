@@ -14,6 +14,25 @@ Control plane for the local AI box (Ollama, GPU, model catalog, logs). OpenWebUI
     uv sync
     uv run python -m control_center
 
+## Develop on a second PC
+
+NVML (GPU) and psutil (host) only see the machine they run on. On the second PC, read Ollama
+over the LAN and replay GPU/host from a recorded scenario - in `backend/control-center.toml`:
+
+    [adapters]
+    ai_host = "<AI box IP>"
+    gpu = "fake"
+    host = "fake"
+    fake_scenario = "normal"      # normal | offload | idle | ollama-down
+
+`ollama = "fake"` as well gives a dashboard without any AI box (offload demo, presentations).
+The UI labels simulated sources via `simulated` in the snapshot.
+
+Record real scenarios on the AI box (replaces the synthetic sample files):
+
+    cd backend
+    uv run python -m control_center.capture_samples src/control_center/adapters/samples/normal
+
 ## Add a module
 
 1. Create `backend/src/control_center/modules/<key>/`

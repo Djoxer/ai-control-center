@@ -7,6 +7,7 @@ from __future__ import annotations
 
 import os
 from pathlib import Path
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic_settings import (
@@ -29,6 +30,27 @@ class LogConfig(BaseModel):
     file_name: str = "control-center.log"      # lives in <data_dir>/logs/
     max_bytes: int = 10 * 1024 * 1024          # rotate at 10 MB
     backup_count: int = 5                      # keep control-center.log.1 ... .5
+
+
+class AdaptersConfig(BaseModel):
+    """[adapters] section: where the external systems live and whether to simulate them.
+
+    Core, not a module table: the dashboard reads Ollama and the GPU today, the catalog and a
+    models module will need the very same connections later. One address, one place to change it.
+    """
+    ai_host: str = "127.0.0.1"                         # the AI box; on a second PC: its LAN IP
+    ollama: Literal["http", "fake"] = "http"
+    ollama_url: str = "http://{ai_host}:11434"          # {ai_host} is replaced, see expand()
+    gpu: Literal["nvml", "fake", "none"] = "nvml"       # none = machine without NVIDIA GPU, no error shown
+    gpu_index: int = Field(0, ge=0)                     # which GPU NVML reports (the AI box has exactly one)
+    host: Literal["psutil", "fake"] = "psutil"          # CPU, RAM, disks, processes
+    # built-in scenario folder in control_center/adapters/samples/ that the fake adapters replay
+    fake_scenario: str = Field("normal", pattern=r"^[a-z0-9][a-z0-9-]*$")
+    timeout_s: float = Field(2.0, gt=0, le=30)          # per call; a hanging source must not stall the others
+
+    def expand(self, url: str) -> str:
+        """'http://{ai_host}:3000' -> 'http://192.168.x.y:3000'. Lets the second PC change one value only."""
+        return url.replace("{ai_host}", self.ai_host)
 
 
 class ModulesConfig(BaseModel):
@@ -59,6 +81,7 @@ class Settings(BaseSettings):
     frontend_dist: Path | None = None          # Angular build output; None = API only (dev mode)
     cors_origins: list[str] = Field(default_factory=list)  # only needed for "ng serve" without proxy
     log: LogConfig = Field(default_factory=LogConfig)
+    adapters: AdaptersConfig = Field(default_factory=AdaptersConfig)
     modules: ModulesConfig = Field(default_factory=ModulesConfig)
 
     @classmethod

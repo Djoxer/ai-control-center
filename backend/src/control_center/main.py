@@ -58,6 +58,7 @@ def create_app(
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         await ctx.db.open()
+        await ctx.adapters.open()                       # before modules: their startup may use them
         started: list[ModuleSpec] = []
         for s in active:                                # already sorted by order
             status = ctx.modules[s.key]
@@ -82,6 +83,7 @@ def create_app(
                         await s.on_shutdown(ctx)
                     except Exception:
                         log.exception("module %s failed to stop", s.key)
+            await ctx.adapters.close()                  # after modules: their tasks are stopped by now
             await ctx.db.close()
 
     app = FastAPI(title="AI Control Center", version=__version__, lifespan=lifespan,

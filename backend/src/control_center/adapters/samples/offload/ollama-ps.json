@@ -1,0 +1,23 @@
+{
+  "models": [
+    {
+      "name": "qwen2.5-coder:14b-instruct-q4_K_M",
+      "model": "qwen2.5-coder:14b-instruct-q4_K_M",
+      "size": 17179869184,
+      "digest": "b8b44a67069a840acee8d9e8c613308ef1ef1657c4503029cce2e4b7f99e73c5",
+      "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "qwen2",
+        "families": [
+          "qwen2"
+        ],
+        "parameter_size": "14.8B",
+        "quantization_level": "Q4_K_M"
+      },
+      "expires_at": "2026-10-06T12:05:00+02:00",
+      "size_vram": 14495514624,
+      "context_length": 32768
+    }
+  ]
+}
