@@ -61,19 +61,15 @@
 </ng-template>
 
 <!-- Mobile: native modal dialog, only below lg -->
-<dialog #mobileDialog
-        (close)="sidebar.close()"
-        (click)="onDialogClick($event)"
+<dialog [appModal]="sidebar.mobileOpen()" (dismiss)="sidebar.close()"
         class="m-0 h-dvh max-h-none w-full max-w-xs bg-transparent p-0
                backdrop:bg-gray-900/80 lg:hidden">
   <!-- Layout lives on the inner wrapper: 'flex' on <dialog> would break its closed state -->
   <div class="relative flex h-full flex-col bg-gray-900">
     <button type="button" (click)="sidebar.close()"
             class="absolute right-3 top-4 z-10 cursor-pointer p-2 text-gray-400 hover:text-white">
-      <span class="sr-only">Close sidebar</span>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" aria-hidden="true" class="size-6">
-        <path d="M6 18 18 6M6 6l12 12" stroke-linecap="round" stroke-linejoin="round" />
-      </svg>
+      <span class="sr-only">Menü schließen</span>
+      <app-icon name="close" class="size-6" />
     </button>
     <ng-container *ngTemplateOutlet="sidebarContent" />
   </div>

@@ -65,10 +65,26 @@ export const ui = {
   toggle:
     'rounded-lg border border-white/10 px-3 py-1.5 text-sm font-medium text-gray-300 hover:bg-white/5 ' +
     'aria-pressed:border-sky-400/50 aria-pressed:bg-sky-400/10 aria-pressed:text-white',
+  /** Icon-only button (menu, close). Negative margin: big hit area without shifting the layout. */
+  iconButton: '-m-2.5 flex items-center p-2.5 text-gray-400 hover:text-white',
+  /** Small rounded button with a status dot and text (backend status in the top bar). */
+  chip: 'flex items-center gap-x-2 rounded-full border border-white/10 px-3 py-1 text-xs text-gray-300 hover:bg-white/5',
   /** Frame of a segmented control (several small options in one box). */
   segmented: 'flex rounded-lg border border-white/10 p-0.5 text-xs',
   /** One option of a segmented control; selected via aria-pressed="true". */
   segment: 'rounded-md px-2.5 py-1 text-gray-400 hover:text-white aria-pressed:bg-white/10 aria-pressed:text-white',
+
+  // ---- overlays (native <dialog>, dropdown menu) -------------------------------------------------
+  /** Modal dialog panel. Centering and width come from <app-dialog>; the backdrop dims the page. */
+  dialog: 'rounded-xl border border-white/10 bg-gray-900 text-sm text-gray-300 shadow-2xl backdrop:bg-gray-950/80',
+  /** Heading inside a dialog. */
+  dialogTitle: 'text-base font-semibold text-white',
+  /** Dropdown panel of <app-menu>. */
+  menu: 'rounded-lg border border-white/10 bg-gray-800 py-1 shadow-lg',
+  /** One entry of a dropdown menu (button or link with role="menuitem"). */
+  menuItem:
+    'flex w-full items-center gap-2 px-3 py-1.5 text-left text-sm text-gray-200 ' +
+    'hover:bg-white/5 focus:bg-white/5 focus:outline-hidden',
 
   // ---- tables -----------------------------------------------------------------------------------
   /** Table body text. Cell padding stays in the template (density differs per table). */
@@ -117,7 +133,7 @@ export const ui = {
 export type UiToken = keyof typeof ui;
 
 export interface UiDoc {
-  group: 'Flächen' | 'Text' | 'Formular' | 'Buttons' | 'Tabellen' | 'Hinweise' | 'Farben';
+  group: 'Flächen' | 'Text' | 'Formular' | 'Buttons' | 'Overlays' | 'Tabellen' | 'Hinweise' | 'Farben';
   label: string;                 // German name shown in the style guide
 }
 
@@ -140,8 +156,14 @@ export const UI_DOCS: Record<UiToken, UiDoc> = {
   button: { group: 'Buttons', label: 'Button' },
   buttonSmall: { group: 'Buttons', label: 'Button klein' },
   toggle: { group: 'Buttons', label: 'Umschalter (Tab)' },
+  iconButton: { group: 'Buttons', label: 'Icon-Button' },
+  chip: { group: 'Buttons', label: 'Status-Chip' },
   segmented: { group: 'Buttons', label: 'Segment-Gruppe' },
   segment: { group: 'Buttons', label: 'Segment' },
+  dialog: { group: 'Overlays', label: 'Dialog' },
+  dialogTitle: { group: 'Overlays', label: 'Dialog-Titel' },
+  menu: { group: 'Overlays', label: 'Menü' },
+  menuItem: { group: 'Overlays', label: 'Menüeintrag' },
   table: { group: 'Tabellen', label: 'Tabelle' },
   thead: { group: 'Tabellen', label: 'Tabellenkopf' },
   headRow: { group: 'Tabellen', label: 'Kopfzeile' },

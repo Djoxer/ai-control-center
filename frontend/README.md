@@ -5,7 +5,7 @@
     npm ci
     ng serve            # http://localhost:4200, /api is proxied to the backend
 
-The proxy (`proxy.conf.mjs`) forwards /api to the backend, so there is no CORS setup and SSE works
+The proxy (`proxy.conf.mjs`) forwards /api (and /docs, /openapi.json for the API documentation) to the backend, so there is no CORS setup and SSE works
 as in production. The target comes from the environment variable `ACC_DEV_BACKEND`:
 
     # once, persistent for your Windows user (open a new terminal afterwards):
@@ -29,6 +29,20 @@ buttons, notices, tone colors). Templates bind them and add layout next to it:
 
 Tokens carry the look, templates the layout (margins, padding of cards and cells, width). New
 repeated element -> new token plus an entry in `UI_DOCS` (the /dev style guide shows every entry).
+
+## Dialogs and menus
+
+Native browser elements, state in Angular signals - no third-party component script.
+
+- `<app-dialog title="…" [open]="x()" (dismiss)="x.set(false)">` - modal with title bar, content and
+  an optional `<div dialogActions>` row. Esc, the × button and a backdrop click all end in `(dismiss)`.
+- `dialog[appModal]` (`ui/modal.ts`) - the directive underneath, for custom layouts such as the
+  mobile sidebar drawer.
+- `<app-menu label="…">` (`ui/menu.ts`) - dropdown; trigger content via `[menuTrigger]`, entries are
+  elements with `role="menuitem"` and `[class]="ui.menuItem"`. Closes on entry click, outside click,
+  Esc and Tab; arrow keys move between entries.
+
+Specs that open dialogs import `src/app/testing/dialog-polyfill.ts` (jsdom has no `showModal()`).
 
 ## Production build
 

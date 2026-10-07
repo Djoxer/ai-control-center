@@ -1,10 +1,11 @@
-import { Component, CUSTOM_ELEMENTS_SCHEMA, ElementRef, computed, effect, inject, viewChild } from '@angular/core';
+import { Component, computed, inject } from '@angular/core';
 import { NgTemplateOutlet } from '@angular/common';
 import { Route, Router, RouterLink, RouterLinkActive } from '@angular/router';
 import { SidebarService } from './sidebar.service';
 import { Icon } from './icon';
 import { ShellStore } from '../core/shell.store';
 import { ModuleInfo } from '../api/models/module-info';
+import { Modal } from '../ui/modal';
 
 type NavGroup = 'main' | 'footer';
 
@@ -30,15 +31,13 @@ const isNavGroup = (v: unknown): v is NavGroup => v === 'main' || v === 'footer'
 
 @Component({
   selector: 'app-sidebar',
-  imports: [RouterLink, RouterLinkActive, NgTemplateOutlet, Icon],
-  schemas: [CUSTOM_ELEMENTS_SCHEMA],
+  imports: [RouterLink, RouterLinkActive, NgTemplateOutlet, Icon, Modal],
   templateUrl: './sidebar.html'
 })
 export class Sidebar {
   private readonly router = inject(Router);
   private readonly shell = inject(ShellStore);
   readonly sidebar = inject(SidebarService);
-  private readonly dialog = viewChild.required<ElementRef<HTMLDialogElement>>('mobileDialog');
 
   // Static part: built once from the router config (Angular knows its routes at build time)
   private readonly items: NavItem[] = this.router.config
@@ -74,23 +73,4 @@ export class Sidebar {
 
   readonly mainItems = computed(() => this.entries().filter(i => i.group === 'main'));
   readonly footerItems = computed(() => this.entries().filter(i => i.group === 'footer'));
-
-  constructor() {
-    // Sync signal -> DOM. Re-runs whenever mobileOpen() or dialog() changes.
-    effect(() => {
-      const el = this.dialog().nativeElement;
-      const shouldBeOpen = this.sidebar.mobileOpen();
-
-      // Guards matter: showModal() on an already open dialog throws InvalidStateError
-      if (shouldBeOpen && !el.open) el.showModal();
-      if (!shouldBeOpen && el.open) el.close();
-    });
-  }
-
-  // Native dialogs don't close on backdrop click – detect clicks on the dialog element itself
-  onDialogClick(event: MouseEvent): void {
-    if (event.target === this.dialog().nativeElement) {
-      this.sidebar.close();
-    }
-  }
 }

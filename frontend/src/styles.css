@@ -1,1 +1,16 @@
 @import 'tailwindcss';
+
+/* Tailwind v4's reset gives buttons cursor: default. Everything clickable shows the hand again;
+   disabled elements keep the arrow, so "nothing happens here" stays visible. */
+@layer base {
+  button:not(:disabled),
+  [role='button']:not([aria-disabled='true']),
+  [role='menuitem']:not([aria-disabled='true']),
+  select:not(:disabled),
+  summary,
+  input[type='checkbox']:not(:disabled),
+  input[type='radio']:not(:disabled),
+  label:has(> input[type='checkbox']:not(:disabled), > input[type='radio']:not(:disabled)) {
+    cursor: pointer;
+  }
+}

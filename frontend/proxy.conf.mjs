@@ -27,6 +27,10 @@ export function resolveTarget(raw) {
 const target = resolveTarget(process.env.ACC_DEV_BACKEND);
 console.log(`[proxy] /api -> ${target}`);
 
+// /docs + /openapi.json: FastAPI's API documentation (menu entry "API-Dokumentation")
+const route = { target, secure: false, changeOrigin: false };
 export default {
-  '/api': { target, secure: false, changeOrigin: false },
+  '/api': route,
+  '/docs': route,
+  '/openapi.json': route,
 };
