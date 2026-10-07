@@ -1,0 +1,86 @@
+{
+  "cpu_percent": 1.8,
+  "cpu_count": 16,
+  "ram_total_bytes": 33157378048,
+  "ram_used_bytes": 17279606784,
+  "boot_time": "2026-09-14T21:31:33.318333+00:00",
+  "processes": [
+    {
+      "name": "com.docker.backend.exe",
+      "pid": 29168,
+      "cpu_percent": 0.0,
+      "rss_bytes": 238587904,
+      "cmdline": "com.docker.backend.exe services"
+    },
+    {
+      "name": "python.exe",
+      "pid": 24568,
+      "cpu_percent": 0.0,
+      "rss_bytes": 131108864,
+      "cmdline": "python.exe -m control_center"
+    },
+    {
+      "name": "python.exe",
+      "pid": 27012,
+      "cpu_percent": 0.0,
+      "rss_bytes": 116420608,
+      "cmdline": "python.exe -m control_center.capture_samples src/control_center/adapters/samples/real-idle"
+    },
+    {
+      "name": "ollama.exe",
+      "pid": 4344,
+      "cpu_percent": 0.0,
+      "rss_bytes": 69664768,
+      "cmdline": "ollama.exe serve"
+    },
+    {
+      "name": "ollama app.exe",
+      "pid": 19396,
+      "cpu_percent": 0.0,
+      "rss_bytes": 67715072,
+      "cmdline": "ollama app.exe"
+    },
+    {
+      "name": "com.docker.backend.exe",
+      "pid": 31176,
+      "cpu_percent": 0.0,
+      "rss_bytes": 66084864,
+      "cmdline": "com.docker.backend.exe"
+    },
+    {
+      "name": "python.exe",
+      "pid": 17600,
+      "cpu_percent": 0.0,
+      "rss_bytes": 38510592,
+      "cmdline": "python.exe .\\mcp_server.py"
+    },
+    {
+      "name": "python.exe",
+      "pid": 21556,
+      "cpu_percent": 0.0,
+      "rss_bytes": 33308672,
+      "cmdline": "python.exe app.py --host 0.0.0.0 --port 8765 --project-root _working_dir"
+    },
+    {
+      "name": "python.exe",
+      "pid": 30512,
+      "cpu_percent": 0.0,
+      "rss_bytes": 12951552,
+      "cmdline": "python.exe katalog_server.py"
+    },
+    {
+      "name": "python.exe",
+      "pid": 6096,
+      "cpu_percent": 0.0,
+      "rss_bytes": 4308992,
+      "cmdline": "python.exe -m control_center"
+    },
+    {
+      "name": "python.exe",
+      "pid": 18104,
+      "cpu_percent": 0.0,
+      "rss_bytes": 4243456,
+      "cmdline": "python.exe -m control_center.capture_samples src/control_center/adapters/samples/real-idle"
+    }
+  ]
+}

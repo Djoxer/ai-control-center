@@ -1,0 +1,72 @@
+{
+  "cpu_percent": 1.4,
+  "cpu_count": 16,
+  "ram_total_bytes": 33157378048,
+  "ram_used_bytes": 16958242816,
+  "boot_time": "2026-09-14T21:31:33.308158+00:00",
+  "processes": [
+    {
+      "name": "com.docker.backend.exe",
+      "pid": 29168,
+      "cpu_percent": 0.0,
+      "rss_bytes": 240685056,
+      "cmdline": "com.docker.backend.exe services"
+    },
+    {
+      "name": "python.exe",
+      "pid": 24568,
+      "cpu_percent": 0.0,
+      "rss_bytes": 131108864,
+      "cmdline": "python.exe -m control_center"
+    },
+    {
+      "name": "python.exe",
+      "pid": 32268,
+      "cpu_percent": 0.0,
+      "rss_bytes": 116379648,
+      "cmdline": "python.exe -m control_center.capture_samples src/control_center/adapters/samples/real-ollama-down"
+    },
+    {
+      "name": "com.docker.backend.exe",
+      "pid": 31176,
+      "cpu_percent": 0.0,
+      "rss_bytes": 66084864,
+      "cmdline": "com.docker.backend.exe"
+    },
+    {
+      "name": "python.exe",
+      "pid": 17600,
+      "cpu_percent": 0.0,
+      "rss_bytes": 39366656,
+      "cmdline": "python.exe .\\mcp_server.py"
+    },
+    {
+      "name": "python.exe",
+      "pid": 21556,
+      "cpu_percent": 0.0,
+      "rss_bytes": 33447936,
+      "cmdline": "python.exe app.py --host 0.0.0.0 --port 8765 --project-root _working_dir"
+    },
+    {
+      "name": "python.exe",
+      "pid": 30512,
+      "cpu_percent": 0.0,
+      "rss_bytes": 12951552,
+      "cmdline": "python.exe katalog_server.py"
+    },
+    {
+      "name": "python.exe",
+      "pid": 6096,
+      "cpu_percent": 0.0,
+      "rss_bytes": 4308992,
+      "cmdline": "python.exe -m control_center"
+    },
+    {
+      "name": "python.exe",
+      "pid": 28016,
+      "cpu_percent": 0.0,
+      "rss_bytes": 4243456,
+      "cmdline": "python.exe -m control_center.capture_samples src/control_center/adapters/samples/real-ollama-down"
+    }
+  ]
+}

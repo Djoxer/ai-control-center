@@ -1,0 +1,23 @@
+{
+  "models": [
+    {
+      "name": "qwen3.5-9b-64k-code:latest",
+      "model": "qwen3.5-9b-64k-code:latest",
+      "size": 7172322753,
+      "digest": "0cb15d0135cca9e2547e4ad482536c1377601f56aaf8a097f513db6c1531d67a",
+      "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "qwen35",
+        "families": [
+          "qwen35"
+        ],
+        "parameter_size": "9.7B",
+        "quantization_level": "Q4_K_M"
+      },
+      "expires_at": "2026-10-07T09:41:27.5564857+02:00",
+      "size_vram": 7172322753,
+      "context_length": 65536
+    }
+  ]
+}

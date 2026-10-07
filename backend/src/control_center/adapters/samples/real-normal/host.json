@@ -1,0 +1,93 @@
+{
+  "cpu_percent": 3.0,
+  "cpu_count": 16,
+  "ram_total_bytes": 33157378048,
+  "ram_used_bytes": 20295344128,
+  "boot_time": "2026-09-14T21:31:33.330989+00:00",
+  "processes": [
+    {
+      "name": "llama-server.exe",
+      "pid": 33300,
+      "cpu_percent": 0.0,
+      "rss_bytes": 1561346048,
+      "cmdline": "llama-server.exe --model sha256-dec52a44569a2a25341c4e4d3fee25846eed4f6f0b936278e3a3c900bb99d37c --port 53577 --host 127.0.0.1 --no-webui --offline -c 65536 -n…"
+    },
+    {
+      "name": "com.docker.backend.exe",
+      "pid": 29168,
+      "cpu_percent": 0.1,
+      "rss_bytes": 246685696,
+      "cmdline": "com.docker.backend.exe services"
+    },
+    {
+      "name": "python.exe",
+      "pid": 24568,
+      "cpu_percent": 0.1,
+      "rss_bytes": 130138112,
+      "cmdline": "python.exe -m control_center"
+    },
+    {
+      "name": "python.exe",
+      "pid": 13280,
+      "cpu_percent": 0.0,
+      "rss_bytes": 116690944,
+      "cmdline": "python.exe -m control_center.capture_samples src/control_center/adapters/samples/real-normal"
+    },
+    {
+      "name": "ollama.exe",
+      "pid": 4344,
+      "cpu_percent": 0.0,
+      "rss_bytes": 72437760,
+      "cmdline": "ollama.exe serve"
+    },
+    {
+      "name": "ollama app.exe",
+      "pid": 19396,
+      "cpu_percent": 0.0,
+      "rss_bytes": 70688768,
+      "cmdline": "ollama app.exe"
+    },
+    {
+      "name": "com.docker.backend.exe",
+      "pid": 31176,
+      "cpu_percent": 0.0,
+      "rss_bytes": 67411968,
+      "cmdline": "com.docker.backend.exe"
+    },
+    {
+      "name": "python.exe",
+      "pid": 17600,
+      "cpu_percent": 0.0,
+      "rss_bytes": 41537536,
+      "cmdline": "python.exe .\\mcp_server.py"
+    },
+    {
+      "name": "python.exe",
+      "pid": 21556,
+      "cpu_percent": 0.0,
+      "rss_bytes": 33980416,
+      "cmdline": "python.exe app.py --host 0.0.0.0 --port 8765 --project-root _working_dir"
+    },
+    {
+      "name": "python.exe",
+      "pid": 30512,
+      "cpu_percent": 0.0,
+      "rss_bytes": 13365248,
+      "cmdline": "python.exe katalog_server.py"
+    },
+    {
+      "name": "python.exe",
+      "pid": 6096,
+      "cpu_percent": 0.0,
+      "rss_bytes": 4325376,
+      "cmdline": "python.exe -m control_center"
+    },
+    {
+      "name": "python.exe",
+      "pid": 20776,
+      "cpu_percent": 0.0,
+      "rss_bytes": 4243456,
+      "cmdline": "python.exe -m control_center.capture_samples src/control_center/adapters/samples/real-normal"
+    }
+  ]
+}
