@@ -1,11 +1,13 @@
 # Was ist neu
 
 Automatisch aus den Commit-Nachrichten erzeugt. Neu = `feat`, Behoben = `fix`, Schneller = `perf`.
-## Noch nicht veröffentlicht
+
+## 0.6.0 – 07.10.2026
 
 ### Neu
 
 - **help:** Help texts per module and help API, changelog via git-cliff
+- **help:** Help page with table of contents and what's new, version 0.6.0
 
 ## 0.5.0 – 07.10.2026
 
