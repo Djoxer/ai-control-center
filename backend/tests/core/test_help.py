@@ -37,8 +37,10 @@ def test_changelog_present_and_missing(make_client, tmp_path, monkeypatch):
     with make_client() as c:
         missing = c.get("/api/v1/help/changelog").json()
         assert missing["markdown"] is None and "git-cliff" in missing["hint"]
-        log.write_text("# Was ist neu\n\n## 0.5.0\n", encoding="utf-8")
-        assert c.get("/api/v1/help/changelog").json() == {"markdown": "# Was ist neu\n\n## 0.5.0", "hint": None}
+        assert missing["title"] == "Was ist neu"
+        log.write_text("# Neuigkeiten\n\n## 0.5.0\n", encoding="utf-8")
+        # the title moves out of the text, like on the help pages (the UI shows it separately)
+        assert c.get("/api/v1/help/changelog").json() == {"title": "Neuigkeiten", "markdown": "## 0.5.0", "hint": None}
 
 
 @pytest.mark.parametrize("text, title, body", [

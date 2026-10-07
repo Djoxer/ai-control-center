@@ -8,6 +8,7 @@ header = """
 # Was ist neu
 
 Automatisch aus den Commit-Nachrichten erzeugt. Neu = `feat`, Behoben = `fix`, Schneller = `perf`.
+
 """
 body = """
 {% if version %}\

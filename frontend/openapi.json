@@ -24,9 +24,14 @@
               }
             ],
             "title": "Markdown"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
           }
         },
         "required": [
+          "title",
           "markdown"
         ],
         "title": "Changelog",

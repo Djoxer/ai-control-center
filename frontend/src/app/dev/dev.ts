@@ -4,6 +4,7 @@ import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angula
 import { ClipboardService } from '../core/clipboard.service';
 import { ShellStore } from '../core/shell.store';
 import { Icon } from '../layout/icon';
+import { jumpTo } from '../ui/jump';
 import { ui } from '../ui/tokens';
 import { IconEntry, iconSnippet, parseIconSprite } from './icons';
 import { buildMarkdown, estimateTokens } from './markdown';
@@ -27,6 +28,7 @@ export class Dev implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly ui = ui;
+  readonly jumpTo = jumpTo;                    // section links (see dev.html)
   readonly icons = signal<IconEntry[]>([]);
   readonly iconError = signal<string | null>(null);
   readonly filter = signal('');

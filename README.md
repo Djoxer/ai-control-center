@@ -63,7 +63,8 @@ No registry list, no import in main.py, no config entry needed.
 Every module explains itself in a `HELP.md` next to its code (`backend/src/control_center/modules/<key>/HELP.md`,
 general part in `core/HELP.md`), German, two parts: `## Bedienung` (using the page) and `## Betrieb`
 (configuration, operation). The backend serves the files of all switched-on modules at `/api/v1/help`;
-a new module without `HELP.md` fails `tests/core/test_help.py`.
+a new module without `HELP.md` fails `tests/core/test_help.py`. The frontend shows them at `/help`
+(⋮ menu): `/help?doc=<module key>` opens one module, `/help?doc=changelog` "Was ist neu".
 
 "Was ist neu" is `CHANGELOG.md` in the repo root, generated from the commit messages (`cliff.toml`):
 
@@ -73,9 +74,16 @@ Only `feat`, `fix` and `perf` commits become entries - write their subject for t
 
 ## Release
 
-1. `version` in `backend/pyproject.toml`, then `uv sync` in `backend/` (updates `uv.lock`)
-2. `uvx git-cliff --tag vX.Y.Z -o CHANGELOG.md` (repo root)
-3. commit, `git tag -a vX.Y.Z -m "..."`, `git push --follow-tags`
+1. `version` in `backend/pyproject.toml`, then `uv sync` in `backend/` (updates `uv.lock`). Commit it
+   with the last feature of the release (or alone as `chore(release): vX.Y.Z`).
+2. `uvx git-cliff --tag vX.Y.Z -o CHANGELOG.md` (repo root). git-cliff reads commits, not files:
+   everything that belongs to the release must be committed before this step.
+3. `git add CHANGELOG.md`, `git commit -m "docs: changelog for vX.Y.Z"`, `git tag -a vX.Y.Z -m "..."`,
+   `git push --follow-tags`
+
+git-cliff reads the repository through libgit2, which refuses a folder owned by another Windows user
+or group ("not owned by current user"). Allow this one folder:
+`git config --global --add safe.directory D:/path/to/ai-control-center` (forward slashes).
 
 ## Tests
 

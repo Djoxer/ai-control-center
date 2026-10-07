@@ -38,7 +38,8 @@ class HelpIndex(CamelModel):
 
 
 class Changelog(CamelModel):
-    markdown: str | None                    # None = no CHANGELOG.md yet
+    title: str                              # first "# " heading of CHANGELOG.md, like a help page
+    markdown: str | None                    # without the heading; None = no CHANGELOG.md yet
     hint: str | None = None                 # why it is missing
 
 
@@ -81,10 +82,14 @@ async def index(request: Request) -> HelpIndex:
     return HelpIndex(docs=await asyncio.to_thread(collect, ctx))
 
 
+CHANGELOG_TITLE = "Was ist neu"
+
+
 @router.get("/changelog", response_model=Changelog)
 async def changelog() -> Changelog:
     text = await asyncio.to_thread(_read, CHANGELOG_PATH)
     if text is None:
-        return Changelog(markdown=None,
+        return Changelog(title=CHANGELOG_TITLE, markdown=None,
                          hint="Noch kein CHANGELOG.md - im Repo-Ordner: uvx git-cliff -o CHANGELOG.md")
-    return Changelog(markdown=text.strip())
+    title, body = split_title(text, CHANGELOG_TITLE)
+    return Changelog(title=title, markdown=body)

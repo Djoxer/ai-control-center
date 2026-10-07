@@ -32,6 +32,9 @@
 
     <app-menu label="Anwendungsmenü">
       <app-icon menuTrigger name="more-vertical" class="size-6" />
+      <a role="menuitem" routerLink="/help" [queryParams]="helpParams()" [class]="ui.menuItem">
+        <app-icon name="help" class="size-4 text-gray-400" /> Hilfe
+      </a>
       <button type="button" role="menuitem" [class]="ui.menuItem" (click)="aboutOpen.set(true)">
         <app-icon name="info" class="size-4 text-gray-400" /> Über AI Control Center
       </button>

@@ -87,6 +87,20 @@ describe('Dev page export and style guide', () => {
 });
 
 describe('dev route', () => {
+  it('jumps to its sections without leaving the page', () => {
+    const { el } = setup();
+    // <base href="/"> turns href="#x" into "/#x" - the overview. No such links on this page.
+    expect(el.querySelectorAll('a[href^="#"]').length).toBe(0);
+
+    const scrolled: string[] = [];
+    for (const s of el.querySelectorAll<HTMLElement>('section[id]')) s.scrollIntoView = () => scrolled.push(s.id);
+    const links = [...el.querySelectorAll<HTMLButtonElement>('nav[aria-label="Abschnitte"] button')];
+    expect(links.map((b) => b.textContent?.trim())).toEqual(['Export', 'Style Guide', 'Icons']);
+    links.forEach((b) => b.click());
+    expect(scrolled).toEqual(['dev-export', 'dev-style', 'dev-icons']);
+    expect(document.activeElement?.id).toBe('dev-icons');
+  });
+
   it('exists in dev mode, in the footer group right after the logs', () => {
     // unit tests run with dev mode on; the production build drops the route (isDevMode() === false)
     const footer = routes.filter((r) => r.data?.['nav'] === 'footer').map((r) => r.path);

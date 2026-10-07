@@ -3,10 +3,11 @@
     <p [class]="ui.meta">
       Entwicklerseite – nur im Entwicklungsmodus (<span class="font-mono">ng serve</span>) vorhanden, nicht im Build am AI-Rechner.
     </p>
+    <!-- buttons, not href="#…": <base href="/"> would send "#dev-style" to "/#dev-style" (the overview) -->
     <nav class="flex gap-4 text-sm" aria-label="Abschnitte">
-      <a href="#dev-export" class="text-sky-300 hover:text-white">Export</a>
-      <a href="#dev-style" class="text-sky-300 hover:text-white">Style Guide</a>
-      <a href="#dev-icons" class="text-sky-300 hover:text-white">Icons</a>
+      <button type="button" class="text-sky-300 hover:text-white" (click)="jumpTo(exportSection)">Export</button>
+      <button type="button" class="text-sky-300 hover:text-white" (click)="jumpTo(styleSection)">Style Guide</button>
+      <button type="button" class="text-sky-300 hover:text-white" (click)="jumpTo(iconSection)">Icons</button>
     </nav>
   </div>
 
@@ -20,7 +21,7 @@
     }
   </p>
 
-  <section id="dev-export" [class]="ui.card" class="scroll-mt-24 p-4" aria-labelledby="dev-export-title">
+  <section #exportSection id="dev-export" [class]="ui.card" class="scroll-mt-24 p-4" aria-labelledby="dev-export-title">
     <p id="dev-export-title" [class]="ui.sectionTitle">Export für AI-Kontext</p>
     <p class="mt-2 text-sm">
       Alle UI-Tokens mit Klassen, Angular- und HTML-Beispiel, dazu Regeln und Icon-Namen – als Markdown mit YAML-Kopf.
@@ -33,11 +34,11 @@
     </div>
   </section>
 
-  <section id="dev-style" class="scroll-mt-24" aria-label="Style Guide">
+  <section #styleSection id="dev-style" class="scroll-mt-24" aria-label="Style Guide">
     <app-style-guide (copy)="copy($event)" />
   </section>
 
-  <section id="dev-icons" [class]="ui.card" class="scroll-mt-24 p-4" aria-labelledby="dev-icons-title">
+  <section #iconSection id="dev-icons" [class]="ui.card" class="scroll-mt-24 p-4" aria-labelledby="dev-icons-title">
     <header class="flex flex-wrap items-center justify-between gap-3">
       <p id="dev-icons-title" [class]="ui.sectionTitle">
         Icons <span [class]="ui.titleDetail">· {{ shown() }} von {{ icons().length }} · Klick kopiert</span>

@@ -4,4 +4,5 @@
 export interface Changelog {
   hint?: (string | null);
   markdown: (string | null);
+  title: string;
 }

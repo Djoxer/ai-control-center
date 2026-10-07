@@ -1,5 +1,7 @@
 import { Component, inject, input, output } from '@angular/core';
 
+import { RouterLink } from '@angular/router';
+
 import { ModuleInfo } from '../api/models/module-info';
 import { ShellStore } from '../core/shell.store';
 import { Dialog } from '../ui/dialog';
@@ -17,7 +19,7 @@ const STATE_TONE: Record<ModuleInfo['state'], Tone> = {
 /** "Über AI Control Center": version, backend state and module states from /api/v1/health. */
 @Component({
   selector: 'app-about-dialog',
-  imports: [Dialog, Icon],
+  imports: [Dialog, Icon, RouterLink],
   template: `
     <app-dialog title="Über AI Control Center" [open]="open()" (dismiss)="dismiss.emit()">
       <p>Kontrollebene für den AI-Rechner: Modelle, Ressourcen, Messwerte, Logs.
@@ -43,7 +45,12 @@ const STATE_TONE: Record<ModuleInfo['state'], Tone> = {
         <p [class]="ui.errorBox" class="mt-4 px-3 py-2 text-xs">{{ shell.error() ?? 'Backend-Status noch unbekannt' }}</p>
       }
 
-      <div dialogActions>
+      <div dialogActions class="flex flex-wrap justify-end gap-2">
+        <!-- in-app link: the router navigates, the dialog closes itself -->
+        <a routerLink="/help" [queryParams]="{ doc: 'changelog' }" (click)="dismiss.emit()"
+           [class]="ui.button" class="flex items-center gap-2">
+          <app-icon name="history" class="size-4" /> Was ist neu
+        </a>
         <a href="/docs" target="_blank" rel="noopener" [class]="ui.button" class="flex items-center gap-2">
           <app-icon name="external-link" class="size-4" /> API-Dokumentation
         </a>

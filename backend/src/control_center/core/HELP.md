@@ -13,8 +13,9 @@ Wissenssammlungen bleiben in OpenWebUI. Hier wird überwacht und gesteuert.
   im Backend gerade nicht läuft – die Seite öffnet sich trotzdem, zeigt aber keine echten Daten.
   Auf dem Handy klappt die Leiste über das Menüsymbol oben links auf.
 - **Kopfzeile:** links der Name der Seite, rechts der Status-Chip und das Menü **⋮**.
-- **Menü ⋮:** diese Hilfe, „Über AI Control Center“ (Version, Zustand der Module) und die
-  API-Dokumentation (`/docs`, öffnet in einem neuen Tab).
+- **Menü ⋮:** **Hilfe** (öffnet den Teil zur gerade offenen Seite), „Über AI Control Center“
+  (Version, Zustand der Module, „Was ist neu“) und die API-Dokumentation (`/docs`, öffnet in einem
+  neuen Tab).
 
 ### Status-Chip
 
@@ -85,6 +86,14 @@ Entwicklungsrechner per `git pull`.
 Im Ordner `data/` (neben `backend/`): die SQLite-Datenbank `control-center.db` (Verlauf, Ereignisse)
 und `logs/control-center.log` (eigenes Log, JSON-Zeilen, rotiert). Löschen setzt Verlauf und Ereignisse
 zurück, sonst nichts.
+
+### Hilfetexte und „Was ist neu“
+
+Jeder Teil dieser Hilfe ist eine Datei `HELP.md` neben dem Code: `backend/src/control_center/core/HELP.md`
+für diesen allgemeinen Teil, `backend/src/control_center/modules/<name>/HELP.md` für ein Modul. Sie wird
+bei jedem Aufruf neu gelesen – eine Korrektur ist nach dem Neuladen der Seite sichtbar. Ein
+abgeschaltetes Modul nimmt seine Hilfe mit. „Was ist neu“ ist `CHANGELOG.md` im Repo-Ordner und wird
+bei jeder neuen Version aus den Commit-Nachrichten erzeugt.
 
 ### Wenn etwas nicht stimmt
 

@@ -41,5 +41,14 @@ export const routes: Routes = [
     component: Settings,
     title: 'Einstellungen',
     data: { nav: 'footer', icon: 'settings', module: 'settings' }
-  }
+  },
+  // Help: no sidebar entry (no 'nav'), reached from the ⋮ menu and the About dialog. Lazy, so the
+  // Markdown renderer only loads when someone opens the help.
+  {
+    path: 'help',
+    loadComponent: () => import('./help/help').then((m) => m.Help),
+    title: 'Hilfe',
+  },
+  // Unknown addresses (typo, old bookmark) lead to the overview instead of an empty page. Must stay last.
+  { path: '**', redirectTo: '' },
 ];

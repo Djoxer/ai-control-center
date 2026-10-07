@@ -94,6 +94,14 @@ export const SAMPLES: Record<UiToken, Sample> = {
   kpiEmpty: { html: '<p class="{kpiEmpty}">—</p>' },
   meta: { html: '<p class="{meta}">Version 0.35.0 · &lt; 1 ms</p>' },
   empty: { html: '<p class="{empty} py-6">Noch keine Ereignisse</p>' },
+  prose: {
+    // what marked produces from a HELP.md: plain elements, styled from the container
+    html: '<div class="{prose} max-w-xl"><h2>Bedienung</h2><p>Oben ein Knopf pro <strong>Quelle</strong>, ' +
+      'z. B. <code>ollama</code>.</p><h3>Filter</h3><ul><li>Level ab</li><li>Suche</li></ul>' +
+      '<div class="overflow-x-auto"><table><thead><tr><th>Einstellung</th><th>Standard</th></tr></thead>' +
+      '<tbody><tr><td><code>temp_warn_c</code></td><td>83</td></tr></tbody></table></div>' +
+      '<pre><code>[modules.dashboard]\ntemp_warn_c = 80</code></pre></div>',
+  },
   fieldLabel: { html: '<label class="{fieldLabel}">Suche<input class="{field} mt-1 w-full" placeholder="Text in Meldung"></label>' },
   field: {
     html: '<div class="flex flex-wrap gap-2"><input class="{field}" placeholder="z. B. control_center.modules">' +
