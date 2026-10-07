@@ -51,6 +51,14 @@ Only under `ng serve` (`isDevMode()`); the production build has no such route. I
 a `<symbol id="…">` under the right comment. A click copies `<app-icon name="…" class="size-5" />`.
 Copying works on http too (`ClipboardService` falls back to a textarea when there is no secure context).
 
+Style guide: one entry per token from `UI_DOCS`, rendered from `src/app/dev/samples.ts`. A sample is
+written once (`class="{card} p-4"`, `<icon name="…"/>`) and turned into a live preview, an Angular
+snippet (`[class]="ui.card" class="p-4"`) and plain HTML with resolved classes. New token -> new
+sample (the `Record<UiToken, Sample>` type refuses to compile without one).
+
+"Alles als Markdown kopieren" / "Als .md speichern": rules, every token with both snippet forms and
+the icon names, YAML front matter with version and date - context for an AI chat (~7k tokens).
+
 ## Production build
 
     npm run build       # -> dist/ai-control-center/browser

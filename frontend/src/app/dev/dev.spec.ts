@@ -32,15 +32,15 @@ function setup(copyResult = true) {
 describe('Dev page', () => {
   it('shows every icon of the sprite under its group', () => {
     const { el } = setup();
-    expect([...el.querySelectorAll('h3')].map((h) => h.textContent?.trim())).toEqual(['Navigation', 'Status']);
-    expect(el.querySelectorAll('ul button').length).toBe(3);
+    expect([...el.querySelectorAll('#dev-icons h3')].map((h) => h.textContent?.trim())).toEqual(['Navigation', 'Status']);
+    expect(el.querySelectorAll('#dev-icons ul button').length).toBe(3);
   });
 
   it('filters by name or group', () => {
     const { fixture, el } = setup();
     fixture.componentInstance.filter.set('stat');
     fixture.detectChanges();
-    expect([...el.querySelectorAll('ul button')].map((b) => b.textContent?.trim())).toEqual(['warning']);
+    expect([...el.querySelectorAll('#dev-icons ul button')].map((b) => b.textContent?.trim())).toEqual(['warning']);
     fixture.componentInstance.filter.set('zzz');
     fixture.detectChanges();
     expect(el.textContent).toContain('Kein Icon passt');
@@ -48,7 +48,7 @@ describe('Dev page', () => {
 
   it('copies the template snippet and says so', async () => {
     const { fixture, el, copied } = setup();
-    (el.querySelector('ul button') as HTMLButtonElement).click();
+    (el.querySelector('#dev-icons ul button') as HTMLButtonElement).click();
     await fixture.whenStable();
     fixture.detectChanges();
     expect(copied).toEqual(['<app-icon name="menu" class="size-5" />']);
@@ -57,10 +57,32 @@ describe('Dev page', () => {
 
   it('tells when copying failed', async () => {
     const { fixture, el } = setup(false);
-    (el.querySelector('ul button') as HTMLButtonElement).click();
+    (el.querySelector('#dev-icons ul button') as HTMLButtonElement).click();
     await fixture.whenStable();
     fixture.detectChanges();
     expect(el.querySelector('[aria-live]')?.textContent).toContain('nicht möglich');
+  });
+});
+
+describe('Dev page export and style guide', () => {
+  it('copies the whole Markdown export including the icons it loaded', async () => {
+    const { fixture, el, copied } = setup();
+    const button = [...el.querySelectorAll('#dev-export button')].find((b) => b.textContent?.includes('Markdown'));
+    (button as HTMLButtonElement).click();
+    await fixture.whenStable();
+    fixture.detectChanges();
+    expect(copied[0]).toMatch(/^---\ntitle: AI Control Center/);
+    expect(copied[0]).toContain('`menu`');                            // icon names from the sprite
+    expect(el.querySelector('#dev-export')?.textContent).toMatch(/≈ [\d.]+ Tokens/);
+  });
+
+  it('copies a token as Angular code from the style guide', async () => {
+    const { fixture, el, copied } = setup();
+    const card = el.querySelector('[data-token="card"]')!;
+    expect(card.querySelector('article.rounded-xl.p-4')).not.toBeNull();  // preview rendered from the sample
+    (card.querySelector('button') as HTMLButtonElement).click();       // first button = Angular
+    await fixture.whenStable();
+    expect(copied[0]).toContain('[class]="ui.card" class="p-4"');
   });
 });
 

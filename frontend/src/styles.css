@@ -1,8 +1,14 @@
 @import 'tailwindcss';
 
-/* Tailwind v4's reset gives buttons cursor: default. Everything clickable shows the hand again;
-   disabled elements keep the arrow, so "nothing happens here" stays visible. */
 @layer base {
+  /* Readable default for text without its own color class. Without it the browser default (black)
+     shows through on the dark background - invisible paragraphs and icons. */
+  body {
+    @apply text-gray-300;
+  }
+
+  /* Tailwind v4's reset gives buttons cursor: default. Everything clickable shows the hand again;
+     disabled elements keep the arrow, so "nothing happens here" stays visible. */
   button:not(:disabled),
   [role='button']:not([aria-disabled='true']),
   [role='menuitem']:not([aria-disabled='true']),

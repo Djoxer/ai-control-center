@@ -2,24 +2,28 @@ import { HttpClient } from '@angular/common/http';
 import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 
 import { ClipboardService } from '../core/clipboard.service';
+import { ShellStore } from '../core/shell.store';
 import { Icon } from '../layout/icon';
 import { ui } from '../ui/tokens';
 import { IconEntry, iconSnippet, parseIconSprite } from './icons';
+import { buildMarkdown, estimateTokens } from './markdown';
+import { StyleGuide } from './style-guide';
 
 interface Notice {
   ok: boolean;
   text: string;
 }
 
-/** Developer page (ng serve only): icon gallery now, style guide in part 4b. */
+/** Developer page (ng serve only): AI export, style guide, icon gallery. */
 @Component({
   selector: 'app-dev',
-  imports: [Icon],
+  imports: [Icon, StyleGuide],
   templateUrl: './dev.html',
 })
 export class Dev implements OnInit {
   private readonly http = inject(HttpClient);
   private readonly clipboard = inject(ClipboardService);
+  private readonly shell = inject(ShellStore);
   private readonly destroyRef = inject(DestroyRef);
 
   readonly ui = ui;
@@ -41,6 +45,9 @@ export class Dev implements OnInit {
   });
   readonly shown = computed(() => this.groups().reduce((n, g) => n + g.items.length, 0));
 
+  /** Size of the export with the current icons - shown before copying, so nobody pastes 50k by surprise. */
+  readonly exportTokens = computed(() => estimateTokens(this.markdown()));
+
   constructor() {
     this.destroyRef.onDestroy(() => clearTimeout(this.noticeTimer));
   }
@@ -57,9 +64,37 @@ export class Dev implements OnInit {
     return iconSnippet(name);
   }
 
-  async copy(text: string): Promise<void> {
+  markdown(): string {
+    return buildMarkdown({
+      icons: this.icons(),
+      version: this.shell.health()?.version ?? null,
+      generatedAt: new Date(),
+    });
+  }
+
+  async copy(text: string, label = text): Promise<void> {
     const ok = await this.clipboard.copy(text);
-    this.notice.set(ok ? { ok, text: `Kopiert: ${text}` } : { ok, text: 'Kopieren nicht möglich – Browser hat es blockiert' });
+    this.say(ok, ok ? `Kopiert: ${label}` : 'Kopieren nicht möglich – Browser hat es blockiert');
+  }
+
+  copyMarkdown(): void {
+    void this.copy(this.markdown(), `Markdown (≈ ${this.exportTokens().toLocaleString('de-DE')} Tokens)`);
+  }
+
+  /** Same text as a file - for chats that take attachments, or to keep a snapshot next to a handoff. */
+  downloadMarkdown(): void {
+    const blob = new Blob([this.markdown()], { type: 'text/markdown;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `ui-bausteine-${new Date().toISOString().slice(0, 10)}.md`;
+    a.click();
+    setTimeout(() => URL.revokeObjectURL(url));                 // after the browser picked it up
+    this.say(true, `Gespeichert: ${a.download}`);
+  }
+
+  private say(ok: boolean, text: string): void {
+    this.notice.set({ ok, text });
     clearTimeout(this.noticeTimer);
     this.noticeTimer = setTimeout(() => this.notice.set(null), 2500);
   }

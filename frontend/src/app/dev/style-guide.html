@@ -1,0 +1,39 @@
+@for (g of groups; track g.group) {
+  <h3 [class]="ui.sectionTitle" class="mt-6 first:mt-0">{{ g.group }}</h3>
+
+  @if (g.group === 'Overlays') {
+    <!-- the real components, not just their look -->
+    <div [class]="ui.card" class="mt-2 flex flex-wrap items-center gap-4 p-4 text-sm">
+      <span [class]="ui.meta">Live:</span>
+      <button type="button" [class]="ui.button" (click)="demoOpen.set(true)">Dialog öffnen</button>
+      <app-menu label="Demo-Menü" [triggerClass]="ui.button">
+        <span menuTrigger class="flex items-center gap-1">Menü öffnen <app-icon name="chevron-down" class="size-4" /></span>
+        <button type="button" role="menuitem" [class]="ui.menuItem">Eintrag A</button>
+        <button type="button" role="menuitem" [class]="ui.menuItem">Eintrag B</button>
+      </app-menu>
+      <app-dialog title="Demo-Dialog" [open]="demoOpen()" (dismiss)="demoOpen.set(false)">
+        <p>Esc, × oder ein Klick daneben schließt den Dialog.</p>
+        <div dialogActions><button type="button" [class]="ui.button" (click)="demoOpen.set(false)">OK</button></div>
+      </app-dialog>
+    </div>
+  }
+
+  <div class="mt-2 space-y-3">
+    @for (e of g.entries; track e.token) {
+      <article [class]="ui.card" class="grid gap-4 p-4 xl:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]" [attr.data-token]="e.token">
+        <div class="min-w-0">
+          <p class="text-sm text-white">{{ e.label }} <span class="font-mono" [class]="ui.meta">ui.{{ e.token }}</span></p>
+          <pre class="mt-2 font-mono text-[11px] break-words whitespace-pre-wrap text-gray-400">{{ e.classes }}</pre>
+          <div class="mt-3 flex flex-wrap gap-2">
+            <button type="button" [class]="ui.buttonSmall" (click)="copy.emit(e.angular)" title="Template-Code mit ui-Token">Angular kopieren</button>
+            <button type="button" [class]="ui.buttonSmall" (click)="copy.emit(e.html)" title="HTML mit aufgelösten Tailwind-Klassen">HTML kopieren</button>
+            <button type="button" [class]="ui.buttonSmall" (click)="copy.emit(e.classes)">Klassen kopieren</button>
+          </div>
+        </div>
+        <!-- preview: rendered from the same sample the copy buttons use -->
+        <div class="min-w-0 overflow-x-auto rounded-lg border border-dashed border-white/10 p-4 text-sm text-gray-300"
+             [devTrustedHtml]="e.html"></div>
+      </article>
+    }
+  </div>
+}
