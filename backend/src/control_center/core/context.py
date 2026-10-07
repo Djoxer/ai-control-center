@@ -27,6 +27,19 @@ class ModuleStatus:
     error: str | None = None
 
 
+@dataclass(frozen=True)
+class LogSource:
+    """Log files a module wants the logs page to list and tail, e.g. the output of a managed process.
+
+    A core type on purpose: the providing module must not import the logs module, and the logs
+    module picks entries up while it runs - startup order and a disabled logs module do not matter.
+    """
+    key: str                        # URL and SSE topic part: lower case, digits, '-' (e.g. "mcp-bent-rag")
+    title: str                      # button label on the logs page
+    format: Literal["json", "text"]
+    paths: tuple[str, ...]          # glob patterns, same rules as [modules.logs] paths
+
+
 @dataclass
 class AppContext:
     settings: Settings
@@ -35,6 +48,7 @@ class AppContext:
     modules: dict[str, ModuleStatus] = field(default_factory=dict)
     services: dict[str, Any] = field(default_factory=dict)
     help_files: dict[str, Path] = field(default_factory=dict)   # module key -> its HELP.md (may not exist)
+    log_sources: dict[str, LogSource] = field(default_factory=dict)  # added by modules, shown by the logs module
     # shared connections to Ollama, GPU and OS; None only until __post_init__ has run
     adapters: Adapters = None  # type: ignore[assignment]
 

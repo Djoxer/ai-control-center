@@ -1,6 +1,6 @@
 # AI Control Center
 
-Control plane for the local AI box (Ollama, GPU, model catalog, logs). OpenWebUI stays the work plane.
+Control plane for the local AI box (Ollama, GPU, model catalog, logs, MCP servers). OpenWebUI stays the work plane.
 
     ai-control-center/
     ├─ backend/    FastAPI, one process, one uvicorn worker
@@ -61,6 +61,24 @@ Options: `format=md|json`, `detail=short|full`, `parts=snapshot|events|history` 
 `range=1h|6h|24h|7d|30d`, `anonymize=true|false` (default true: host names, IPs, user folders replaced,
 command lines dropped). `/export` (without `raw`) wraps the same text with file name and token estimate.
 
+## MCP servers
+
+The control center starts, stops and watches the MCP servers listed in `backend/control-center.toml`
+(child processes, whole process tree stopped on Windows too, automatic restart after a crash, output
+as a source on the logs page, tool list via MCP `tools/list`):
+
+    [[modules.mcp.servers]]
+    key = "bent-rag"
+    title = "Bent/TYPO3-RAG"
+    command = ["C:/<rag folder>/.venv/Scripts/python.exe", "mcp_server.py"]   # list, no shell
+    cwd = "C:/<rag folder>"
+    url = "http://127.0.0.1:8000/mcp"
+    autostart = true
+
+On the second PC, the built-in demo server gives the page something to manage:
+`command = ["{python}", "-m", "control_center.modules.mcp.demo_server", "--port", "8701"]`,
+`url = "http://127.0.0.1:8701/mcp"`. Details: help page "MCP-Server" (`modules/mcp/HELP.md`).
+
 ## Add a module
 
 1. Create `backend/src/control_center/modules/<key>/`
@@ -68,6 +86,11 @@ command lines dropped). `/export` (without `raw`) wraps the same text with file 
 3. Frontend: one feature folder + one lazy route; the menu entry comes from /api/v1/meta/modules
 
 No registry list, no import in main.py, no config entry needed.
+
+- Endpoints that change something get `dependencies=[Depends(same_origin)]` (`core/guards.py`): refuses
+  requests a browser sends on behalf of another site. Not a login - that comes with auth via OpenWebUI.
+- Log files of a module show up on the logs page when the module registers them in `ctx.log_sources`
+  (`core/context.py: LogSource`) - no import of the logs module needed.
 
 ## Help and changelog
 

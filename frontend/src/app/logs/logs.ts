@@ -1,5 +1,6 @@
 import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 import { HttpErrorResponse } from '@angular/common/http';
+import { ActivatedRoute } from '@angular/router';
 
 import { Api } from '../api/api';
 import { logsEntries } from '../api/fn/logs/logs-entries';
@@ -25,6 +26,8 @@ export class Logs implements OnInit {
   private readonly api = inject(Api);
   private readonly stream = inject(StreamService);
   private readonly destroyRef = inject(DestroyRef);
+  // optional: the page also works outside the router (tests, embedding)
+  private readonly route = inject(ActivatedRoute, { optional: true });
 
   readonly levels = LEVELS;
   readonly sources = signal<LogSourceInfo[]>([]);
@@ -66,8 +69,10 @@ export class Logs implements OnInit {
     try {
       const sources = await this.api.invoke(logsSources);
       this.sources.set(sources);
-      // prefer a source that has files; on the dev PC the Ollama log does not exist
-      const first = sources.find((s) => s.available) ?? sources[0];
+      // ?source=<key> (link from another page) wins; otherwise prefer a source that has files -
+      // on the dev PC the Ollama log does not exist
+      const wanted = this.route?.snapshot.queryParamMap.get('source');
+      const first = sources.find((s) => s.key === wanted) ?? sources.find((s) => s.available) ?? sources[0];
       if (first) this.selectSource(first.key);
     } catch (e) {
       this.error.set(this.message(e));

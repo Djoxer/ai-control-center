@@ -94,6 +94,10 @@ export const SAMPLES: Record<UiToken, Sample> = {
   kpiEmpty: { html: '<p class="{kpiEmpty}">—</p>' },
   meta: { html: '<p class="{meta}">Version 0.35.0 · &lt; 1 ms</p>' },
   empty: { html: '<p class="{empty} py-6">Noch keine Ereignisse</p>' },
+  codeBlock: {
+    html: '<pre class="{codeBlock} overflow-x-auto px-3 py-2">C:\\rag\\.venv\\Scripts\\python.exe mcp_server.py\n' +
+      'INFO:     Uvicorn running on http://0.0.0.0:8000</pre>',
+  },
   prose: {
     // what marked produces from a HELP.md: plain elements, styled from the container
     html: '<div class="{prose} max-w-xl"><h2>Bedienung</h2><p>Oben ein Knopf pro <strong>Quelle</strong>, ' +
@@ -114,6 +118,10 @@ export const SAMPLES: Record<UiToken, Sample> = {
       '<button type="button" class="{button}" disabled>Deaktiviert</button></div>',
   },
   buttonSmall: { html: '<button type="button" class="{buttonSmall}">Ältere laden</button>' },
+  buttonDanger: {
+    html: '<div class="flex gap-2"><button type="button" class="{button}">Abbrechen</button>' +
+      '<button type="button" class="{buttonDanger} flex items-center gap-2"><icon name="stop" class="size-4"/> Stoppen</button></div>',
+  },
   iconButton: { html: '<button type="button" class="{iconButton}"><span class="sr-only">Menü öffnen</span><icon name="menu" class="size-6"/></button>' },
   chip: {
     html: '<button type="button" class="{chip}"><span class="{dot} bg-emerald-400"></span><span>ok</span>' +

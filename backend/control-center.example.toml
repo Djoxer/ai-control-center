@@ -87,3 +87,32 @@ url = "http://{ai_host}:3000/health"
 key = "qdrant"
 title = "Qdrant"
 url = "http://{ai_host}:6333/healthz"
+
+# MCP servers the control center starts, stops and watches (child processes). The UI only sends a
+# key, never a command - only what is written here can run. Paths: forward slashes, or 'single quotes'
+# for backslashes. Details: help page "MCP-Server".
+[modules.mcp]
+start_timeout_s = 30             # until the port must be open ("uv run" may install first)
+stop_timeout_s = 5               # polite stop, then the whole process tree is killed
+max_restarts = 3                 # automatic restarts after crashes ...
+restart_window_s = 300           # ... within this many seconds, then give up
+restart_backoff_s = 2            # wait before restart n: 2, 4, 8 s
+check_interval_s = 10            # who listens on the ports
+tools_timeout_s = 10             # MCP tools/list
+
+# [[modules.mcp.servers]]
+# key = "bent-rag"               # lower case; log file data/logs/mcp-bent-rag.log
+# title = "Bent/TYPO3-RAG"
+# command = ["C:/<rag folder>/.venv/Scripts/python.exe", "mcp_server.py"]   # program + args, no shell
+# cwd = "C:/<rag folder>"
+# url = "http://127.0.0.1:8000/mcp"   # port check + tool list; always 127.0.0.1 (same machine)
+# autostart = true
+# restart_on_crash = true
+# env = { PYTHONUTF8 = "1" }
+
+# Second PC: the built-in demo server ({python} = the control center's interpreter)
+# [[modules.mcp.servers]]
+# key = "demo"
+# title = "Demo-Server"
+# command = ["{python}", "-m", "control_center.modules.mcp.demo_server", "--port", "8701"]
+# url = "http://127.0.0.1:8701/mcp"

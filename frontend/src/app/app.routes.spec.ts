@@ -5,6 +5,7 @@ import { RouterTestingHarness } from '@angular/router/testing';
 
 import { routes } from './app.routes';
 import { Help } from './help/help';
+import { Mcp } from './mcp/mcp';
 
 @Component({ template: '' })
 class Stub {}
@@ -22,6 +23,12 @@ describe('app routes', () => {
     const harness = await RouterTestingHarness.create();
     await harness.navigateByUrl('/gibt-es-nicht');
     expect(TestBed.inject(Router).url).toBe('/');
+  });
+
+  it('loads the MCP page lazily and lists it in the main group', async () => {
+    const mcp = routes.find((r) => r.path === 'mcp')!;
+    expect(mcp.data).toEqual({ nav: 'main', icon: 'server', module: 'mcp' });
+    expect(await mcp.loadComponent!()).toBe(Mcp);
   });
 
   it('loads the help page lazily and keeps it out of the sidebar', async () => {

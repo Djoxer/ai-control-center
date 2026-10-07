@@ -21,3 +21,15 @@ export type { LogsEntries$Params as LogsEntries$Params } from './fn/logs/logs-en
 export { logsEntries as logsEntries } from './fn/logs/logs-entries';
 export type { LogsSources$Params as LogsSources$Params } from './fn/logs/logs-sources';
 export { logsSources as logsSources } from './fn/logs/logs-sources';
+export type { McpServers$Params as McpServers$Params } from './fn/mcp/mcp-servers';
+export { mcpServers as mcpServers } from './fn/mcp/mcp-servers';
+export type { McpServer$Params as McpServer$Params } from './fn/mcp/mcp-server';
+export { mcpServer as mcpServer } from './fn/mcp/mcp-server';
+export type { McpRestart$Params as McpRestart$Params } from './fn/mcp/mcp-restart';
+export { mcpRestart as mcpRestart } from './fn/mcp/mcp-restart';
+export type { McpStart$Params as McpStart$Params } from './fn/mcp/mcp-start';
+export { mcpStart as mcpStart } from './fn/mcp/mcp-start';
+export type { McpStop$Params as McpStop$Params } from './fn/mcp/mcp-stop';
+export { mcpStop as mcpStop } from './fn/mcp/mcp-stop';
+export type { McpTools$Params as McpTools$Params } from './fn/mcp/mcp-tools';
+export { mcpTools as mcpTools } from './fn/mcp/mcp-tools';

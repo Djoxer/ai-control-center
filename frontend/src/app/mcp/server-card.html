@@ -1,0 +1,198 @@
+<!-- server-card.html: header with state and actions, notices, facts, command, last output, tools -->
+@let s = server();
+<article [class]="ui.card" class="overflow-hidden" [attr.aria-labelledby]="'mcp-' + s.key">
+  <header class="flex flex-wrap items-start gap-x-4 gap-y-3 p-4">
+    <!-- min-w-56: on a phone the buttons wrap below the title instead of squeezing it -->
+    <div class="min-w-56 flex-1">
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <h2 [id]="'mcp-' + s.key" class="text-base font-semibold text-white">{{ s.title }}</h2>
+        <span [class]="pillClass()" class="flex items-center gap-1.5" role="status">
+          <span [class]="dotClass()"></span>{{ view().label }}
+        </span>
+      </div>
+      <p [class]="ui.meta" class="mt-1">
+        <span class="font-mono">{{ s.key }}</span>
+        @if (s.autostart) { · startet mit dem Control Center }
+        @if (!s.restartOnCrash) { · ohne automatischen Neustart }
+      </p>
+    </div>
+
+    <!-- actions: only what fits the state; stop and restart ask first (page dialog) -->
+    <div class="flex flex-wrap gap-2">
+      @if (canStart()) {
+        <button type="button" [class]="ui.button" class="flex items-center gap-2"
+                [disabled]="busy() !== null || startBlocked()"
+                [title]="startBlocked() ? 'Port belegt – erst den anderen Prozess beenden' : ''"
+                (click)="action.emit('start')">
+          <app-icon name="play" class="size-4" /> {{ busy() === 'start' ? 'Startet …' : 'Starten' }}
+        </button>
+        @if (s.state === 'crashed') {
+          <button type="button" [class]="ui.button" [disabled]="busy() !== null" (click)="action.emit('reset')"
+                  title="Absturz quittieren und einen geplanten automatischen Neustart abbrechen">
+            Zurücksetzen
+          </button>
+        }
+      } @else {
+        <button type="button" [class]="ui.button" class="flex items-center gap-2"
+                [disabled]="busy() !== null || !canStop()" (click)="action.emit('restart')">
+          <app-icon name="refresh" class="size-4" /> Neu starten
+        </button>
+        <button type="button" [class]="ui.buttonDanger" class="flex items-center gap-2"
+                [disabled]="busy() !== null || !canStop()" (click)="action.emit('stop')">
+          <app-icon name="stop" class="size-4" /> {{ busy() === 'stop' || s.state === 'stopping' ? 'Stoppt …' : 'Stoppen' }}
+        </button>
+      }
+    </div>
+  </header>
+
+  <!-- notices: request error, last error of the process, someone else on our port -->
+  @if (actionError() || s.lastError || external()) {
+    <div class="space-y-2 px-4 pb-4">
+      @if (actionError(); as err) {
+        @if (err !== s.lastError) {
+          <p [class]="ui.errorBox" class="px-3 py-2 text-sm" role="alert">{{ err }}</p>
+        }
+      }
+      @if (s.lastError) {
+        <div [class]="calloutClass()" [attr.role]="s.state === 'crashed' ? 'alert' : 'status'">
+          <app-icon [name]="s.state === 'crashed' ? 'error' : 'warning'" class="mt-0.5 size-5" />
+          <p><span class="font-semibold">{{ s.state === 'crashed' ? 'Fehler' : 'Hinweis' }}:</span> {{ s.lastError }}</p>
+        </div>
+      }
+      @if (external(); as who) {
+        <div [class]="warnCallout" role="status">
+          <app-icon name="warning" class="mt-0.5 size-5" />
+          <p>
+            <span class="font-semibold">Port belegt:</span> Port {{ s.port?.port }} gehört {{ who }} – nicht hier
+            gestartet. Läuft der Server noch in einem eigenen Fenster? Dort beenden, dann hier starten.
+          </p>
+        </div>
+      }
+    </div>
+  }
+
+  <!-- facts -->
+  <dl class="grid grid-cols-2 gap-x-6 gap-y-3 px-4 pb-4 text-sm sm:grid-cols-4">
+    <div>
+      @if (uptime() === null && s.stoppedAt) {
+        <dt [class]="ui.fieldLabel">Beendet</dt>
+        <dd class="mt-1 text-gray-200">
+          {{ fmt.clockTime(s.stoppedAt) }}
+          @if (s.exitCode !== null && s.exitCode !== undefined) { <span class="text-gray-500">· Code {{ s.exitCode }}</span> }
+        </dd>
+      } @else {
+        <dt [class]="ui.fieldLabel">Laufzeit</dt>
+        <dd class="mt-1 text-gray-200">{{ uptime() === null ? '—' : fmt.duration(uptime()) }}</dd>
+      }
+    </div>
+    <div>
+      <dt [class]="ui.fieldLabel">PID</dt>
+      <dd class="mt-1 font-mono text-gray-200">{{ s.pid ?? '—' }}</dd>
+    </div>
+    <div>
+      <dt [class]="ui.fieldLabel">Port</dt>
+      <dd class="mt-1 flex items-center gap-2 text-gray-200">
+        @if (s.port; as p) {
+          <span [class]="ui.dot" [class.bg-emerald-400]="p.open === true" [class.bg-gray-600]="p.open !== true"></span>
+          {{ p.port }} {{ p.open === null ? '(ungeprüft)' : p.open ? 'offen' : 'zu' }}
+        } @else {
+          —
+        }
+      </dd>
+    </div>
+    <div>
+      <dt [class]="ui.fieldLabel">Neustarts</dt>
+      <dd class="mt-1 text-gray-200" title="automatische Neustarts nach Absturz im Zeitfenster">
+        {{ s.restarts ? s.restarts + ' automatisch' : 'keine' }}
+      </dd>
+    </div>
+  </dl>
+
+  <!-- address and command line -->
+  <div class="space-y-3 px-4 pb-4">
+    @if (s.url) {
+      <div>
+        <p [class]="ui.fieldLabel">Endpunkt</p>
+        <div class="mt-1 flex items-center gap-2">
+          <code class="min-w-0 truncate font-mono text-sm text-gray-200" [title]="s.url">{{ s.url }}</code>
+          <button type="button" [class]="ui.buttonSmall" class="flex shrink-0 items-center gap-1.5" (click)="copyUrl()">
+            <app-icon name="copy" class="size-3.5" /> {{ copied() ? 'Kopiert' : 'Kopieren' }}
+          </button>
+        </div>
+      </div>
+    }
+    <div>
+      <p [class]="ui.fieldLabel">Befehl</p>
+      <pre [class]="ui.codeBlock" class="mt-1 px-3 py-2 break-all whitespace-pre-wrap">{{ s.commandLine }}</pre>
+      @if (s.cwd) { <p [class]="ui.meta" class="mt-1 break-all">Ordner: {{ s.cwd }}</p> }
+    </div>
+    @if (s.state === 'crashed' && s.recentOutput?.length) {
+      <details open>
+        <summary class="cursor-pointer text-xs text-gray-400 hover:text-gray-200">
+          Letzte Ausgabe ({{ s.recentOutput!.length }} Zeilen)
+        </summary>
+        <pre [class]="ui.codeBlock" class="mt-2 max-h-64 overflow-auto px-3 py-2 whitespace-pre-wrap"
+             tabindex="0">{{ s.recentOutput!.join('\n') }}</pre>
+      </details>
+    }
+  </div>
+
+  <!-- tools (MCP tools/list) -->
+  <section class="border-t border-white/10 p-4" [attr.aria-label]="'Tools von ' + s.title">
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+      <h3 [class]="ui.sectionTitle">
+        Tools @if (s.tools && !s.tools.error) { <span [class]="ui.titleDetail">· {{ s.tools.tools.length }}</span> }
+      </h3>
+      @if (s.tools; as t) {
+        <p [class]="ui.meta">
+          abgefragt {{ fmt.clockTime(t.fetchedAt) }}
+          @if (t.serverName) { · {{ t.serverName }} {{ t.serverVersion }} }
+          @if (t.protocolVersion) { · MCP {{ t.protocolVersion }} }
+        </p>
+      }
+      <button type="button" [class]="ui.buttonSmall" class="ml-auto flex items-center gap-1.5"
+              [disabled]="!s.url || toolsLoading()" (click)="refreshTools.emit()">
+        <app-icon name="refresh" class="size-3.5" [class.animate-spin]="toolsLoading()" />
+        {{ toolsLoading() ? 'Frage ab …' : 'Abfragen' }}
+      </button>
+    </div>
+
+    @if (!s.url) {
+      <p [class]="ui.empty" class="py-4">Keine Adresse (url) eingetragen – ohne sie lässt sich nichts abfragen.</p>
+    } @else if (!s.tools) {
+      <p [class]="ui.empty" class="py-4">Noch nicht abgefragt.</p>
+    } @else if (s.tools.error) {
+      <p [class]="ui.errorBox" class="mt-3 px-3 py-2 text-sm" role="alert">{{ s.tools.error }}</p>
+    } @else if (!s.tools.tools.length) {
+      <p [class]="ui.empty" class="py-4">Der Server meldet keine Tools.</p>
+    } @else {
+      <ul [class]="ui.divided" class="mt-2">
+        @for (tool of s.tools.tools; track tool.name) {
+          <li class="py-3">
+            <p class="font-mono text-sm text-white">{{ tool.name }}
+              @if (tool.title) { <span class="font-sans text-gray-400">– {{ tool.title }}</span> }
+            </p>
+            @if (tool.description) {
+              <p class="mt-1 text-sm whitespace-pre-line text-gray-400">{{ tool.description }}</p>
+            }
+            @if (tool.params.length) {
+              <p class="mt-2 flex flex-wrap gap-1.5">
+                @for (p of tool.params; track p.name) {
+                  <span [class]="ui.pill + ' ' + ui.pillTone.normal" class="font-mono" [title]="p.description ?? ''">{{ paramText(p) }}</span>
+                }
+              </p>
+            }
+          </li>
+        }
+      </ul>
+      <p [class]="ui.meta" class="mt-1">* = Pflichtangabe</p>
+    }
+  </section>
+
+  <footer [class]="ui.cardFoot" class="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+    <a routerLink="/logs" [queryParams]="{ source: s.logSource }" class="flex items-center gap-1.5 hover:text-gray-300">
+      <app-icon name="log" class="size-3.5" /> Ausgabe im Protokoll
+    </a>
+    @if (s.startedAt) { <span>gestartet {{ fmt.clockTime(s.startedAt) }}</span> }
+  </footer>
+</article>

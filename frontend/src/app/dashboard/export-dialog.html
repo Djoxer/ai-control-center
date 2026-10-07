@@ -62,7 +62,7 @@
     } @else if (error(); as e) {
       <p [class]="ui.errorBox" class="mt-2 px-3 py-2 text-xs" role="alert">Export fehlgeschlagen: {{ e }}</p>
     } @else {
-      <pre class="mt-2 h-72 overflow-auto rounded-lg border border-white/10 bg-gray-950 p-3 font-mono text-xs/5 text-gray-200"
+      <pre [class]="ui.codeBlock" class="mt-2 h-72 overflow-auto p-3"
            [class.opacity-60]="loading()" tabindex="0" aria-label="Vorschau des Exports">{{ doc()?.content ?? '' }}</pre>
     }
   </div>

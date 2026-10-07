@@ -33,10 +33,24 @@ class LogsService:
             paths=[os.path.join(glob.escape(str(s.log_dir)), glob.escape(s.log.file_name) + "*")],
         )
         extra = [src for src in cfg.sources if src.key != OWN_SOURCE]
-        self.sources: dict[str, LogSourceConfig] = {src.key: src for src in [own, *extra]}
+        self._configured: dict[str, LogSourceConfig] = {src.key: src for src in [own, *extra]}
         self._tail: dict[str, FileTail] = {}
         self._failing: set[str] = set()          # log a broken source once, not every tick
         self._task: asyncio.Task | None = None
+
+    @property
+    def sources(self) -> dict[str, LogSourceConfig]:
+        """Own log + [modules.logs] sources, then sources other modules registered in ctx.log_sources.
+
+        Computed on every access: a module may register its files after this service started
+        (e.g. the MCP module, one source per managed server). Configured keys win on a clash.
+        """
+        merged = dict(self._configured)
+        for key, src in self.ctx.log_sources.items():
+            if key not in merged:
+                merged[key] = LogSourceConfig(key=src.key, title=src.title, format=src.format,
+                                              paths=list(src.paths))
+        return merged
 
     # ---- read API -------------------------------------------------------------------------
 
@@ -92,9 +106,18 @@ class LogsService:
     async def _run(self) -> None:
         while True:
             await asyncio.sleep(self.cfg.tail_interval_s)
-            for key, src in self.sources.items():
-                tail = self._tail[key]
+            sources = self.sources
+            for key in [k for k in self._tail if k not in sources]:
+                del self._tail[key]                                  # source was withdrawn
+            for key, src in sources.items():
+                tail = self._tail.get(key)
                 try:
+                    if tail is None:
+                        # registered after start(): follow from now on, like every source at startup
+                        tail = FileTail(src.paths)
+                        await asyncio.to_thread(tail.attach, True)
+                        self._tail[key] = tail
+                        continue
                     entries = await asyncio.to_thread(self._poll, src, tail)
                     if key in self._failing:
                         log.info("log source %s readable again", key)

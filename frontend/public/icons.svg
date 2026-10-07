@@ -29,6 +29,11 @@
   <symbol id="login" viewBox="0 0 24 24"><path d="M10 4h9v16h-9M3 12h10M9 8l4 4-4 4"/></symbol>
   <symbol id="logout" viewBox="0 0 24 24"><path d="M14 4H5v16h9M10 12h10M16 8l4 4-4 4"/></symbol>
 
+  <!-- Processes & services -->
+  <symbol id="server" viewBox="0 0 24 24"><path d="M4 4h16v7H4zM4 13h16v7H4zM7.5 7.5h.01M7.5 16.5h.01M12 7.5h5M12 16.5h5"/></symbol>
+  <symbol id="play" viewBox="0 0 24 24"><path d="M7 4.5l12 7.5-12 7.5z"/></symbol>
+  <symbol id="stop" viewBox="0 0 24 24"><path d="M6 6h12v12H6z"/></symbol>
+
   <!-- CRUD -->
   <symbol id="plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
   <symbol id="minus" viewBox="0 0 24 24"><path d="M5 12h14"/></symbol>

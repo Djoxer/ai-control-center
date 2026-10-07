@@ -1,6 +1,7 @@
 import { TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, TestRequest, provideHttpClientTesting } from '@angular/common/http/testing';
+import { ActivatedRoute, convertToParamMap } from '@angular/router';
 
 import { LogEntry } from '../api/models/log-entry';
 import { StreamService } from '../core/stream.service';
@@ -107,5 +108,27 @@ describe('Logs page', () => {
     expect(page.formatTime(local)).toBe('06.10. 14:05:09.007');
     expect(page.formatTime(null)).toBe('—');
     void flushFirstPage([]);
+  });
+});
+
+describe('Logs page opened with ?source=', () => {
+  it('preselects the requested source (link from the MCP page), even without files', async () => {
+    FakeEventSource.instances = [];
+    TestBed.configureTestingModule({
+      imports: [Logs],
+      providers: [
+        provideHttpClient(), provideHttpClientTesting(), fakeEventSourceProvider,
+        { provide: ActivatedRoute, useValue: { snapshot: { queryParamMap: convertToParamMap({ source: 'ollama' }) } } },
+      ],
+    });
+    const http = TestBed.inject(HttpTestingController);
+    const fixture = TestBed.createComponent(Logs);
+    fixture.detectChanges();
+    http.expectOne('/api/v1/logs/sources').flush(SOURCES);
+    await settle();
+    expect(fixture.componentInstance.source()).toBe('ollama');           // not the first available one
+    http.expectOne((r) => r.url === '/api/v1/logs/entries' && r.params.get('source') === 'ollama')
+      .flush({ entries: [], nextCursor: null });
+    http.verify();
   });
 });

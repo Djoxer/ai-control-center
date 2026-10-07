@@ -20,6 +20,13 @@ export const routes: Routes = [
     title: 'Katalog',
     data: { nav: 'main', icon: 'list', module: 'catalog' }
   },
+  // Lazy like every new module page (README "Add a module"): its code loads on the first visit
+  {
+    path: 'mcp',
+    loadComponent: () => import('./mcp/mcp').then((m) => m.Mcp),
+    title: 'MCP-Server',
+    data: { nav: 'main', icon: 'server', module: 'mcp' }
+  },
   {
     path: 'logs',
     component: Logs,

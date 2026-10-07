@@ -1,7 +1,7 @@
 [project]
 name = "ai-control-center"
-version = "0.7.0"
-description = "Control plane for the local AI box: health, models, catalog, logs"
+version = "0.8.0"
+description = "Control plane for the local AI box: health, models, catalog, logs, MCP servers"
 requires-python = ">=3.12"
 dependencies = [
     "fastapi>=0.115",
@@ -13,6 +13,7 @@ dependencies = [
     "httpx>=0.27",                     # Ollama adapter, service probes
     "psutil>=7",                       # host adapter: CPU, RAM, disks, processes
     "nvidia-ml-py>=12",                # GPU adapter (module "pynvml"); pure Python, installs without a GPU
+    "mcp>=2.3,<3",                     # MCP client (tools/list of managed servers), demo server
 ]
 
 [dependency-groups]

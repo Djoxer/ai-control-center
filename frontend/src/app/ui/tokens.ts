@@ -45,6 +45,9 @@ export const ui = {
   meta: 'text-xs text-gray-500',
   /** Placeholder text for empty lists and loading states; padding from the template. */
   empty: 'text-center text-sm text-gray-500',
+  /** Machine text to read or copy: command lines, program output, export previews. Padding and height
+   *  from the template; whitespace handling (pre / break-all) too, it depends on the content. */
+  codeBlock: 'rounded-lg border border-white/10 bg-gray-950 font-mono text-xs/5 text-gray-200',
   /**
    * Rendered Markdown (help pages): styles the generated h2, p, lists, tables, code from the container,
    * because the elements come from marked and carry no classes. Spacing between the elements is part of
@@ -90,6 +93,9 @@ export const ui = {
   button: 'rounded-lg border border-white/10 px-3 py-1.5 text-sm text-gray-300 hover:bg-white/5 disabled:opacity-50',
   /** Same, compact - inside small text like a card footer. */
   buttonSmall: 'rounded-lg border border-white/10 px-2.5 py-1 text-xs text-gray-300 hover:bg-white/5 disabled:opacity-50',
+  /** Action that ends or removes something (stop a server). Always behind a confirmation dialog. */
+  buttonDanger:
+    'rounded-lg border border-red-500/40 px-3 py-1.5 text-sm text-red-200 hover:bg-red-500/10 disabled:opacity-50',
   /**
    * Selectable tab-like button or link. Selected: aria-pressed="true" on a button (filter, source),
    * aria-current="page" on a link (help topics - they change the URL).
@@ -182,6 +188,7 @@ export const UI_DOCS: Record<UiToken, UiDoc> = {
   kpiEmpty: { group: 'Text', label: 'Kennzahl ohne Wert' },
   meta: { group: 'Text', label: 'Nebeninfo' },
   empty: { group: 'Text', label: 'Leer- und Ladezustand' },
+  codeBlock: { group: 'Text', label: 'Code-/Ausgabeblock' },
   prose: { group: 'Text', label: 'Markdown-Text (Hilfe)' },
   fieldLabel: { group: 'Formular', label: 'Feldbeschriftung' },
   field: { group: 'Formular', label: 'Eingabefeld / Auswahl' },
@@ -189,6 +196,7 @@ export const UI_DOCS: Record<UiToken, UiDoc> = {
   checkLabel: { group: 'Formular', label: 'Checkbox-Beschriftung' },
   button: { group: 'Buttons', label: 'Button' },
   buttonSmall: { group: 'Buttons', label: 'Button klein' },
+  buttonDanger: { group: 'Buttons', label: 'Button „beenden/löschen“' },
   toggle: { group: 'Buttons', label: 'Umschalter (Tab)' },
   iconButton: { group: 'Buttons', label: 'Icon-Button' },
   chip: { group: 'Buttons', label: 'Status-Chip' },

@@ -8,8 +8,8 @@ Wissenssammlungen bleiben in OpenWebUI. Hier wird überwacht und gesteuert.
 
 ### Aufbau
 
-- **Seitenleiste links:** oben die Arbeitsseiten (Übersicht, Katalog), unten die Werkzeuge (Protokoll,
-  Einstellungen). Ein Eintrag mit grauer Plakette wie `unknown` oder `failed` gehört zu einem Modul, das
+- **Seitenleiste links:** oben die Arbeitsseiten (Übersicht, Katalog, MCP-Server), unten die Werkzeuge
+  (Protokoll, Einstellungen). Ein Eintrag mit grauer Plakette wie `unknown` oder `failed` gehört zu einem Modul, das
   im Backend gerade nicht läuft – die Seite öffnet sich trotzdem, zeigt aber keine echten Daten.
   Auf dem Handy klappt die Leiste über das Menüsymbol oben links auf.
 - **Kopfzeile:** links der Name der Seite, rechts der Status-Chip und das Menü **⋮**.
@@ -62,6 +62,7 @@ sich auch per Umgebungsvariable setzen, z. B. `ACC_PORT=9000` oder `ACC_LOG__LEV
 | `[adapters]` | Wo Ollama, GPU und Rechner abgefragt werden – echt oder simuliert (`fake`) |
 | `[modules]` | `disabled = ["…"]` schaltet ein Modul ab, ohne Code anzufassen |
 | `[modules.<name>]` | Einstellungen eines Moduls, siehe die Hilfe des jeweiligen Moduls |
+| `[[modules.mcp.servers]]` | die MCP-Server, die das Control Center startet und überwacht |
 
 Wichtig: Werte ohne Abschnitt wie `frontend_dist` müssen **vor** der ersten `[…]`-Zeile stehen.
 
@@ -83,9 +84,10 @@ Entwicklungsrechner per `git pull`.
 
 ### Daten
 
-Im Ordner `data/` (neben `backend/`): die SQLite-Datenbank `control-center.db` (Verlauf, Ereignisse)
-und `logs/control-center.log` (eigenes Log, JSON-Zeilen, rotiert). Löschen setzt Verlauf und Ereignisse
-zurück, sonst nichts.
+Im Ordner `data/` (neben `backend/`): die SQLite-Datenbank `control-center.db` (Verlauf, Ereignisse),
+`logs/control-center.log` (eigenes Log, JSON-Zeilen, rotiert), `logs/mcp-<key>.log` (Ausgabe der
+MCP-Server) und `mcp/` (PID-Dateien laufender MCP-Server). Löschen setzt Verlauf und Ereignisse zurück,
+sonst nichts – aber nur bei beendetem Control Center.
 
 ### Hilfetexte und „Was ist neu“
 

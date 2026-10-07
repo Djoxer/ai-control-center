@@ -7,9 +7,10 @@ ohne dass jemand am AI-Rechner Dateien öffnen muss.
 
 ### Quellen
 
-Oben ein Knopf pro Quelle, z. B. **AI Control Center** und **Ollama**. Rechts stehen Anzahl und Größe
-der Dateien und welche gerade beschrieben wird. Eine Quelle mit „(keine Datei)“ ist eingerichtet, aber
-ihr Pfad passt auf keine Datei.
+Oben ein Knopf pro Quelle, z. B. **AI Control Center**, **Ollama** und je MCP-Server **MCP: …**.
+Rechts stehen Anzahl und Größe der Dateien und welche gerade beschrieben wird. Eine Quelle mit
+„(keine Datei)“ ist eingerichtet, aber ihr Pfad passt auf keine Datei. Von anderen Seiten aus öffnet
+ein Link wie „Ausgabe im Protokoll“ direkt die passende Quelle.
 
 ### Filter
 
@@ -49,6 +50,8 @@ paths = ["%LOCALAPPDATA%/Ollama/server*.log"]
 - **`paths`** sind Muster: `*` passt auch auf rotierte Dateien (`server-1.log`). Umgebungsvariablen
   wie `%LOCALAPPDATA%` werden ersetzt. Die Pfade gelten auf dem Rechner, auf dem das Backend läuft.
 - Wer `sources` setzt, ersetzt die Standardliste – Ollama dann wieder mit aufführen.
+- Andere Module bringen eigene Quellen mit, ohne Eintrag hier: jeder MCP-Server erscheint als
+  **MCP: <Name>** (siehe Hilfe „MCP-Server“).
 - Zeilen im Format von Ollama (`time=… level=… msg=…`) werden zerlegt; alles andere erscheint als
   Rohtext ohne Stufe.
 - Die Dateien werden nur zum Lesen kurz geöffnet. Rotation und Löschen durch andere Programme
