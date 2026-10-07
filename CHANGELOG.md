@@ -2,6 +2,12 @@
 
 Automatisch aus den Commit-Nachrichten erzeugt. Neu = `feat`, Behoben = `fix`, Schneller = `perf`.
 
+## 0.7.0 – 07.10.2026
+
+### Neu
+
+- **dashboard:** Export for AI chats as Markdown or JSON, version 0.7.0
+
 ## 0.6.0 – 07.10.2026
 
 ### Neu
