@@ -23,15 +23,32 @@ over the LAN and replay GPU/host from a recorded scenario - in `backend/control-
     ai_host = "<AI box IP>"
     gpu = "fake"
     host = "fake"
-    fake_scenario = "normal"      # normal | offload | idle | ollama-down
+    fake_scenario = "normal"      # see backend/src/control_center/adapters/samples/README.md
 
 `ollama = "fake"` as well gives a dashboard without any AI box (offload demo, presentations).
 The UI labels simulated sources via `simulated` in the snapshot.
 
-Record real scenarios on the AI box (replaces the synthetic sample files):
+Record a real scenario on the AI box - the argument is a name, the files land in `adapters/samples/<name>/`.
+Use a `real-` prefix; the synthetic folders are test data and stay untouched:
 
     cd backend
-    uv run python -m control_center.capture_samples src/control_center/adapters/samples/normal
+    uv run python -m control_center.capture_samples real-normal --note "only the coder model"
+
+Frontend against a backend on another machine: set `ACC_DEV_BACKEND` (see `frontend/README.md`),
+then `ng serve`. No IP in `proxy.conf.mjs`, nothing to revert before a commit.
+
+## Serve the frontend from the backend (AI box)
+
+    cd frontend
+    npm ci
+    npm run build
+
+Then in `backend/control-center.toml` (top level, above the first `[section]`):
+
+    frontend_dist = "../frontend/dist/ai-control-center/browser"
+
+Restart the backend; the log says `serving frontend from ...`. After a later `git pull` with frontend
+changes: `npm ci` (if package-lock.json changed), `npm run build`, no backend restart needed.
 
 ## Add a module
 

@@ -1,9 +1,15 @@
 """Record a fake scenario from the live AI box. Run it ON the AI box (NVML and psutil see only the local machine).
 
     cd backend
-    uv run python -m control_center.capture_samples src/control_center/adapters/samples/normal
+    uv run python -m control_center.capture_samples real-normal
+    uv run python -m control_center.capture_samples real-idle --note "nothing loaded"
 
-Writes into the target folder:
+The argument is a scenario NAME, not a path: files always go to
+src/control_center/adapters/samples/<name>/, the only place the fake adapters read from.
+Use a "real-" prefix for recordings. The synthetic folders (normal, offload, idle, ollama-down)
+are test data with exact values - the tool refuses to overwrite them unless --force is given.
+
+Writes into the scenario folder:
     ollama-ps.json, ollama-version.json   raw Ollama answers (missing when Ollama is down -> "ollama-down")
     gpu.json, host.json, disks.json       adapter readings; command lines always "short" (or "off")
     meta.json                             capturedAt, so the fake can shift expiry times to "now"
@@ -13,22 +19,30 @@ ai_host/ollama_url/gpu_index and [modules.dashboard] for process_names and disk_
 """
 from __future__ import annotations
 
+import argparse
 import asyncio
 import json
+import re
 import sys
+from collections.abc import Sequence
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 import httpx
 
-from control_center.adapters.common import describe, to_jsonable
+from control_center.adapters.common import SAMPLES_DIR, describe, to_jsonable
 from control_center.adapters.gpu import NvmlGpu
 from control_center.adapters.host import PsutilHost
-from control_center.core.config import Settings, load_settings
+from control_center.core.config import SCENARIO_NAME_PATTERN, Settings, load_settings
 from control_center.modules.dashboard.settings import DashboardSettings
 
 FILES = ("ollama-ps.json", "ollama-version.json", "gpu.json", "host.json", "disks.json", "meta.json")
+EXIT_USAGE = 2                                   # argparse uses 2 as well
+
+
+class ScenarioError(ValueError):
+    """The scenario name cannot be used; the message says what to do instead."""
 
 
 def _write(target: Path, name: str, data: Any) -> None:
@@ -36,12 +50,41 @@ def _write(target: Path, name: str, data: Any) -> None:
                                encoding="utf-8", newline="\n")
 
 
-async def capture(target: Path, settings: Settings, cpu_window_s: float = 1.0) -> tuple[list[str], list[str]]:
+def is_synthetic(folder: Path) -> bool:
+    """Hand-made test scenario? Tests depend on its exact values, so a capture must not replace it."""
+    meta = folder / "meta.json"
+    if not meta.is_file():
+        return False
+    try:
+        return json.loads(meta.read_text(encoding="utf-8")).get("source") == "synthetic"
+    except (ValueError, AttributeError):
+        return False                               # broken meta.json: nothing worth protecting
+
+
+def resolve_target(name: str, samples_dir: Path, force: bool = False) -> Path:
+    """Scenario name -> folder under samples_dir. Raises ScenarioError with a hint instead of guessing."""
+    if "/" in name or "\\" in name:
+        # the old call style took a path; a typo in it silently created a phantom folder tree
+        raise ScenarioError(f"pass the scenario name only, e.g. 'real-normal' (files go to {samples_dir})")
+    if not re.fullmatch(SCENARIO_NAME_PATTERN, name):
+        raise ScenarioError(f"invalid scenario name '{name}': lowercase letters, digits and '-', "
+                            "starting with a letter or digit")
+    if not samples_dir.is_dir():
+        raise ScenarioError(f"samples folder not found: {samples_dir}")
+    target = samples_dir / name
+    if is_synthetic(target) and not force:
+        raise ScenarioError(f"'{name}' is synthetic test data (tests depend on its values). "
+                            f"Record into a new name like 'real-{name}', or pass --force to replace it.")
+    return target
+
+
+async def capture(target: Path, settings: Settings, cpu_window_s: float = 1.0,
+                  note: str = "") -> tuple[list[str], list[str]]:
     """Returns (written files, problems). Only our own file names in target are replaced."""
     cfg = settings.adapters
     dash = DashboardSettings.model_validate(settings.modules.section("dashboard"))
     cmdline = "off" if dash.process_cmdline == "off" else "short"     # never store full command lines
-    target.mkdir(parents=True, exist_ok=True)
+    target.mkdir(exist_ok=True)                   # one level only: a wrong parent is an error, not a new tree
     for name in FILES:
         (target / name).unlink(missing_ok=True)       # a stale ollama-ps.json would turn "down" into "up"
     written: list[str] = []
@@ -82,18 +125,31 @@ async def capture(target: Path, settings: Settings, cpu_window_s: float = 1.0) -
         problems.append(f"disks.json: {describe(exc)}")
 
     _write(target, "meta.json", {"capturedAt": datetime.now(timezone.utc).isoformat(), "source": "capture",
-                                 "note": ""})
+                                 "note": note})
     written.append("meta.json")
     return written, problems
 
 
-def main() -> int:
-    if len(sys.argv) != 2:
-        print(__doc__)
-        return 2
-    target = Path(sys.argv[1])
-    written, problems = asyncio.run(capture(target, load_settings()))
-    print(f"scenario written to {target.resolve()}")
+def _parser() -> argparse.ArgumentParser:
+    p = argparse.ArgumentParser(
+        prog="python -m control_center.capture_samples",
+        description="Record the AI box's current state as a fake scenario under adapters/samples/<name>/.")
+    p.add_argument("name", help="scenario name, e.g. real-normal (no path)")
+    p.add_argument("--note", default="", help="free text stored in meta.json, e.g. 'only the coder model'")
+    p.add_argument("--force", action="store_true", help="allow replacing a synthetic test scenario")
+    return p
+
+
+def main(argv: Sequence[str] | None = None) -> int:
+    args = _parser().parse_args(argv)
+    try:
+        target = resolve_target(args.name, SAMPLES_DIR, args.force)
+    except ScenarioError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return EXIT_USAGE
+    replacing = (target / "meta.json").is_file()
+    written, problems = asyncio.run(capture(target, load_settings(), note=args.note))
+    print(f"scenario {'replaced' if replacing else 'written'}: {target.resolve()}")
     for name in written:
         print(f"  ok       {name}")
     for p in problems:

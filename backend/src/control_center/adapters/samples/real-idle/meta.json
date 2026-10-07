@@ -1,5 +1,5 @@
 {
   "capturedAt": "2026-10-07T07:50:04.779017+00:00",
   "source": "capture",
-  "note": ""
+  "note": "Ollama running, nothing loaded; venv launcher duplicates (~4 MB python.exe twins) removed by hand on 2026-10-07"
 }

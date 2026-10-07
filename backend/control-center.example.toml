@@ -5,7 +5,7 @@ host = "0.0.0.0"                 # LAN access (second PC). 127.0.0.1 = only on t
 port = 8090
 data_dir = "../data"
 # frontend_dist = "../frontend/dist/ai-control-center/browser"   # enable once Angular is built
-cors_origins = []                # not needed when "ng serve" uses proxy.conf.json
+cors_origins = []                # not needed: "ng serve" proxies /api (frontend/proxy.conf.mjs)
 
 [log]
 level = "INFO"
@@ -22,7 +22,7 @@ ollama = "http"                  # http | fake
 ollama_url = "http://{ai_host}:11434"    # {ai_host} is replaced by the value above
 gpu = "nvml"                     # nvml | fake | none (no NVIDIA GPU, no error)
 host = "psutil"                  # psutil | fake
-fake_scenario = "normal"         # normal | offload | idle | ollama-down (src/control_center/adapters/samples/)
+fake_scenario = "normal"         # synthetic: normal | offload | idle | ollama-down; captured: real-normal | real-idle | real-ollama-down
 timeout_s = 2.0                  # per call; a hanging source must not stall the others
 
 [modules]

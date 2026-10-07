@@ -51,12 +51,12 @@ def test_missing_file_is_not_an_error(tmp_path):
     assert tail.poll() == ["appeared"]                  # a file that shows up later is read from its start
 
 
-@pytest.mark.parametrize("value", ["http://192.168.5.54/", "192.168.5.54/", "http://box", "", "a b"])
+@pytest.mark.parametrize("value", ["http://192.168.1.20/", "192.168.1.20/", "http://box", "", "a b"])
 def test_ai_host_rejects_urls(value):
     with pytest.raises(ValueError, match="host name or IP only"):
         AdaptersConfig(ai_host=value)
 
 
 def test_ai_host_accepts_names_and_ips():
-    assert AdaptersConfig(ai_host=" 192.168.5.54 ").ai_host == "192.168.5.54"
+    assert AdaptersConfig(ai_host=" 192.168.1.20 ").ai_host == "192.168.1.20"
     assert AdaptersConfig(ai_host="ai-box").expand("http://{ai_host}:11434") == "http://ai-box:11434"

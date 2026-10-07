@@ -13,10 +13,11 @@ import json
 import os
 import re
 import threading
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Literal, Protocol, Sequence
+from typing import Literal, Protocol
 
 import psutil
 
@@ -38,6 +39,7 @@ class ProcessReading:
     cpu_percent: float | None       # share of the whole machine (0-100); None on the first sighting
     rss_bytes: int | None           # resident memory
     cmdline: str | None             # according to CmdlineMode; None if off or access denied
+    ppid: int | None = None         # parent pid; lets us hide venv launchers. None in older captures
 
 
 @dataclass(frozen=True)
@@ -122,6 +124,47 @@ def shorten_cmdline(argv: Sequence[str], mode: CmdlineMode) -> str | None:
     return text if len(text) <= MAX_CMDLINE else text[: MAX_CMDLINE - 1] + "…"
 
 
+def drop_launchers(rows: Iterable[tuple[ProcessReading, str | None]]) -> list[ProcessReading]:
+    """Hide launcher processes that only start a twin of themselves.
+
+    On Windows, .venv\\Scripts\\python.exe is a small launcher: it starts the real interpreter as a
+    child with the same arguments and waits. Every venv program would show up twice (one of them
+    with ~4 MB RAM). A row is dropped when one of its children has the same name and the same
+    arguments - the child holds the real CPU and memory numbers.
+
+    rows: (reading, args_key) - args_key is the argument list without argv[0] (the paths differ
+    between launcher and interpreter). None or "" = unknown or no arguments: never dropped, because
+    a same-name child without arguments says nothing about being a launcher's twin.
+    """
+    items = list(rows)
+    children: dict[int, list[tuple[str, str | None]]] = {}
+    for r, key in items:
+        if r.ppid is not None:
+            children.setdefault(r.ppid, []).append((normalize_name(r.name), key))
+    out: list[ProcessReading] = []
+    for r, key in items:
+        twin = bool(key) and (normalize_name(r.name), key) in children.get(r.pid, [])
+        if not twin:
+            out.append(r)
+    return out
+
+
+def args_key(argv: Sequence[str]) -> str:
+    """Arguments without the program path: launcher and interpreter differ only in argv[0]."""
+    return " ".join(argv[1:])
+
+
+def stored_args_key(name: str, line: str | None) -> str | None:
+    """args_key for a stored "short" line ('python.exe -m x'): strip the program name in front.
+
+    The name may contain spaces ('ollama app.exe'), so cutting at the first space would be wrong.
+    None when the line does not start with the name - then we cannot tell and never drop.
+    """
+    if not line or not line.lower().startswith(name.lower()):
+        return None
+    return line[len(name):].strip()
+
+
 def existing_ancestor(path: str) -> Path | None:
     """Expand %VARS%/~ and walk up to a folder that exists - the drive is what we measure.
 
@@ -172,9 +215,9 @@ class PsutilHost:
             self._cpu_primed = True
             vm = psutil.virtual_memory()
             ncpu = psutil.cpu_count() or 1
-            procs: list[ProcessReading] = []
+            rows: list[tuple[ProcessReading, str | None]] = []
             seen_now: set[int] = set()
-            for p in psutil.process_iter(["name"]):
+            for p in psutil.process_iter(["name", "ppid"]):
                 name = p.info.get("name") or ""
                 if not process_patterns or not matches(name, process_patterns):
                     continue
@@ -186,15 +229,17 @@ class PsutilHost:
                 except (psutil.NoSuchProcess, psutil.AccessDenied):
                     continue                                   # exited meanwhile or protected system process
                 try:
-                    line = shorten_cmdline(p.cmdline(), cmdline) if cmdline != "off" else None
+                    argv = p.cmdline()                         # read even in "off" mode: needed for drop_launchers
                 except (psutil.NoSuchProcess, psutil.AccessDenied, OSError):
-                    line = None
-                procs.append(ProcessReading(
+                    argv = None
+                line = shorten_cmdline(argv, cmdline) if argv is not None and cmdline != "off" else None
+                rows.append((ProcessReading(
                     name=name, pid=p.pid,
                     cpu_percent=round(raw_cpu / ncpu, 1) if p.pid in self._seen else None,
-                    rss_bytes=rss, cmdline=line,
-                ))
+                    rss_bytes=rss, cmdline=line, ppid=p.info.get("ppid"),
+                ), args_key(argv) if argv else None))
             self._seen = seen_now
+            procs = drop_launchers(rows)
             procs.sort(key=lambda r: (-(r.rss_bytes or 0), r.pid))      # biggest memory users first
             return HostReading(
                 cpu_percent=cpu_value, cpu_count=ncpu,
@@ -237,13 +282,15 @@ class FakeHost:
 
     def read(self, process_patterns: Sequence[str], cmdline: CmdlineMode) -> HostReading:
         data = self._load("host.json")
-        procs = tuple(
-            ProcessReading(**{**p, "cmdline": p.get("cmdline") if cmdline != "off" else None})
-            for p in data.pop("processes", [])
-            if matches(p["name"], process_patterns)          # no patterns = no processes, like psutil
-        )
+        rows = []
+        for p in data.pop("processes", []):
+            if not matches(p["name"], process_patterns):    # no patterns = no processes, like psutil
+                continue
+            stored = p.get("cmdline")
+            rows.append((ProcessReading(**{**p, "cmdline": stored if cmdline != "off" else None}),
+                         stored_args_key(p["name"], stored)))
         data["boot_time"] = datetime.fromisoformat(data["boot_time"])
-        return HostReading(**data, processes=procs)
+        return HostReading(**data, processes=tuple(drop_launchers(rows)))
 
     def disks(self, paths: Sequence[str]) -> list[DiskReading]:
         return [DiskReading(**d) for d in self._load("disks.json")]

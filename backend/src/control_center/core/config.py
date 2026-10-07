@@ -25,6 +25,11 @@ def config_path() -> Path:
     return Path(os.environ.get(CONFIG_ENV, DEFAULT_CONFIG)).resolve()
 
 
+# Folder name of a fake scenario under adapters/samples/ - shared by [adapters] fake_scenario
+# and the capture tool, so a name that can be recorded can also be replayed.
+SCENARIO_NAME_PATTERN = r"^[a-z0-9][a-z0-9-]*$"
+
+
 class LogConfig(BaseModel):
     level: str = "INFO"
     file_name: str = "control-center.log"      # lives in <data_dir>/logs/
@@ -45,16 +50,16 @@ class AdaptersConfig(BaseModel):
     gpu_index: int = Field(0, ge=0)                     # which GPU NVML reports (the AI box has exactly one)
     host: Literal["psutil", "fake"] = "psutil"          # CPU, RAM, disks, processes
     # built-in scenario folder in control_center/adapters/samples/ that the fake adapters replay
-    fake_scenario: str = Field("normal", pattern=r"^[a-z0-9][a-z0-9-]*$")
+    fake_scenario: str = Field("normal", pattern=SCENARIO_NAME_PATTERN)
     timeout_s: float = Field(2.0, gt=0, le=30)          # per call; a hanging source must not stall the others
 
     @field_validator("ai_host")
     @classmethod
     def _host_only(cls, value: str) -> str:
-        """'http://192.168.5.54/' would become 'http://http://192.168.5.54/:11434' - stop it at boot."""
+        """'http://192.168.1.20/' would become 'http://http://192.168.1.20/:11434' - stop it at boot."""
         value = value.strip()
         if not value or "://" in value or "/" in value or " " in value:
-            raise ValueError(f"ai_host must be a host name or IP only, e.g. 192.168.5.54 "
+            raise ValueError(f"ai_host must be a host name or IP only, e.g. 192.168.1.20 "
                              f"(no http://, no /), got {value!r}")
         return value
 

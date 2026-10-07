@@ -1,5 +1,5 @@
 {
   "capturedAt": "2026-10-07T07:36:58.569336+00:00",
   "source": "capture",
-  "note": ""
+  "note": "only the coder model loaded (OLLAMA_MAX_LOADED_MODELS=1); venv launcher duplicates (~4 MB python.exe twins) removed by hand on 2026-10-07"
 }

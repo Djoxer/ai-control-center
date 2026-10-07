@@ -67,20 +67,6 @@
       "cpu_percent": 0.0,
       "rss_bytes": 12951552,
       "cmdline": "python.exe katalog_server.py"
-    },
-    {
-      "name": "python.exe",
-      "pid": 6096,
-      "cpu_percent": 0.0,
-      "rss_bytes": 4308992,
-      "cmdline": "python.exe -m control_center"
-    },
-    {
-      "name": "python.exe",
-      "pid": 18104,
-      "cpu_percent": 0.0,
-      "rss_bytes": 4243456,
-      "cmdline": "python.exe -m control_center.capture_samples src/control_center/adapters/samples/real-idle"
     }
   ]
 }
