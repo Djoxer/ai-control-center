@@ -2,6 +2,12 @@
 
 Automatisch aus den Commit-Nachrichten erzeugt. Neu = `feat`, Behoben = `fix`, Schneller = `perf`.
 
+## 0.8.0 – 07.10.2026
+
+### Neu
+
+- **mcp:** Manage MCP servers - start, stop, restart, tool list and output, version 0.8.0
+
 ## 0.7.0 – 07.10.2026
 
 ### Neu
