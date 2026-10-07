@@ -1,7 +1,7 @@
-<article class="rounded-xl border border-white/10 bg-white/5 p-4">
+<article [class]="ui.card" class="p-4">
   <header class="flex items-baseline justify-between gap-2">
-    <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">
-      {{ label() }} <span class="text-gray-500 normal-case">· {{ unit() }}</span>
+    <p [class]="ui.sectionTitle">
+      {{ label() }} <span [class]="ui.titleDetail">· {{ unit() }}</span>
     </p>
     <p class="text-sm text-white tabular-nums">{{ value(latest()) }}</p>
   </header>
@@ -59,7 +59,7 @@
       </div>
     }
     @if (!avgRuns().length) {
-      <p class="absolute inset-0 flex items-center justify-center pl-10 text-xs text-gray-500">Noch keine Daten in diesem Zeitraum</p>
+      <p [class]="ui.meta" class="absolute inset-0 flex items-center justify-center pl-10">Noch keine Daten in diesem Zeitraum</p>
     }
   </div>
 </article>

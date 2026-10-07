@@ -1,18 +1,18 @@
 <section class="space-y-3" aria-label="Verlauf">
   <!-- range filter: one row above the charts -->
   <div class="flex flex-wrap items-center justify-between gap-2">
-    <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">
+    <p [class]="ui.sectionTitle">
       Verlauf
       @if (data(); as d) {
-        <span class="ml-1 text-gray-500 normal-case">
+        <span [class]="ui.titleDetail" class="ml-1">
           · {{ d.resolution === 'raw' ? 'alle ' + d.stepS + ' s' : d.resolution === 'minute' ? 'Minutenwerte' : 'Stundenwerte' }}
         </span>
       }
     </p>
-    <div class="flex rounded-lg border border-white/10 p-0.5 text-xs" role="group" aria-label="Zeitraum">
+    <div [class]="ui.segmented" role="group" aria-label="Zeitraum">
       @for (r of ranges; track r.key) {
         <button type="button" (click)="setRange(r.key)" [attr.aria-pressed]="range() === r.key"
-                class="rounded-md px-2.5 py-1 text-gray-400 hover:text-white aria-pressed:bg-white/10 aria-pressed:text-white">
+                [class]="ui.segment">
           {{ r.label }}
         </button>
       }
@@ -20,7 +20,7 @@
   </div>
 
   @if (error(); as err) {
-    <p class="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2 text-sm text-red-300">{{ err }}</p>
+    <p [class]="ui.errorBox" class="px-4 py-2 text-sm">{{ err }}</p>
   }
 
   <div class="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">

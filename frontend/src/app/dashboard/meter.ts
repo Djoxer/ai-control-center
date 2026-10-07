@@ -1,12 +1,8 @@
 import { Component, computed, input } from '@angular/core';
 
-export type MeterTone = 'normal' | 'warning' | 'critical';
+import { Tone, ui } from '../ui/tokens';
 
-const TONES: Record<MeterTone, string> = {
-  normal: 'bg-sky-400',
-  warning: 'bg-amber-400',
-  critical: 'bg-red-400',
-};
+export type MeterTone = Tone;
 
 /**
  * One ratio against a limit (VRAM, RAM, disk, power). Thin bar on a track of the same family.
@@ -35,5 +31,5 @@ export class Meter {
     const v = this.value();
     return v === null || v === undefined || Number.isNaN(v) ? null : Math.max(0, Math.min(100, v));
   });
-  readonly toneClass = computed(() => TONES[this.tone()]);
+  readonly toneClass = computed(() => ui.fill[this.tone()]);
 }

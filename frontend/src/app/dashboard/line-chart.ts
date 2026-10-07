@@ -5,6 +5,7 @@ import {
 import {
   GAP_FACTOR, areaPath, linePath, linear, maxOf, nearestIndex, niceMax, pointLabel, segments, tickLabel, timeTicks,
 } from './chart';
+import { ui } from '../ui/tokens';
 import { num } from './format';
 
 const MARGIN = { top: 8, right: 8, bottom: 20, left: 44 };
@@ -34,6 +35,7 @@ export class LineChart {
   readonly scaleMax = input<number | null>(null);           // fixed top (100 %, VRAM total); null = auto
   readonly warn = input<number | null>(null);               // threshold line
 
+  readonly ui = ui;                                  // shared class strings (ui/tokens.ts)
   readonly margin = MARGIN;
   readonly height = HEIGHT;
   readonly width = signal(400);                             // follows the container (ResizeObserver)

@@ -16,6 +16,20 @@ as in production. The target comes from the environment variable `ACC_DEV_BACKEN
 Unset or empty means `http://127.0.0.1:8090`. `ng serve` prints the target it uses
 (`[proxy] /api -> ...`). The IP never goes into the repo.
 
+VS Code reads user environment variables only when it starts: after setting `ACC_DEV_BACKEND`,
+close ALL VS Code windows and reopen - a new terminal tab is not enough. Quick fix for the current
+terminal: `$env:ACC_DEV_BACKEND = [Environment]::GetEnvironmentVariable('ACC_DEV_BACKEND', 'User')`.
+
+## UI classes
+
+Repeated Tailwind class strings live in `src/app/ui/tokens.ts` (cards, section titles, fields,
+buttons, notices, tone colors). Templates bind them and add layout next to it:
+
+    <article [class]="ui.card" class="p-4">
+
+Tokens carry the look, templates the layout (margins, padding of cards and cells, width). New
+repeated element -> new token plus an entry in `UI_DOCS` (the /dev style guide shows every entry).
+
 ## Production build
 
     npm run build       # -> dist/ai-control-center/browser

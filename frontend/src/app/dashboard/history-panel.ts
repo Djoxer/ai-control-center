@@ -4,6 +4,7 @@ import { Api } from '../api/api';
 import { dashboardHistory } from '../api/fn/dashboard/dashboard-history';
 import { DashboardHistory } from '../api/models/dashboard-history';
 import { HistorySeries } from '../api/models/history-series';
+import { ui } from '../ui/tokens';
 import { LineChart } from './line-chart';
 
 export type HistoryRange = DashboardHistory['range'];
@@ -35,6 +36,7 @@ export class HistoryPanel implements OnInit {
   private readonly api = inject(Api);
   private readonly destroyRef = inject(DestroyRef);
 
+  readonly ui = ui;                                  // shared class strings (ui/tokens.ts)
   readonly ranges = RANGES;
   readonly range = signal<HistoryRange>('1h');
   readonly data = signal<DashboardHistory | null>(null);

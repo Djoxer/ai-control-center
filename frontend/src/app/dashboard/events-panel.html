@@ -1,6 +1,6 @@
-<article class="flex h-full flex-col rounded-xl border border-white/10 bg-white/5">
+<article [class]="ui.card" class="flex h-full flex-col">
   <header class="flex flex-wrap items-center justify-between gap-2 px-4 pt-4">
-    <p class="text-xs font-medium tracking-wide text-gray-400 uppercase">Ereignisse</p>
+    <p [class]="ui.sectionTitle">Ereignisse</p>
     @if (meta()?.crashWatch; as cw) {
       <span class="flex items-center gap-1.5 text-xs" [class.text-gray-400]="cw.active" [class.text-gray-500]="!cw.active"
             [title]="cw.active ? 'Sucht im Ollama-Log nach Absturzmustern' : (cw.reason ?? '')">
@@ -11,30 +11,30 @@
   </header>
 
   @if (error(); as err) {
-    <p class="mx-4 mt-2 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-xs text-red-300">{{ err }}</p>
+    <p [class]="ui.errorBox" class="mx-4 mt-2 px-3 py-2 text-xs">{{ err }}</p>
   }
 
-  <ul class="mt-2 max-h-80 flex-1 divide-y divide-white/5 overflow-y-auto" aria-live="polite">
+  <ul [class]="ui.divided" class="mt-2 max-h-80 flex-1 overflow-y-auto" aria-live="polite">
     @for (e of events(); track e.id ?? $index) {
       <li class="flex items-start gap-3 px-4 py-2 text-sm">
-        <app-icon [name]="icon(e.level)" class="mt-0.5 size-4" [class]="iconClass(e.level)" />
+        <app-icon [name]="icon(e.level)" class="mt-0.5 size-4" [class]="ui.iconTone[e.level]" />
         <!-- phone: time above the message; wider: time column next to it -->
         <div class="min-w-0 flex-1 sm:flex sm:gap-3">
-          <span class="block pt-px text-xs text-gray-500 tabular-nums sm:w-28 sm:shrink-0">{{ time(e.ts) }}</span>
+          <span [class]="ui.meta" class="block pt-px tabular-nums sm:w-28 sm:shrink-0">{{ time(e.ts) }}</span>
           <p class="min-w-0 break-words" [class.text-red-200]="e.level === 'critical'"
              [class.text-gray-200]="e.level !== 'critical'">{{ e.message }}</p>
         </div>
       </li>
     } @empty {
-      <li class="px-4 py-8 text-center text-sm text-gray-500">Noch keine Ereignisse</li>
+      <li [class]="ui.empty" class="px-4 py-8">Noch keine Ereignisse</li>
     }
   </ul>
 
-  <footer class="flex flex-wrap items-center justify-between gap-2 border-t border-white/10 px-4 py-2 text-xs text-gray-500">
+  <footer [class]="ui.cardFoot" class="flex flex-wrap items-center justify-between gap-2 px-4 py-2">
     <span>{{ quietText() ?? events().length + ' Ereignisse' }}</span>
     @if (nextBefore() !== null) {
       <button type="button" (click)="loadOlder()" [disabled]="loading()"
-              class="rounded-lg border border-white/10 px-2.5 py-1 text-gray-300 hover:bg-white/5 disabled:opacity-50">
+              [class]="ui.buttonSmall">
         {{ loading() ? 'Lade …' : 'Ältere laden' }}
       </button>
     }

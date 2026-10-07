@@ -1,49 +1,49 @@
 <div class="space-y-4">
   <div class="flex flex-wrap items-center gap-2">
-    <select class="rounded-lg border border-white/10 bg-gray-900 px-3 py-2 text-sm text-gray-200">
+    <select [class]="ui.field">
       <option>Nur Open Weight</option>
     </select>
-    <select class="rounded-lg border border-white/10 bg-gray-900 px-3 py-2 text-sm text-gray-200">
+    <select [class]="ui.field">
       <option>Jedes VRAM-Tier</option>
     </select>
-    <select class="rounded-lg border border-white/10 bg-gray-900 px-3 py-2 text-sm text-gray-200">
+    <select [class]="ui.field">
       <option>Jede Rolle</option>
     </select>
-    <select class="rounded-lg border border-white/10 bg-gray-900 px-3 py-2 text-sm text-gray-200">
+    <select [class]="ui.field">
       <option>Jeder Status</option>
     </select>
-    <label class="ml-auto flex items-center gap-2 rounded-lg border border-white/10 px-3 py-2 text-sm text-gray-300">
-      <input type="checkbox" checked class="accent-sky-400" />
+    <label [class]="ui.checkLabel" class="ml-auto rounded-lg border border-white/10 px-3 py-2">
+      <input type="checkbox" checked [class]="ui.check" />
       dünne Zeilen ausblenden
     </label>
   </div>
 
   <section class="grid grid-cols-2 gap-3 sm:grid-cols-5">
-    <article class="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+    <article [class]="ui.card" class="px-4 py-3">
       <p class="text-2xl font-semibold text-white">88</p>
-      <p class="text-xs tracking-wide text-gray-400 uppercase">Sichtbar</p>
+      <p [class]="ui.sectionTitle">Sichtbar</p>
     </article>
-    <article class="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+    <article [class]="ui.card" class="px-4 py-3">
       <p class="text-2xl font-semibold text-white">4</p>
-      <p class="text-xs tracking-wide text-gray-400 uppercase">Neu</p>
+      <p [class]="ui.sectionTitle">Neu</p>
     </article>
-    <article class="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+    <article [class]="ui.card" class="px-4 py-3">
       <p class="text-2xl font-semibold text-white">88</p>
-      <p class="text-xs tracking-wide text-gray-400 uppercase">Open Weight</p>
+      <p [class]="ui.sectionTitle">Open Weight</p>
     </article>
-    <article class="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+    <article [class]="ui.card" class="px-4 py-3">
       <p class="text-2xl font-semibold text-white">17</p>
-      <p class="text-xs tracking-wide text-gray-400 uppercase">Coder</p>
+      <p [class]="ui.sectionTitle">Coder</p>
     </article>
-    <article class="rounded-xl border border-white/10 bg-white/5 px-4 py-3">
+    <article [class]="ui.card" class="px-4 py-3">
       <p class="text-2xl font-semibold text-white">14</p>
-      <p class="text-xs tracking-wide text-gray-400 uppercase">Telefonie</p>
+      <p [class]="ui.sectionTitle">Telefonie</p>
     </article>
   </section>
 
   <div class="overflow-hidden rounded-xl border border-white/10">
     <div class="overflow-x-auto">
-      <table class="w-full min-w-[1100px] text-left text-sm text-gray-300">
+      <table [class]="ui.table" class="min-w-[1100px]">
         <thead class="bg-white/5 text-xs text-gray-400">
           <tr>
             <th class="px-3 py-3 font-medium">Status</th>
@@ -64,7 +64,7 @@
         <tbody class="divide-y divide-white/10">
           <tr>
             <td class="px-3 py-3"><span class="rounded-full border border-emerald-400/40 px-2 py-0.5 text-xs text-emerald-300">NEU</span></td>
-            <td class="px-3 py-3"><p class="font-medium text-white">MiMo-V2.6-Pro</p><p class="text-xs text-gray-500">Xiaomi</p></td>
+            <td class="px-3 py-3"><p class="font-medium text-white">MiMo-V2.6-Pro</p><p [class]="ui.meta">Xiaomi</p></td>
             <td class="px-3 py-3"><span class="rounded-full border border-sky-400/40 px-2 py-0.5 text-xs text-sky-300">open</span></td>
             <td class="px-3 py-3">–</td>
             <td class="px-3 py-3">–</td>
@@ -79,7 +79,7 @@
           </tr>
           <tr>
             <td class="px-3 py-3"></td>
-            <td class="px-3 py-3"><p class="font-medium text-white">Qwen3.8 Max</p><p class="text-xs text-gray-500">Alibaba · qwen3.8</p></td>
+            <td class="px-3 py-3"><p class="font-medium text-white">Qwen3.8 Max</p><p [class]="ui.meta">Alibaba · qwen3.8</p></td>
             <td class="px-3 py-3"><span class="rounded-full border border-sky-400/40 px-2 py-0.5 text-xs text-sky-300">open</span></td>
             <td class="px-3 py-3">–</td>
             <td class="px-3 py-3">–</td>
@@ -94,7 +94,7 @@
           </tr>
           <tr>
             <td class="px-3 py-3"></td>
-            <td class="px-3 py-3"><p class="font-medium text-white">GLM-5.3</p><p class="text-xs text-gray-500">Z.AI · glm-5.3</p></td>
+            <td class="px-3 py-3"><p class="font-medium text-white">GLM-5.3</p><p [class]="ui.meta">Z.AI · glm-5.3</p></td>
             <td class="px-3 py-3"><span class="rounded-full border border-sky-400/40 px-2 py-0.5 text-xs text-sky-300">open</span></td>
             <td class="px-3 py-3">–</td>
             <td class="px-3 py-3">640 GB</td>
@@ -109,7 +109,7 @@
           </tr>
           <tr>
             <td class="px-3 py-3"><span class="rounded-full border border-emerald-400/40 px-2 py-0.5 text-xs text-emerald-300">NEU</span></td>
-            <td class="px-3 py-3"><p class="font-medium text-white">MiMo-V2.6-Flash</p><p class="text-xs text-gray-500">Xiaomi</p></td>
+            <td class="px-3 py-3"><p class="font-medium text-white">MiMo-V2.6-Flash</p><p [class]="ui.meta">Xiaomi</p></td>
             <td class="px-3 py-3"><span class="rounded-full border border-sky-400/40 px-2 py-0.5 text-xs text-sky-300">open</span></td>
             <td class="px-3 py-3">–</td>
             <td class="px-3 py-3">–</td>

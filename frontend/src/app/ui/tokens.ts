@@ -1,0 +1,156 @@
+/**
+ * Single source for the Tailwind class strings that make up the look of the app.
+ *
+ * Rules
+ * - A token describes WHAT an element is (card, field, section title), not how it looks.
+ * - Tokens carry the look: color, border, radius, typography, and spacing only where an element
+ *   always has the same inner spacing (buttons, fields, badges).
+ * - Layout around an element (margins, grid, width, padding of cards and table cells) stays in the
+ *   template - it differs from place to place, and two conflicting utilities on one element
+ *   (p-4 from a token, p-2 from the template) would be decided by CSS order, not by intent.
+ * - One-off decorations stay in their template; a string moves here once it repeats or once it is
+ *   an element the style guide should show.
+ *
+ * Templates bind them: <article [class]="ui.card" class="p-4">. Angular merges the static class
+ * attribute with the [class] binding. Tailwind scans this file, so every class listed here is
+ * generated even if no template spells it out.
+ *
+ * The /dev style guide (roadmap step 4) renders and copies every entry from UI_DOCS.
+ */
+
+export type Tone = 'normal' | 'warning' | 'critical';
+export type Level = 'info' | 'warning' | 'critical';
+
+export const ui = {
+  // ---- surfaces ---------------------------------------------------------------------------------
+  /** Frame of every panel. Padding comes from the template (p-4 for text, none around tables). */
+  card: 'rounded-xl border border-white/10 bg-white/5',
+  /** Footer bar of a panel (counts, "load older" button): separator line, small grey text. */
+  cardFoot: 'border-t border-white/10 text-xs text-gray-500',
+  /** Info line at the bottom of a KPI tile (GPU name, MiB, fan) - a shade brighter than cardFoot. */
+  tileFoot: 'border-t border-white/10 text-xs text-gray-400',
+  /** Divider between list or table rows. */
+  divided: 'divide-y divide-white/5',
+
+  // ---- text -------------------------------------------------------------------------------------
+  /** Small upper-case heading on top of a card or section. */
+  sectionTitle: 'text-xs font-medium tracking-wide text-gray-400 uppercase',
+  /** Grey addition behind a section title ("· MiB", "· alle 10 s"). */
+  titleDetail: 'text-gray-500 normal-case',
+  /** Big number of a KPI tile. */
+  kpiValue: 'text-3xl font-semibold text-white',
+  /** KPI tile without a value ("—"). */
+  kpiEmpty: 'text-3xl font-semibold text-gray-500',
+  /** Secondary information: versions, counts, units. */
+  meta: 'text-xs text-gray-500',
+  /** Placeholder text for empty lists and loading states; padding from the template. */
+  empty: 'text-center text-sm text-gray-500',
+
+  // ---- forms ------------------------------------------------------------------------------------
+  /** Label above a field; the field itself goes inside the label element. */
+  fieldLabel: 'block text-xs font-medium tracking-wide text-gray-400 uppercase',
+  /** Text input and select. normal-case because labels are upper-case. Width from the template. */
+  field: 'rounded-lg border border-white/10 bg-gray-900 px-3 py-2 text-sm text-white normal-case placeholder:text-gray-600',
+  /** Checkbox or radio button. */
+  check: 'size-4 accent-sky-400',
+  /** Label wrapping a checkbox or radio button with its text. */
+  checkLabel: 'flex items-center gap-2 text-sm text-gray-300',
+
+  // ---- buttons ----------------------------------------------------------------------------------
+  /** Secondary action ("Ältere laden"). */
+  button: 'rounded-lg border border-white/10 px-3 py-1.5 text-sm text-gray-300 hover:bg-white/5 disabled:opacity-50',
+  /** Same, compact - inside small text like a card footer. */
+  buttonSmall: 'rounded-lg border border-white/10 px-2.5 py-1 text-xs text-gray-300 hover:bg-white/5 disabled:opacity-50',
+  /** Selectable tab-like button; selected state via aria-pressed="true". */
+  toggle:
+    'rounded-lg border border-white/10 px-3 py-1.5 text-sm font-medium text-gray-300 hover:bg-white/5 ' +
+    'aria-pressed:border-sky-400/50 aria-pressed:bg-sky-400/10 aria-pressed:text-white',
+  /** Frame of a segmented control (several small options in one box). */
+  segmented: 'flex rounded-lg border border-white/10 p-0.5 text-xs',
+  /** One option of a segmented control; selected via aria-pressed="true". */
+  segment: 'rounded-md px-2.5 py-1 text-gray-400 hover:text-white aria-pressed:bg-white/10 aria-pressed:text-white',
+
+  // ---- tables -----------------------------------------------------------------------------------
+  /** Table body text. Cell padding stays in the template (density differs per table). */
+  table: 'w-full text-left text-sm text-gray-300',
+  /** Header row group. */
+  thead: 'text-xs text-gray-500',
+  /** Line under the header row. */
+  headRow: 'border-b border-white/10',
+
+  // ---- notices ----------------------------------------------------------------------------------
+  /** Technical error box (request failed). Size and padding from the template. */
+  errorBox: 'rounded-lg border border-red-500/30 bg-red-500/10 text-red-300',
+  /** Warning or hint with icon - color by level, always together with an icon and a level word. */
+  callout: {
+    critical: 'border-red-500/40 bg-red-500/10 text-red-200',
+    warning: 'border-amber-400/40 bg-amber-400/10 text-amber-100',
+    info: 'border-sky-400/30 bg-sky-400/10 text-sky-100',
+  } satisfies Record<Level, string>,
+  /** Frame of a callout; the color comes from ui.callout[level]. */
+  calloutFrame: 'flex items-start gap-3 rounded-lg border px-4 py-3 text-sm',
+  /** Small rounded label; color from ui.pillTone. */
+  pill: 'rounded-full border px-2 py-0.5 text-[11px]',
+  pillTone: {
+    normal: 'border-white/10 text-gray-400',
+    warning: 'border-amber-400/40 text-amber-200',
+    critical: 'border-red-500/40 text-red-200',
+  } satisfies Record<Tone, string>,
+  /** Status dot; color via [class.bg-…] next to it, meaning always also in text. */
+  dot: 'size-2 shrink-0 rounded-full',
+
+  // ---- tone colors (meters, bars, icons) --------------------------------------------------------
+  /** Fill of a meter or bar segment. */
+  fill: {
+    normal: 'bg-sky-400',
+    warning: 'bg-amber-400',
+    critical: 'bg-red-400',
+  } satisfies Record<Tone, string>,
+  /** Icon color next to an event or message. */
+  iconTone: {
+    info: 'text-gray-500',
+    warning: 'text-amber-400',
+    critical: 'text-red-400',
+  } satisfies Record<Level, string>,
+} as const;
+
+export type UiToken = keyof typeof ui;
+
+export interface UiDoc {
+  group: 'Flächen' | 'Text' | 'Formular' | 'Buttons' | 'Tabellen' | 'Hinweise' | 'Farben';
+  label: string;                 // German name shown in the style guide
+}
+
+/** Style guide entries - one per token, enforced by the Record type. */
+export const UI_DOCS: Record<UiToken, UiDoc> = {
+  card: { group: 'Flächen', label: 'Karte' },
+  cardFoot: { group: 'Flächen', label: 'Panel-Fußzeile' },
+  tileFoot: { group: 'Flächen', label: 'Kachel-Infozeile' },
+  divided: { group: 'Flächen', label: 'Trennlinien zwischen Zeilen' },
+  sectionTitle: { group: 'Text', label: 'Abschnittstitel' },
+  titleDetail: { group: 'Text', label: 'Titel-Zusatz' },
+  kpiValue: { group: 'Text', label: 'Kennzahl' },
+  kpiEmpty: { group: 'Text', label: 'Kennzahl ohne Wert' },
+  meta: { group: 'Text', label: 'Nebeninfo' },
+  empty: { group: 'Text', label: 'Leer- und Ladezustand' },
+  fieldLabel: { group: 'Formular', label: 'Feldbeschriftung' },
+  field: { group: 'Formular', label: 'Eingabefeld / Auswahl' },
+  check: { group: 'Formular', label: 'Checkbox / Radio' },
+  checkLabel: { group: 'Formular', label: 'Checkbox-Beschriftung' },
+  button: { group: 'Buttons', label: 'Button' },
+  buttonSmall: { group: 'Buttons', label: 'Button klein' },
+  toggle: { group: 'Buttons', label: 'Umschalter (Tab)' },
+  segmented: { group: 'Buttons', label: 'Segment-Gruppe' },
+  segment: { group: 'Buttons', label: 'Segment' },
+  table: { group: 'Tabellen', label: 'Tabelle' },
+  thead: { group: 'Tabellen', label: 'Tabellenkopf' },
+  headRow: { group: 'Tabellen', label: 'Kopfzeile' },
+  errorBox: { group: 'Hinweise', label: 'Fehlerbox' },
+  callout: { group: 'Hinweise', label: 'Hinweis nach Stufe' },
+  calloutFrame: { group: 'Hinweise', label: 'Hinweis-Rahmen' },
+  pill: { group: 'Hinweise', label: 'Pille' },
+  pillTone: { group: 'Hinweise', label: 'Pillen-Farbe' },
+  dot: { group: 'Hinweise', label: 'Statuspunkt' },
+  fill: { group: 'Farben', label: 'Balkenfarbe nach Ton' },
+  iconTone: { group: 'Farben', label: 'Iconfarbe nach Stufe' },
+};

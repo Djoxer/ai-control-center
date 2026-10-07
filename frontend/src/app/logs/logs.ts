@@ -7,6 +7,7 @@ import { logsSources } from '../api/fn/logs/logs-sources';
 import { LogEntry } from '../api/models/log-entry';
 import { LogSourceInfo } from '../api/models/log-source-info';
 import { StreamService } from '../core/stream.service';
+import { ui } from '../ui/tokens';
 import { LEVELS, Level, LogFilter, matchesFilter } from './log-filter';
 
 export const PAGE_SIZE = 200;
@@ -20,6 +21,7 @@ const TEXT_DEBOUNCE_MS = 300;
   templateUrl: './logs.html',
 })
 export class Logs implements OnInit {
+  readonly ui = ui;                                  // shared class strings (ui/tokens.ts)
   private readonly api = inject(Api);
   private readonly stream = inject(StreamService);
   private readonly destroyRef = inject(DestroyRef);

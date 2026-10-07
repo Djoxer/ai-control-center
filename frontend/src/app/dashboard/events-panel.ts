@@ -6,6 +6,7 @@ import { DashboardEvent } from '../api/models/dashboard-event';
 import { EventPage } from '../api/models/event-page';
 import { StreamService } from '../core/stream.service';
 import { Icon } from '../layout/icon';
+import { ui } from '../ui/tokens';
 import { clockTime } from './format';
 
 export const EVENT_TOPIC = 'dashboard.event';
@@ -31,6 +32,7 @@ export function mergeEvents(list: DashboardEvent[]): DashboardEvent[] {
   templateUrl: './events-panel.html',
 })
 export class EventsPanel implements OnInit {
+  readonly ui = ui;                                  // shared class strings (ui/tokens.ts)
   private readonly api = inject(Api);
   private readonly stream = inject(StreamService);
   private readonly destroyRef = inject(DestroyRef);
@@ -91,10 +93,6 @@ export class EventsPanel implements OnInit {
 
   icon(level: DashboardEvent['level']): string {
     return level === 'critical' ? 'error' : level === 'warning' ? 'warning' : 'info';
-  }
-
-  iconClass(level: DashboardEvent['level']): string {
-    return level === 'critical' ? 'text-red-400' : level === 'warning' ? 'text-amber-400' : 'text-gray-500';
   }
 
   /** "06.10. 14:12:10" local time. */

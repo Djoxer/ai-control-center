@@ -13,6 +13,7 @@ import { EventsPanel } from './events-panel';
 import * as fmt from './format';
 import { HistoryPanel } from './history-panel';
 import { Meter, MeterTone } from './meter';
+import { ui } from '../ui/tokens';
 
 export const SNAPSHOT_TOPIC = 'dashboard.snapshot';
 /** No snapshot for this long = the numbers on screen are old. Backend sends every 2 s (default). */
@@ -29,6 +30,7 @@ export class Dashboard implements OnInit {
   private readonly destroyRef = inject(DestroyRef);
 
   readonly fmt = fmt;                                      // template access to the pure helpers
+  readonly ui = ui;                                        // shared class strings (ui/tokens.ts)
   readonly snapshot = signal<DashboardSnapshot | null>(null);
   readonly error = signal<string | null>(null);
   readonly receivedAt = signal<number | null>(null);        // browser clock: when the last snapshot arrived
@@ -104,20 +106,12 @@ export class Dashboard implements OnInit {
     return this.snapshot()?.errors.find((e) => e.source === source)?.message ?? null;
   }
 
-  warningClass(level: DashboardWarning['level']): string {
-    switch (level) {
-      case 'critical': return 'border-red-500/40 bg-red-500/10 text-red-200';
-      case 'warning': return 'border-amber-400/40 bg-amber-400/10 text-amber-100';
-      default: return 'border-sky-400/30 bg-sky-400/10 text-sky-100';
-    }
-  }
-
   levelLabel(level: DashboardWarning['level']): string {
     return { critical: 'Kritisch', warning: 'Warnung', info: 'Hinweis' }[level];
   }
 
   cpuSegmentClass(m: LoadedModel): string {
-    return m.placement === 'split' ? 'bg-red-400' : 'bg-amber-400';   // split = crash risk, cpu = only slow
+    return ui.fill[m.placement === 'split' ? 'critical' : 'warning'];   // split = crash risk, cpu = only slow
   }
 
   sourceLabel(key: string): string {
