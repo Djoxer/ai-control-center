@@ -2,6 +2,7 @@ import { HttpClient } from '@angular/common/http';
 import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 
 import { ClipboardService } from '../core/clipboard.service';
+import { saveText } from '../core/save-file';
 import { ShellStore } from '../core/shell.store';
 import { Icon } from '../layout/icon';
 import { jumpTo } from '../ui/jump';
@@ -85,14 +86,9 @@ export class Dev implements OnInit {
 
   /** Same text as a file - for chats that take attachments, or to keep a snapshot next to a handoff. */
   downloadMarkdown(): void {
-    const blob = new Blob([this.markdown()], { type: 'text/markdown;charset=utf-8' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `ui-bausteine-${new Date().toISOString().slice(0, 10)}.md`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url));                 // after the browser picked it up
-    this.say(true, `Gespeichert: ${a.download}`);
+    const name = `ui-bausteine-${new Date().toISOString().slice(0, 10)}.md`;
+    saveText(this.markdown(), name, 'text/markdown;charset=utf-8');
+    this.say(true, `Gespeichert: ${name}`);
   }
 
   private say(ok: boolean, text: string): void {

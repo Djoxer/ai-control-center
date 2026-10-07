@@ -18,6 +18,11 @@
         Simulierte Daten: {{ simulatedLabel() }}
       </span>
     }
+    <!-- Markdown/JSON for AI chats; the dialog fetches GET /api/v1/dashboard/export -->
+    <button type="button" [class]="ui.buttonSmall" class="ml-auto flex items-center gap-1.5"
+            (click)="exportOpen.set(true)">
+      <app-icon name="download" class="size-3.5" /> Export
+    </button>
   </section>
 
   <!-- Warnings: critical first (backend order). Icon + level word, never color alone -->
@@ -292,3 +297,6 @@
 } @else {
   <p [class]="ui.empty" class="py-10">Lade Dashboard …</p>
 }
+
+<!-- stays in the page while closed: the chosen options survive until the page is left -->
+<app-export-dialog [open]="exportOpen()" (dismiss)="exportOpen.set(false)" />

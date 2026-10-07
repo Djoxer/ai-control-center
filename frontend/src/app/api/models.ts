@@ -9,6 +9,7 @@ export type { DashboardSnapshot } from './models/dashboard-snapshot';
 export type { DashboardWarning } from './models/dashboard-warning';
 export type { DiskUsage } from './models/disk-usage';
 export type { EventPage } from './models/event-page';
+export type { ExportDocument } from './models/export-document';
 export type { GpuState } from './models/gpu-state';
 export type { HealthInfo } from './models/health-info';
 export type { HelpDoc } from './models/help-doc';

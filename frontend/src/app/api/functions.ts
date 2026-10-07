@@ -3,6 +3,8 @@
 
 export type { DashboardEvents$Params as DashboardEvents$Params } from './fn/dashboard/dashboard-events';
 export { dashboardEvents as dashboardEvents } from './fn/dashboard/dashboard-events';
+export type { DashboardExport$Params as DashboardExport$Params } from './fn/dashboard/dashboard-export';
+export { dashboardExport as dashboardExport } from './fn/dashboard/dashboard-export';
 export type { DashboardHistory$Params as DashboardHistory$Params } from './fn/dashboard/dashboard-history';
 export { dashboardHistory as dashboardHistory } from './fn/dashboard/dashboard-history';
 export type { DashboardSnapshot$Params as DashboardSnapshot$Params } from './fn/dashboard/dashboard-snapshot';

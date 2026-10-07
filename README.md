@@ -50,6 +50,17 @@ Then in `backend/control-center.toml` (top level, above the first `[section]`):
 Restart the backend; the log says `serving frontend from ...`. After a later `git pull` with frontend
 changes: `npm ci` (if package-lock.json changed), `npm run build`, no backend restart needed.
 
+## Export for AI chats
+
+The dashboard exports its state as Markdown (YAML header, `format: acc-export/v1`) or JSON - the
+**Export** button on the overview, or directly:
+
+    curl "http://<AI box>:8090/api/v1/dashboard/export/raw?format=md&detail=short"
+
+Options: `format=md|json`, `detail=short|full`, `parts=snapshot|events|history` (repeatable, default all),
+`range=1h|6h|24h|7d|30d`, `anonymize=true|false` (default true: host names, IPs, user folders replaced,
+command lines dropped). `/export` (without `raw`) wraps the same text with file name and token estimate.
+
 ## Add a module
 
 1. Create `backend/src/control_center/modules/<key>/`

@@ -63,6 +63,27 @@ CPU, Arbeitsspeicher, Laufwerke und die Laufzeit seit dem letzten Neustart. Die 
 für den AI-Betrieb wichtigen Programme (Ollama, Runner, Docker, Python) mit CPU, Speicher und gekürzter
 Befehlszeile – Benutzerpfade und Passwörter werden dabei ausgeblendet.
 
+### Export für AI-Chats
+
+**Export** oben rechts in der Statuszeile öffnet einen Dialog, der den aktuellen Stand als Text
+zusammenstellt – zum Einfügen in einen Chat (OpenCode, OpenWebUI, Claude) oder zum Ablegen.
+
+| Option | Wirkung |
+|---|---|
+| **Inhalt** | Zustand (Warnungen, Modelle, GPU, Dienste, Rechner), Ereignisse, Verlauf – einzeln abwählbar |
+| **Format** | Markdown mit YAML-Kopf (für Menschen und Modelle) oder JSON (für Programme) |
+| **Umfang** | Kurz: Überblick, 10 Ereignisse, Verlauf als Kennzahlen (Ø, Spitze, Min, Zeit über der Warnschwelle). Ausführlich: dazu Prozesse, Laufwerke, 50 Ereignisse, Verlauf als Tabelle (Markdown, höchstens 60 Zeilen) bzw. komplette Zeitreihe (JSON) |
+| **Zeitraum Verlauf** | wie im Verlauf-Diagramm: 1 h bis 30 T |
+| **Anonymisieren** | ersetzt Rechnername und IPs durch `<ai-host>` / `<ip>`, Benutzerordner durch `<user>` und lässt Befehlszeilen weg. Standard: an – der Text kann in einem Cloud-Chat landen |
+
+Die Vorschau zeigt den fertigen Text mit geschätzter Token-Zahl (Zeichen / 4). **Kopieren** legt ihn in
+die Zwischenablage, **Speichern** lädt ihn als Datei herunter (`acc-export-<Datum>-<Uhrzeit>.md`). Die
+gewählten Optionen bleiben erhalten, bis die Seite verlassen wird.
+
+Anonymisieren erwischt, was das Control Center kennt (Rechnername, `ai_host`, die Adressen der Dienste,
+IPv4-Adressen, Benutzerordner). Modellnamen und GPU-Bezeichnung bleiben stehen. Vor dem Teilen trotzdem
+einmal drüberlesen.
+
 ### Datenquellen mit Fehlern
 
 Kann eine Quelle (Ollama, GPU, Rechner, Verlauf) nicht gelesen werden, steht sie ganz unten mit
@@ -103,6 +124,15 @@ event_quiet_models = ["nomic-embed-text", "bge-m3"]
 **Absturz-Erkennung zeigt „aus“:** Ollama läuft auf einem anderen Rechner (`ai_host` ist nicht lokal),
 oder das Log liegt woanders – etwa weil Ollama unter einem anderen Windows-Benutzer läuft. Dann
 `ollama_log_paths` mit festem Pfad setzen.
+
+**Export ohne Browser:** dieselben Texte gibt es direkt als Datei – für Skripte, OpenCode oder einen
+Browser-Tab. Parameter wie im Dialog: `format` (`md`, `json`), `detail` (`short`, `full`), `parts`
+(mehrfach: `snapshot`, `events`, `history`), `range` (`1h` … `30d`), `anonymize` (`true`, `false`).
+
+```powershell
+curl.exe -s "http://<AI-Rechner>:8090/api/v1/dashboard/export/raw?format=md&detail=full"
+curl.exe -s "http://<AI-Rechner>:8090/api/v1/dashboard/export/raw?format=json&parts=history&range=24h"
+```
 
 **Simulieren statt messen:** In `[adapters]` `ollama`, `gpu` und `host` auf `"fake"` setzen und mit
 `fake_scenario` ein Szenario wählen (`normal`, `offload`, `idle`, `ollama-down` oder die echten

@@ -1,4 +1,4 @@
-import { Component } from '@angular/core';
+import { Component, input, output } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideHttpClient } from '@angular/common/http';
 import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
@@ -19,6 +19,12 @@ class EventsPanelStub {}
 
 @Component({ selector: 'app-history-panel', template: '' })
 class HistoryPanelStub {}
+
+@Component({ selector: 'app-export-dialog', template: '' })
+class ExportDialogStub {
+  readonly open = input(false);
+  readonly dismiss = output<void>();
+}
 
 const split = (over: Partial<LoadedModel> = {}): LoadedModel => ({
   name: 'qwen2.5-coder:14b', digest: 'd1', family: 'qwen2', parameterSize: '14.8B', quantization: 'Q4_K_M',
@@ -56,7 +62,7 @@ describe('Dashboard page', () => {
       providers: [provideHttpClient(), provideHttpClientTesting(), fakeEventSourceProvider],
     });
     // the panels have their own specs and requests; here only the page itself is under test
-    TestBed.overrideComponent(Dashboard, { set: { imports: [Icon, Meter, EventsPanelStub, HistoryPanelStub] } });
+    TestBed.overrideComponent(Dashboard, { set: { imports: [Icon, Meter, EventsPanelStub, HistoryPanelStub, ExportDialogStub] } });
     http = TestBed.inject(HttpTestingController);
     TestBed.inject(StreamService).connect();
     fixture = TestBed.createComponent(Dashboard);

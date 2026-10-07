@@ -10,6 +10,7 @@ import { LoadedModel } from '../api/models/loaded-model';
 import { StreamService } from '../core/stream.service';
 import { Icon } from '../layout/icon';
 import { EventsPanel } from './events-panel';
+import { ExportDialog } from './export-dialog';
 import * as fmt from './format';
 import { HistoryPanel } from './history-panel';
 import { Meter, MeterTone } from './meter';
@@ -21,7 +22,7 @@ export const STALE_AFTER_MS = 10_000;
 
 @Component({
   selector: 'app-dashboard',
-  imports: [Icon, Meter, EventsPanel, HistoryPanel],
+  imports: [Icon, Meter, EventsPanel, HistoryPanel, ExportDialog],
   templateUrl: './dashboard.html',
 })
 export class Dashboard implements OnInit {
@@ -36,6 +37,7 @@ export class Dashboard implements OnInit {
   readonly receivedAt = signal<number | null>(null);        // browser clock: when the last snapshot arrived
   readonly now = signal(Date.now());                        // ticks every second for the stale check
   readonly streamState = this.stream.state;
+  readonly exportOpen = signal(false);
 
   readonly stale = computed(() => {
     const at = this.receivedAt();

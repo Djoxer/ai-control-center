@@ -446,6 +446,52 @@
         "title": "EventPage",
         "type": "object"
       },
+      "ExportDocument": {
+        "properties": {
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "detail": {
+            "enum": [
+              "short",
+              "full"
+            ],
+            "title": "Detail",
+            "type": "string"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "format": {
+            "enum": [
+              "md",
+              "json"
+            ],
+            "title": "Format",
+            "type": "string"
+          },
+          "mediaType": {
+            "title": "Mediatype",
+            "type": "string"
+          },
+          "tokens": {
+            "title": "Tokens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "format",
+          "detail",
+          "filename",
+          "mediaType",
+          "tokens",
+          "content"
+        ],
+        "title": "ExportDocument",
+        "type": "object"
+      },
       "GpuState": {
         "properties": {
           "driverVersion": {
@@ -1314,7 +1360,7 @@
   },
   "info": {
     "title": "AI Control Center",
-    "version": "0.5.0"
+    "version": "0.6.0"
   },
   "openapi": "3.1.0",
   "paths": {
@@ -1376,6 +1422,122 @@
           }
         },
         "summary": "Events",
+        "tags": [
+          "dashboard"
+        ]
+      }
+    },
+    "/api/v1/dashboard/export": {
+      "get": {
+        "description": "Export for the UI: the text plus file name and token estimate.",
+        "operationId": "dashboard_export",
+        "parameters": [
+          {
+            "description": "md = Markdown with YAML header, json",
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "default": "md",
+              "description": "md = Markdown with YAML header, json",
+              "enum": [
+                "md",
+                "json"
+              ],
+              "title": "Format",
+              "type": "string"
+            }
+          },
+          {
+            "description": "short = overview, full = everything",
+            "in": "query",
+            "name": "detail",
+            "required": false,
+            "schema": {
+              "default": "short",
+              "description": "short = overview, full = everything",
+              "enum": [
+                "short",
+                "full"
+              ],
+              "title": "Detail",
+              "type": "string"
+            }
+          },
+          {
+            "description": "empty = snapshot, events, history",
+            "in": "query",
+            "name": "parts",
+            "required": false,
+            "schema": {
+              "description": "empty = snapshot, events, history",
+              "items": {
+                "enum": [
+                  "snapshot",
+                  "events",
+                  "history"
+                ],
+                "type": "string"
+              },
+              "title": "Parts",
+              "type": "array"
+            }
+          },
+          {
+            "description": "history time span",
+            "in": "query",
+            "name": "range",
+            "required": false,
+            "schema": {
+              "default": "1h",
+              "description": "history time span",
+              "enum": [
+                "1h",
+                "6h",
+                "24h",
+                "7d",
+                "30d"
+              ],
+              "title": "Range",
+              "type": "string"
+            }
+          },
+          {
+            "description": "replace host names, IPs and user folders, drop command lines",
+            "in": "query",
+            "name": "anonymize",
+            "required": false,
+            "schema": {
+              "default": true,
+              "description": "replace host names, IPs and user folders, drop command lines",
+              "title": "Anonymize",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportDocument"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export",
         "tags": [
           "dashboard"
         ]
