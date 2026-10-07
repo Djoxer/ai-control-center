@@ -10,7 +10,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from control_center import __version__
-from control_center.core import api
+from control_center.core import api, manual
 from control_center.core.config import Settings, load_settings
 from control_center.core.context import AppContext, ModuleStatus
 from control_center.core.db import Database
@@ -50,6 +50,8 @@ def create_app(
             ctx.modules[d.key] = ModuleStatus(d.key, d.key, "error", 9999, "failed", d.error)
             continue
         s = d.spec
+        if d.folder is not None:
+            ctx.help_files[s.key] = d.folder / "HELP.md"     # read on request: edits show without restart
         disabled = s.key in settings.modules.disabled
         ctx.modules[s.key] = ModuleStatus(s.key, s.title, s.icon, s.order, "disabled" if disabled else "loaded")
         if not disabled:
@@ -103,6 +105,7 @@ def create_app(
 
     # 2) routes: core first, then modules, SPA catch-all last (it would swallow everything after it)
     app.include_router(api.router)
+    app.include_router(manual.router)
     for s in active:
         app.include_router(s.router, prefix=f"/api/v1/{s.key}", tags=[s.key])
     if settings.frontend_dist is not None:

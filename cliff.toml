@@ -1,0 +1,43 @@
+# git-cliff: builds CHANGELOG.md ("Was ist neu" in /help) from the commit messages.
+#   uvx git-cliff -o CHANGELOG.md                  # whole history, current tags
+#   uvx git-cliff --tag v0.6.0 -o CHANGELOG.md     # before tagging a new version
+# Only feat/fix/perf become entries - chore, test, docs, refactor are work, not news for users.
+
+[changelog]
+header = """
+# Was ist neu
+
+Automatisch aus den Commit-Nachrichten erzeugt. Neu = `feat`, Behoben = `fix`, Schneller = `perf`.
+"""
+body = """
+{% if version %}\
+## {{ version | trim_start_matches(pat="v") }} – {{ timestamp | date(format="%d.%m.%Y") }}
+{% else %}\
+## Noch nicht veröffentlicht
+{% endif %}\
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | trim }}
+{% for commit in commits %}
+- {% if commit.scope %}**{{ commit.scope }}:** {% endif %}{{ commit.message | upper_first }}\
+{% endfor %}
+{% endfor %}\n
+"""
+trim = true
+footer = ""
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+split_commits = false
+# the HTML comments only sort the groups; striptags removes them in the output
+commit_parsers = [
+  { message = "^feat", group = "<!-- 0 -->Neu" },
+  { message = "^fix", group = "<!-- 1 -->Behoben" },
+  { message = "^perf", group = "<!-- 2 -->Schneller" },
+  { message = ".*", skip = true },
+]
+protect_breaking_commits = false
+filter_commits = false
+tag_pattern = "v[0-9]+\\.[0-9]+\\.[0-9]+"
+topo_order = false
+sort_commits = "oldest"

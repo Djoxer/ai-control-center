@@ -58,6 +58,25 @@ changes: `npm ci` (if package-lock.json changed), `npm run build`, no backend re
 
 No registry list, no import in main.py, no config entry needed.
 
+## Help and changelog
+
+Every module explains itself in a `HELP.md` next to its code (`backend/src/control_center/modules/<key>/HELP.md`,
+general part in `core/HELP.md`), German, two parts: `## Bedienung` (using the page) and `## Betrieb`
+(configuration, operation). The backend serves the files of all switched-on modules at `/api/v1/help`;
+a new module without `HELP.md` fails `tests/core/test_help.py`.
+
+"Was ist neu" is `CHANGELOG.md` in the repo root, generated from the commit messages (`cliff.toml`):
+
+    uvx git-cliff -o CHANGELOG.md
+
+Only `feat`, `fix` and `perf` commits become entries - write their subject for the people using the app.
+
+## Release
+
+1. `version` in `backend/pyproject.toml`, then `uv sync` in `backend/` (updates `uv.lock`)
+2. `uvx git-cliff --tag vX.Y.Z -o CHANGELOG.md` (repo root)
+3. commit, `git tag -a vX.Y.Z -m "..."`, `git push --follow-tags`
+
 ## Tests
 
     cd backend

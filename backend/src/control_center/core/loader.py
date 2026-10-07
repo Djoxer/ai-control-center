@@ -5,6 +5,7 @@ import importlib
 import logging
 import pkgutil
 from dataclasses import dataclass
+from pathlib import Path
 
 from control_center.core.module import ModuleSpec
 
@@ -16,6 +17,7 @@ class Discovered:
     key: str                        # folder name
     spec: ModuleSpec | None         # None = not loadable (see error) or not ready yet
     error: str | None = None
+    folder: Path | None = None      # module folder on disk (HELP.md lives there)
 
 
 def discover(package: str = "control_center.modules") -> list[Discovered]:
@@ -42,7 +44,7 @@ def discover(package: str = "control_center.modules") -> list[Discovered]:
             # key drives URL, settings namespace and logger name - drift between them causes ghost bugs
             found.append(Discovered(info.name, None, f"MODULE.key '{spec.key}' != folder '{info.name}'"))
             continue
-        found.append(Discovered(info.name, spec))
+        found.append(Discovered(info.name, spec, folder=Path(mod.__file__).parent if mod.__file__ else None))
     # deterministic startup and menu order; key as tie-breaker
     found.sort(key=lambda d: (d.spec.order if d.spec else 9999, d.key))
     return found

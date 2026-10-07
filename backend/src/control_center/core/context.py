@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any, Literal, TypeVar
 
 from pydantic import BaseModel
@@ -33,6 +34,7 @@ class AppContext:
     events: EventBus
     modules: dict[str, ModuleStatus] = field(default_factory=dict)
     services: dict[str, Any] = field(default_factory=dict)
+    help_files: dict[str, Path] = field(default_factory=dict)   # module key -> its HELP.md (may not exist)
     # shared connections to Ollama, GPU and OS; None only until __post_init__ has run
     adapters: Adapters = None  # type: ignore[assignment]
 
