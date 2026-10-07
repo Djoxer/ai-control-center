@@ -1,0 +1,50 @@
+<div class="space-y-6">
+  <p [class]="ui.meta">
+    Entwicklerseite – nur im Entwicklungsmodus (<span class="font-mono">ng serve</span>) vorhanden, nicht im Build am AI-Rechner.
+  </p>
+
+  <!-- copy feedback: polite live region, so screen readers announce it without stealing focus -->
+  <p class="sticky top-20 z-10 min-h-5 text-xs" aria-live="polite">
+    @if (notice(); as n) {
+      <span class="inline-block rounded-md border px-2.5 py-1 shadow-lg"
+            [class]="n.ok ? 'border-emerald-400/30 bg-gray-900 text-emerald-300' : 'border-red-500/30 bg-gray-900 text-red-300'">
+        {{ n.text }}
+      </span>
+    }
+  </p>
+
+  <section [class]="ui.card" class="p-4" aria-labelledby="dev-icons">
+    <header class="flex flex-wrap items-center justify-between gap-3">
+      <p id="dev-icons" [class]="ui.sectionTitle">
+        Icons <span [class]="ui.titleDetail">· {{ shown() }} von {{ icons().length }} · Klick kopiert</span>
+      </p>
+      <input type="search" placeholder="Filter: Name oder Gruppe" aria-label="Icons filtern"
+             [value]="filter()" (input)="filter.set($any($event.target).value)"
+             [class]="ui.field" class="w-full sm:w-64" />
+    </header>
+
+    @if (iconError(); as err) {
+      <p [class]="ui.errorBox" class="mt-4 px-4 py-2 text-sm">{{ err }}</p>
+    }
+
+    @for (g of groups(); track g.group) {
+      <h3 [class]="ui.meta" class="mt-5 mb-2">{{ g.group }}</h3>
+      <ul class="grid grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))] gap-2">
+        @for (icon of g.items; track icon.name) {
+          <li>
+            <button type="button" (click)="copy(snippet(icon.name))" [title]="snippet(icon.name)"
+                    class="flex w-full flex-col items-center gap-2 rounded-lg border border-white/10 px-2 py-3
+                           text-xs text-gray-400 hover:bg-white/5 hover:text-white">
+              <app-icon [name]="icon.name" class="size-6" />
+              <span class="max-w-full truncate font-mono">{{ icon.name }}</span>
+            </button>
+          </li>
+        }
+      </ul>
+    } @empty {
+      @if (icons().length) {
+        <p [class]="ui.empty" class="py-6">Kein Icon passt zu „{{ filter() }}“</p>
+      }
+    }
+  </section>
+</div>

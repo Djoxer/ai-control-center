@@ -44,6 +44,13 @@ Native browser elements, state in Angular signals - no third-party component scr
 
 Specs that open dialogs import `src/app/testing/dialog-polyfill.ts` (jsdom has no `showModal()`).
 
+## Developer page /dev
+
+Only under `ng serve` (`isDevMode()`); the production build has no such route. Icon gallery read from
+`public/icons.svg` at runtime - groups are the XML comments in the sprite, so a new icon only needs
+a `<symbol id="…">` under the right comment. A click copies `<app-icon name="…" class="size-5" />`.
+Copying works on http too (`ClipboardService` falls back to a textarea when there is no secure context).
+
 ## Production build
 
     npm run build       # -> dist/ai-control-center/browser

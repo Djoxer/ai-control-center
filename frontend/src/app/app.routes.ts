@@ -1,3 +1,4 @@
+import { isDevMode } from '@angular/core';
 import { Routes } from '@angular/router';
 import { Dashboard } from './dashboard/dashboard';
 import { Catalog } from './catalog/catalog';
@@ -25,6 +26,16 @@ export const routes: Routes = [
     title: 'Protokoll',
     data: { nav: 'footer', icon: 'log', module: 'logs' }
   },
+  // Developer page (icons, style guide): only under "ng serve". The production build on the AI box
+  // has no route at all, and the page is lazy-loaded, so it costs nothing in the main bundle.
+  ...(isDevMode()
+    ? [{
+        path: 'dev',
+        loadComponent: () => import('./dev/dev').then((m) => m.Dev),
+        title: 'Entwicklung',
+        data: { nav: 'footer', icon: 'grid' },
+      }]
+    : []),
   {
     path: 'settings',
     component: Settings,
