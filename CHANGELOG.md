@@ -2,6 +2,12 @@
 
 Automatisch aus den Commit-Nachrichten erzeugt. Neu = `feat`, Behoben = `fix`, Schneller = `perf`.
 
+## 0.9.1 – 08.10.2026
+
+### Behoben
+
+- **rag:** Secret filter no longer flags constant names, translation keys and string concatenation, version 0.9.1
+
 ## 0.9.0 – 08.10.2026
 
 ### Neu
