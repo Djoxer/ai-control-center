@@ -1,7 +1,6 @@
 import { isDevMode } from '@angular/core';
 import { Routes } from '@angular/router';
 import { Dashboard } from './dashboard/dashboard';
-import { Catalog } from './catalog/catalog';
 import { Settings } from './settings/settings';
 import { Logs } from './logs/logs';
 
@@ -14,13 +13,13 @@ export const routes: Routes = [
     title: 'Übersicht',
     data: { nav: 'main', icon: 'dashboard', module: 'dashboard' }
   },
+  // Lazy like every new module page (README "Add a module"): its code loads on the first visit
   {
     path: 'catalog',
-    component: Catalog,
+    loadComponent: () => import('./catalog/catalog').then((m) => m.Catalog),
     title: 'Katalog',
     data: { nav: 'main', icon: 'list', module: 'catalog' }
   },
-  // Lazy like every new module page (README "Add a module"): its code loads on the first visit
   {
     path: 'mcp',
     loadComponent: () => import('./mcp/mcp').then((m) => m.Mcp),

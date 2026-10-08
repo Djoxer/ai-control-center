@@ -1,0 +1,140 @@
+{
+  "models": [
+    {
+      "name": "gpt-oss:20b",
+      "model": "gpt-oss:20b",
+      "modified_at": "2026-09-20T08:47:00.0+02:00",
+      "size": 13780173839,
+      "digest": "7b3f62dc7e6c13d02bf62c490a4fe5737bca98063f2743d06491cda147956540",
+      "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "gptoss",
+        "families": [
+          "gptoss"
+        ],
+        "parameter_size": "20.9B",
+        "quantization_level": "MXFP4"
+      }
+    },
+    {
+      "name": "qwen3.5-9b-64k-code:latest",
+      "model": "qwen3.5-9b-64k-code:latest",
+      "modified_at": "2026-09-15T13:52:10.77+02:00",
+      "size": 5996811296,
+      "digest": "fbfc32efd05860aa92bdcea009abbefdef0ca911b2c131fc2b8a3c4c585a1070",
+      "details": {
+        "parent_model": "qwen3.5-9b-64k:latest",
+        "format": "gguf",
+        "family": "qwen3",
+        "families": [
+          "qwen3"
+        ],
+        "parameter_size": "9.0B",
+        "quantization_level": "Q4_K_M"
+      }
+    },
+    {
+      "name": "qwen3.5-9b-64k:latest",
+      "model": "qwen3.5-9b-64k:latest",
+      "modified_at": "2026-09-15T13:40:51.0042+02:00",
+      "size": 5996811296,
+      "digest": "2549c078911039ca3038bd14cdd56dcb832b2b582bd4996e237398a6b07b8761",
+      "details": {
+        "parent_model": "qwen3.5:9b",
+        "format": "gguf",
+        "family": "qwen3",
+        "families": [
+          "qwen3"
+        ],
+        "parameter_size": "9.0B",
+        "quantization_level": "Q4_K_M"
+      }
+    },
+    {
+      "name": "qwen35-24k:latest",
+      "model": "qwen35-24k:latest",
+      "modified_at": "2026-09-14T16:02:44.5+02:00",
+      "size": 5996811296,
+      "digest": "e3e2707df18bfe4e60e322f0e7baf4adf2bcad74917f5d0e42e3e30b3c1b8d56",
+      "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "qwen3",
+        "families": [
+          "qwen3"
+        ],
+        "parameter_size": "9.0B",
+        "quantization_level": "Q4_K_M"
+      }
+    },
+    {
+      "name": "qwen3.5:9b",
+      "model": "qwen3.5:9b",
+      "modified_at": "2026-09-12T09:14:03.2214501+02:00",
+      "size": 5996811296,
+      "digest": "92816f844ccae4f31eb4a691e7db6d48af1b7dcfeb24551242924dee2c6c852b",
+      "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "qwen3",
+        "families": [
+          "qwen3"
+        ],
+        "parameter_size": "9.0B",
+        "quantization_level": "Q4_K_M"
+      }
+    },
+    {
+      "name": "deepseek-coder-24k:latest",
+      "model": "deepseek-coder-24k:latest",
+      "modified_at": "2026-09-02T11:20:13.9+02:00",
+      "size": 8905126121,
+      "digest": "24d5f13a78cd6d27cf2bbbaf1751969e4bafc401ca7ddf6dfb7cab278844b703",
+      "details": {
+        "parent_model": "deepseek-coder-v2:16b",
+        "format": "gguf",
+        "family": "deepseek2",
+        "families": [
+          "deepseek2"
+        ],
+        "parameter_size": "15.7B",
+        "quantization_level": "Q4_0"
+      }
+    },
+    {
+      "name": "qwen2.5-coder:14b-instruct-q4_K_M",
+      "model": "qwen2.5-coder:14b-instruct-q4_K_M",
+      "modified_at": "2026-08-28T10:05:31.1+02:00",
+      "size": 8988124069,
+      "digest": "b8b44a67069a840acee8d9e8c613308ef1ef1657c4503029cce2e4b7f99e73c5",
+      "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "qwen2",
+        "families": [
+          "qwen2"
+        ],
+        "parameter_size": "14.8B",
+        "quantization_level": "Q4_K_M"
+      }
+    },
+    {
+      "name": "nomic-embed-text:latest",
+      "model": "nomic-embed-text:latest",
+      "modified_at": "2026-08-20T15:31:12.0+02:00",
+      "size": 274302450,
+      "digest": "10886753ec3b09dda767d55999092b801d783cdc24f9e0e5b10045071e2d9a06",
+      "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "nomic-bert",
+        "families": [
+          "nomic-bert"
+        ],
+        "parameter_size": "137M",
+        "quantization_level": "F16"
+      }
+    }
+  ]
+}

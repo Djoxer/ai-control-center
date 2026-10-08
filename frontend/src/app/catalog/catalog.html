@@ -1,129 +1,135 @@
+<!-- catalog.html: status line, notices, legend, one card per origin model, removed models, details dialog -->
 <div class="space-y-4">
-  <div class="flex flex-wrap items-center gap-2">
-    <select [class]="ui.field">
-      <option>Nur Open Weight</option>
-    </select>
-    <select [class]="ui.field">
-      <option>Jedes VRAM-Tier</option>
-    </select>
-    <select [class]="ui.field">
-      <option>Jede Rolle</option>
-    </select>
-    <select [class]="ui.field">
-      <option>Jeder Status</option>
-    </select>
-    <label [class]="ui.checkLabel" class="ml-auto rounded-lg border border-white/10 px-3 py-2">
-      <input type="checkbox" checked [class]="ui.check" />
-      dünne Zeilen ausblenden
-    </label>
-  </div>
-
-  <section class="grid grid-cols-2 gap-3 sm:grid-cols-5">
-    <article [class]="ui.card" class="px-4 py-3">
-      <p class="text-2xl font-semibold text-white">88</p>
-      <p [class]="ui.sectionTitle">Sichtbar</p>
-    </article>
-    <article [class]="ui.card" class="px-4 py-3">
-      <p class="text-2xl font-semibold text-white">4</p>
-      <p [class]="ui.sectionTitle">Neu</p>
-    </article>
-    <article [class]="ui.card" class="px-4 py-3">
-      <p class="text-2xl font-semibold text-white">88</p>
-      <p [class]="ui.sectionTitle">Open Weight</p>
-    </article>
-    <article [class]="ui.card" class="px-4 py-3">
-      <p class="text-2xl font-semibold text-white">17</p>
-      <p [class]="ui.sectionTitle">Coder</p>
-    </article>
-    <article [class]="ui.card" class="px-4 py-3">
-      <p class="text-2xl font-semibold text-white">14</p>
-      <p [class]="ui.sectionTitle">Telefonie</p>
-    </article>
+  <section class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-400">
+    <span class="flex items-center gap-2"
+          [title]="streamState() === 'open' ? 'Änderungen kommen per Live-Stream' : 'Live-Verbindung getrennt'">
+      <span [class]="ui.dot"
+            [class.bg-emerald-400]="streamState() === 'open'" [class.animate-pulse]="streamState() === 'open'"
+            [class.bg-amber-400]="streamState() !== 'open'"></span>
+      {{ streamState() === 'open' ? 'Live' : 'Verbindung wird aufgebaut …' }}
+    </span>
+    @if (overview(); as ov) {
+      <span class="flex items-center gap-2">
+        <span [class]="ui.dot" [class.bg-emerald-400]="ov.ollama.online" [class.bg-red-400]="!ov.ollama.online"></span>
+        {{ ov.ollama.online ? 'Ollama ' + (ov.ollama.version ?? '') : 'Ollama nicht erreichbar' }}
+        @if (ov.ollama.simulated) { <span [class]="ui.pill + ' ' + ui.pillTone.warning">Simulation</span> }
+      </span>
+      <span>{{ ov.models.length }} Modelle · {{ loadedCount() }} geladen</span>
+      @if (ov.hardware.gpuName) {
+        <span>{{ ov.hardware.gpuName }} · {{ gib(ov.hardware.vramTotalBytes) }}</span>
+      }
+      @if (ov.hardware.note) { <span class="text-gray-500">{{ ov.hardware.note }}</span> }
+      <span>{{ ov.refreshedAt ? 'Stand ' + when(ov.refreshedAt) : 'gespeicherter Stand' }}</span>
+      <button type="button" [class]="ui.button" class="ml-auto flex items-center gap-2"
+              [disabled]="locked() !== null" [title]="locked() ?? ''" (click)="refresh(null)">
+        <app-icon name="refresh" class="size-4" /> {{ busy() === '*' ? 'Liest …' : 'Alle neu einlesen' }}
+      </button>
+    }
   </section>
 
-  <div class="overflow-hidden rounded-xl border border-white/10">
-    <div class="overflow-x-auto">
-      <table [class]="ui.table" class="min-w-[1100px]">
-        <thead class="bg-white/5 text-xs text-gray-400">
-          <tr>
-            <th class="px-3 py-3 font-medium">Status</th>
-            <th class="px-3 py-3 font-medium">Modell</th>
-            <th class="px-3 py-3 font-medium">Gewichte</th>
-            <th class="px-3 py-3 font-medium">Params</th>
-            <th class="px-3 py-3 font-medium">Tier</th>
-            <th class="px-3 py-3 font-medium">Q4 GB</th>
-            <th class="px-3 py-3 font-medium">Kontext</th>
-            <th class="px-3 py-3 font-medium">Code</th>
-            <th class="px-3 py-3 font-medium">Score</th>
-            <th class="px-3 py-3 font-medium">Rollen</th>
-            <th class="px-3 py-3 font-medium">Agentur</th>
-            <th class="px-3 py-3 font-medium">Temp</th>
-            <th class="px-3 py-3 font-medium">Release</th>
-          </tr>
-        </thead>
-        <tbody class="divide-y divide-white/10">
-          <tr>
-            <td class="px-3 py-3"><span class="rounded-full border border-emerald-400/40 px-2 py-0.5 text-xs text-emerald-300">NEU</span></td>
-            <td class="px-3 py-3"><p class="font-medium text-white">MiMo-V2.6-Pro</p><p [class]="ui.meta">Xiaomi</p></td>
-            <td class="px-3 py-3"><span class="rounded-full border border-sky-400/40 px-2 py-0.5 text-xs text-sky-300">open</span></td>
-            <td class="px-3 py-3">–</td>
-            <td class="px-3 py-3">–</td>
-            <td class="px-3 py-3">–</td>
-            <td class="px-3 py-3">1M</td>
-            <td class="px-3 py-3">70.4</td>
-            <td class="px-3 py-3">74.2</td>
-            <td class="px-3 py-3"><span class="rounded-full bg-white/10 px-2 py-0.5 text-xs">coder</span></td>
-            <td class="px-3 py-3">offen, Hardware unklar</td>
-            <td class="px-3 py-3">0.0–0.2</td>
-            <td class="px-3 py-3">2026-09-22</td>
-          </tr>
-          <tr>
-            <td class="px-3 py-3"></td>
-            <td class="px-3 py-3"><p class="font-medium text-white">Qwen3.8 Max</p><p [class]="ui.meta">Alibaba · qwen3.8</p></td>
-            <td class="px-3 py-3"><span class="rounded-full border border-sky-400/40 px-2 py-0.5 text-xs text-sky-300">open</span></td>
-            <td class="px-3 py-3">–</td>
-            <td class="px-3 py-3">–</td>
-            <td class="px-3 py-3">–</td>
-            <td class="px-3 py-3">1M</td>
-            <td class="px-3 py-3">68.2</td>
-            <td class="px-3 py-3">71.4</td>
-            <td class="px-3 py-3"><span class="rounded-full bg-white/10 px-2 py-0.5 text-xs">coder</span></td>
-            <td class="px-3 py-3">offen, Hardware unklar</td>
-            <td class="px-3 py-3">0.0–0.2</td>
-            <td class="px-3 py-3">2026-08-03</td>
-          </tr>
-          <tr>
-            <td class="px-3 py-3"></td>
-            <td class="px-3 py-3"><p class="font-medium text-white">GLM-5.3</p><p [class]="ui.meta">Z.AI · glm-5.3</p></td>
-            <td class="px-3 py-3"><span class="rounded-full border border-sky-400/40 px-2 py-0.5 text-xs text-sky-300">open</span></td>
-            <td class="px-3 py-3">–</td>
-            <td class="px-3 py-3">640 GB</td>
-            <td class="px-3 py-3">755.4</td>
-            <td class="px-3 py-3">1M</td>
-            <td class="px-3 py-3">57.1</td>
-            <td class="px-3 py-3">65.1</td>
-            <td class="px-3 py-3"><span class="rounded-full bg-white/10 px-2 py-0.5 text-xs">coder</span></td>
-            <td class="px-3 py-3">offen, Hardware unklar</td>
-            <td class="px-3 py-3">0.0–0.2</td>
-            <td class="px-3 py-3">2026-08-14</td>
-          </tr>
-          <tr>
-            <td class="px-3 py-3"><span class="rounded-full border border-emerald-400/40 px-2 py-0.5 text-xs text-emerald-300">NEU</span></td>
-            <td class="px-3 py-3"><p class="font-medium text-white">MiMo-V2.6-Flash</p><p [class]="ui.meta">Xiaomi</p></td>
-            <td class="px-3 py-3"><span class="rounded-full border border-sky-400/40 px-2 py-0.5 text-xs text-sky-300">open</span></td>
-            <td class="px-3 py-3">–</td>
-            <td class="px-3 py-3">–</td>
-            <td class="px-3 py-3">–</td>
-            <td class="px-3 py-3">1M</td>
-            <td class="px-3 py-3">60.7</td>
-            <td class="px-3 py-3">63.6</td>
-            <td class="px-3 py-3"><span class="rounded-full bg-white/10 px-2 py-0.5 text-xs">coder</span></td>
-            <td class="px-3 py-3">offen, Hardware unklar</td>
-            <td class="px-3 py-3">0.0–0.2</td>
-            <td class="px-3 py-3">2026-09-22</td>
-          </tr>
-        </tbody>
-      </table>
-    </div>
-  </div>
+  @if (error(); as err) {
+    <p [class]="ui.errorBox" class="px-4 py-3 text-sm" role="alert">{{ err }}</p>
+  }
+  @if (actionError(); as err) {
+    <p [class]="ui.errorBox" class="px-4 py-3 text-sm" role="alert">{{ err }}</p>
+  }
+
+  @if (overview(); as ov) {
+    @if (!ov.ollama.online && ov.ollama.error) {
+      <div [class]="downCallout" role="alert">
+        <app-icon name="error" class="mt-0.5 size-5" />
+        <p><span class="font-semibold">Keine Verbindung:</span> {{ ov.ollama.error }}
+          @if (ov.models.length) { – angezeigt wird der zuletzt bekannte Stand. }</p>
+      </div>
+    }
+
+    <!-- Ollama's defaults: they decide the context of every model without its own num_ctx -->
+    <section [class]="ui.card" class="p-4" aria-labelledby="catalog-server-title">
+      <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h2 id="catalog-server-title" [class]="ui.sectionTitle">Ollama-Standards</h2>
+        <p [class]="ui.meta">{{ serverSource() }}</p>
+      </div>
+      @if (facts().length) {
+        <dl class="mt-3 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+          @for (f of facts(); track f.label) {
+            <div><dt [class]="ui.meta">{{ f.label }}</dt><dd class="font-mono text-white">{{ f.value }}</dd></div>
+          }
+        </dl>
+      }
+      @if (ov.server.source === 'unknown') {
+        <div [class]="infoCallout" class="mt-3" role="note">
+          <app-icon name="info" class="mt-0.5 size-5" />
+          <!-- min-w-0: lets the code block scroll instead of pushing the page wider than a phone -->
+          <div class="min-w-0">
+            <p>{{ ov.server.note }} Ohne Standards rechnet der Katalog Modelle ohne eigenes <code>num_ctx</code> mit
+              {{ fmt.num(ov.assumptions.fallbackContextLength) }} Token. Wer den AI-Rechner nachstellen will, trägt die
+              Werte in <code>backend/control-center.toml</code> ein:</p>
+            <pre [class]="ui.codeBlock" class="mt-2 overflow-x-auto px-3 py-2">{{ example }}</pre>
+          </div>
+        </div>
+      }
+      <p [class]="ui.meta" class="mt-3">
+        Herkunft der Zahlen: weiß = Ollama ·
+        <span [class]="measured">grün = gemessen</span> (beobachtet, während das Modell lief) ·
+        <span [class]="estimated">≈ gelb = geschätzt</span> (aus den Modelldaten, vor dem Laden)
+      </p>
+    </section>
+  }
+
+  @if (!loaded()) {
+    <p [class]="ui.empty" class="py-10">Lade …</p>
+  } @else if (overview()?.models?.length === 0) {
+    <p [class]="ui.empty" class="py-10">
+      {{ overview()?.ollama?.online ? 'In Ollama ist kein Modell installiert.' : 'Noch kein Modell bekannt.' }}
+    </p>
+  }
+
+  @for (g of groups(); track g.group.origin) {
+    <article [class]="ui.card" class="overflow-hidden" [attr.aria-label]="'Modelle aus ' + g.group.origin">
+      <header class="flex flex-wrap items-baseline gap-x-3 gap-y-1 border-b border-white/10 px-4 py-3">
+        <h3 class="font-mono text-base font-semibold break-all text-white">{{ g.group.origin }}</h3>
+        @if (!g.group.installed) {
+          <span [class]="ui.pill + ' ' + ui.pillTone.normal">Ursprung nicht installiert</span>
+        } @else {
+          @let o = g.models[0];
+          <p [class]="ui.meta">{{ o.family ?? '?' }} · {{ o.parameterSize ?? '?' }} · {{ o.quantization ?? '?' }}
+            · {{ gib(o.sizeBytes) }}</p>
+        }
+        <p [class]="ui.meta" class="ml-auto">{{ g.models.length }} {{ g.models.length === 1 ? 'Modell' : 'Modelle' }}</p>
+      </header>
+      <div class="hidden gap-x-4 px-4 pt-2 sm:grid sm:grid-cols-[minmax(0,1fr)_7.5rem_12rem_8.5rem]" aria-hidden="true">
+        <span [class]="ui.meta">Modell</span><span [class]="ui.meta">Kontext</span>
+        <span [class]="ui.meta" title="Ollamas Zählung; der Balken rechnet den Treiber dazu">VRAM-Bedarf</span><span [class]="ui.meta" class="text-right">Prognose</span>
+      </div>
+      <div [class]="ui.divided">
+        @for (m of g.models; track m.name) {
+          <app-catalog-model-row [model]="m" [indent]="indent(m.depth, g.group.installed)" [busy]="isBusy(m.name)"
+                                 [locked]="locked()" (refresh)="refresh(m.name)" (details)="detailName.set(m.name)" />
+        }
+      </div>
+    </article>
+  }
+
+  @if (overview()?.removed?.length) {
+    <details [class]="ui.card" class="px-4 py-3">
+      <summary class="cursor-pointer text-sm text-gray-300">
+        Nicht mehr installiert <span [class]="ui.titleDetail">· {{ overview()!.removed.length }}</span>
+      </summary>
+      <ul class="mt-3 space-y-1 text-sm">
+        @for (r of overview()!.removed; track r.name) {
+          <li class="flex flex-wrap items-baseline gap-x-3">
+            <span class="font-mono break-all text-gray-200">{{ r.name }}</span>
+            <span [class]="ui.meta">entfernt {{ when(r.removedAt) }}
+              @if (r.measurements) { · {{ r.measurements }} Messwerte bleiben }</span>
+          </li>
+        }
+      </ul>
+    </details>
+  }
 </div>
+
+<app-dialog [title]="detail()?.name ?? 'Modell'" size="lg" [open]="detail() !== null" (dismiss)="detailName.set(null)">
+  @if (detail(); as m) {
+    <app-catalog-model-details [model]="m" />
+  }
+</app-dialog>

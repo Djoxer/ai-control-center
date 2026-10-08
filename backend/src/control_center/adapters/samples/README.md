@@ -5,7 +5,7 @@ Each folder is one situation of the AI box, replayed by the fake adapters
 
 | Folder             | Source    | Situation                                                         |
 |--------------------|-----------|-------------------------------------------------------------------|
-| `normal`           | synthetic | coder model + embedding model, both fully in VRAM                 |
+| `normal`           | synthetic | coder model + embedding model, both fully in VRAM; 8 installed models with derivations |
 | `offload`          | synthetic | 14b model with large num_ctx, ~84 % on the GPU (Blackwell crash risk) |
 | `idle`             | synthetic | Ollama running, nothing loaded                                    |
 | `ollama-down`      | synthetic | no `ollama-*.json` -> the fake reports Ollama as unreachable      |
@@ -13,8 +13,15 @@ Each folder is one situation of the AI box, replayed by the fake adapters
 | `real-idle`        | capture   | AI box, Ollama running, nothing loaded                            |
 | `real-ollama-down` | capture   | AI box, Ollama stopped                                            |
 
-Files: `ollama-ps.json` / `ollama-version.json` (raw Ollama API answers), `gpu.json`, `host.json`,
+Files: `ollama-ps.json` / `ollama-version.json` / `ollama-tags.json` (raw Ollama API answers),
+`ollama-show.json` (model name -> reduced `/api/show` answer, for the catalog), `gpu.json`, `host.json`,
 `disks.json` (adapter readings), `meta.json` (`capturedAt` shifts expiry times to "now", `source`, `note`).
+
+`normal`, `offload` and `idle` share the same installed models (`ollama-tags.json`/`ollama-show.json`,
+generated once, identical in all three): a base model with two derivations (`parent_model`), one model
+attached only through the same weights blob, one whose parent was deleted, a coder without own `num_ctx`,
+`gpt-oss:20b` (sliding window) and the embedding model. Captures made before the catalog existed have no
+`ollama-tags.json`: the catalog then reports the file as missing - record the scenario again.
 
 ## Two kinds of folders
 
@@ -34,3 +41,8 @@ The argument is the scenario name, not a path - files always land in this folder
 Command lines are stored in "short" mode (no user paths, secret flag values masked) and venv
 launcher twins are hidden. Check `host.json` before committing anyway: plain arguments
 (URLs, names) are not masked.
+
+`ollama-show.json` is reduced on purpose: system prompts become `<system prompt removed: N characters>`,
+Modelfiles keep only `FROM`/`ADAPTER`/`PARAMETER` lines with blob paths as `<blobs>/sha256-…`, license
+texts shrink to their first line, MESSAGE lines are dropped. Model NAMES stay - check
+`ollama-tags.json` before committing if a model is named after a customer project.

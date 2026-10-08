@@ -33,6 +33,7 @@ def test_module_sections_are_passed_through(tmp_path, monkeypatch):
 
 def test_example_toml_matches_the_settings_models(monkeypatch):
     """The documented example must load: a typo there costs the next person an evening."""
+    from control_center.modules.catalog.settings import CatalogSettings
     from control_center.modules.dashboard.settings import DashboardSettings
     from control_center.modules.logs.settings import LogsSettings
     from control_center.modules.mcp.settings import McpSettings
@@ -48,6 +49,7 @@ def test_example_toml_matches_the_settings_models(monkeypatch):
     LogsSettings.model_validate(s.modules.section("logs"))
     McpSettings.model_validate(s.modules.section("mcp"))
     assert RagSettings.model_validate(s.modules.section("rag")) == RagSettings()   # documents the defaults
+    assert CatalogSettings.model_validate(s.modules.section("catalog")) == CatalogSettings()
 
 
 def test_adapters_from_env(tmp_path, monkeypatch):

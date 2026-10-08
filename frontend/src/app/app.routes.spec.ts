@@ -4,6 +4,7 @@ import { Router, provideRouter } from '@angular/router';
 import { RouterTestingHarness } from '@angular/router/testing';
 
 import { routes } from './app.routes';
+import { Catalog } from './catalog/catalog';
 import { Help } from './help/help';
 import { Mcp } from './mcp/mcp';
 import { Rag } from './rag/rag';
@@ -24,6 +25,14 @@ describe('app routes', () => {
     const harness = await RouterTestingHarness.create();
     await harness.navigateByUrl('/gibt-es-nicht');
     expect(TestBed.inject(Router).url).toBe('/');
+  });
+
+  it('loads the catalog lazily, right after the overview', async () => {
+    const i = routes.findIndex((r) => r.path === 'catalog');
+    expect(routes[i - 1].path).toBe('');
+    expect(routes[i].component).toBeUndefined();
+    expect(routes[i].data).toEqual({ nav: 'main', icon: 'list', module: 'catalog' });
+    expect(await routes[i].loadComponent!()).toBe(Catalog);
   });
 
   it('loads the MCP page lazily and lists it in the main group', async () => {

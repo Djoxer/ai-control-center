@@ -1,13 +1,16 @@
-"""Ollama REST API: what is loaded right now (/api/ps) and which version runs (/api/version).
+"""Ollama REST API: what is loaded (/api/ps), which version runs (/api/version), what is installed
+(/api/tags) and what one installed model is made of (/api/show).
 
 HttpOllama talks to a real Ollama (local, or the AI box via its LAN IP).
 FakeOllama replays raw responses recorded with ``python -m control_center.capture_samples``.
-Both share parse_ps(), so a recorded file is parsed exactly like a live answer.
+Both share the parse_* functions, so a recorded file is parsed exactly like a live answer.
 """
 from __future__ import annotations
 
+import hashlib
 import json
-from dataclasses import dataclass, replace
+import re
+from dataclasses import dataclass, field, replace
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Any, Protocol
@@ -25,6 +28,10 @@ class OllamaUnavailable(Exception):
     """No usable answer: Ollama down, wrong address, timeout, or a response we cannot read."""
 
 
+class OllamaModelMissing(Exception):
+    """/api/show for a name Ollama does not know (deleted between /api/tags and /api/show, or a typo)."""
+
+
 @dataclass(frozen=True)
 class RunningModel:
     name: str                       # "qwen3.5-9b-64k-code:latest"
@@ -38,12 +45,56 @@ class RunningModel:
     quantization: str | None        # "Q4_K_M"
 
 
+@dataclass(frozen=True)
+class InstalledModel:
+    """One entry of /api/tags: a model on disk, loaded or not."""
+    name: str                       # "qwen3.5-9b-64k-code:latest"
+    digest: str                     # manifest digest; changes with every re-create or re-pull
+    size: int                       # bytes on disk (weights + projector + small layers)
+    modified_at: datetime | None
+    family: str | None
+    families: tuple[str, ...]
+    parameter_size: str | None
+    quantization: str | None
+    format: str | None              # "gguf"
+    parent_model: str | None        # set by "ollama create" when FROM names another model
+
+
+# FROM line of a generated Modelfile that points at a blob: the weights file of the model.
+# Windows: "FROM C:\Users\x\.ollama\models\blobs\sha256-<hex>", Linux: ".../blobs/sha256-<hex>".
+_BLOB_FROM = re.compile(r"^FROM\s+.*?sha256[-:]([0-9a-f]{64})[\"']?\s*$", re.MULTILINE | re.IGNORECASE)
+
+
+@dataclass(frozen=True)
+class ModelDetails:
+    """/api/show of one model, reduced to what the catalog needs. Big texts (license, template) stay out."""
+    name: str
+    parent_model: str | None
+    family: str | None
+    families: tuple[str, ...]
+    parameter_size: str | None
+    quantization: str | None
+    format: str | None
+    parameters: dict[str, tuple[str, ...]]     # "num_ctx" -> ("65536",); "stop" may repeat
+    system_chars: int                          # length of the SYSTEM prompt, 0 = none (content stays out)
+    template_hash: str | None                  # to tell "same template as the parent" without storing it
+    system_hash: str | None
+    weights_digest: str | None                 # sha256 of the weights blob (Modelfile FROM line)
+    model_info: dict[str, Any] = field(default_factory=dict)   # GGUF metadata, big arrays already null
+    capabilities: tuple[str, ...] = ()         # "completion", "tools", "vision", "embedding", "insert" ...
+    modified_at: datetime | None = None
+
+
 class OllamaAdapter(Protocol):
     simulated: bool
 
     async def running(self) -> list[RunningModel]: ...
 
     async def version(self) -> str: ...
+
+    async def tags(self) -> list[InstalledModel]: ...
+
+    async def show(self, name: str, timeout: float | None = None) -> ModelDetails: ...
 
 
 def _int_or_none(value: Any) -> int | None:
@@ -91,6 +142,112 @@ def parse_ps(payload: Any) -> list[RunningModel]:
     return out
 
 
+def _details(raw: Any) -> dict:
+    return raw if isinstance(raw, dict) else {}
+
+
+def _families(value: Any) -> tuple[str, ...]:
+    return tuple(str(f) for f in value) if isinstance(value, list) else ()
+
+
+def parse_tags(payload: Any) -> list[InstalledModel]:
+    """Raw /api/tags JSON -> InstalledModel list, sorted by name (Ollama sorts by modification time)."""
+    if not isinstance(payload, dict):
+        raise OllamaUnavailable("unexpected /api/tags response (not an object)")
+    items = payload.get("models") or []
+    if not isinstance(items, list):
+        raise OllamaUnavailable("unexpected /api/tags response (models is not a list)")
+    out: list[InstalledModel] = []
+    for m in items:
+        if not isinstance(m, dict):
+            continue
+        name = str(m.get("name") or m.get("model") or "")
+        if not name:
+            continue                                    # nothing to show without a name
+        d = _details(m.get("details"))
+        out.append(InstalledModel(
+            name=name, digest=str(m.get("digest") or ""), size=_int_or_none(m.get("size")) or 0,
+            modified_at=_time_or_none(m.get("modified_at")),
+            family=d.get("family") or None, families=_families(d.get("families")),
+            parameter_size=d.get("parameter_size") or None, quantization=d.get("quantization_level") or None,
+            format=d.get("format") or None, parent_model=d.get("parent_model") or None,
+        ))
+    return sorted(out, key=lambda m: m.name)
+
+
+def parse_parameters(text: Any) -> dict[str, tuple[str, ...]]:
+    """The "parameters" text of /api/show -> {"num_ctx": ("65536",), "stop": ("<|im_end|>", ...)}.
+
+    Format: one "key<spaces>value" per line, strings in double quotes (Go's %q). Unknown keys are kept.
+    """
+    out: dict[str, list[str]] = {}
+    if not isinstance(text, str):
+        return {}
+    for line in text.splitlines():
+        parts = line.strip().split(None, 1)
+        if len(parts) != 2:
+            continue
+        key, value = parts[0], parts[1].strip()
+        if len(value) >= 2 and value[0] == value[-1] == '"':
+            try:
+                value = json.loads(value)               # Go %q is close enough to a JSON string
+            except ValueError:
+                value = value[1:-1]
+        out.setdefault(key, []).append(str(value))
+    return {k: tuple(v) for k, v in out.items()}
+
+
+# capture_samples replaces a system prompt with this text: recorded samples keep its length, not its words
+_SYSTEM_PLACEHOLDER = re.compile(r"^<system prompt removed: (\d+) characters>$")
+
+
+def system_placeholder(length: int) -> str:
+    return f"<system prompt removed: {length} characters>"
+
+
+def _system_chars(system: Any) -> int:
+    if not isinstance(system, str):
+        return 0
+    m = _SYSTEM_PLACEHOLDER.match(system)
+    return int(m.group(1)) if m else len(system)
+
+
+def _hash(text: Any) -> str | None:
+    if not isinstance(text, str) or not text:
+        return None
+    return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+
+def weights_digest(modelfile: Any) -> str | None:
+    """sha256 of the weights blob from the first blob FROM line of a generated Modelfile, else None."""
+    if not isinstance(modelfile, str):
+        return None
+    m = _BLOB_FROM.search(modelfile)
+    return m.group(1).lower() if m else None
+
+
+def parse_show(name: str, payload: Any) -> ModelDetails:
+    """Raw /api/show JSON -> ModelDetails. Missing parts become empty, never an error."""
+    if not isinstance(payload, dict):
+        raise OllamaUnavailable("unexpected /api/show response (not an object)")
+    d = _details(payload.get("details"))
+    info = payload.get("model_info")
+    caps = payload.get("capabilities")
+    system = payload.get("system")
+    return ModelDetails(
+        name=name, parent_model=d.get("parent_model") or None,
+        family=d.get("family") or None, families=_families(d.get("families")),
+        parameter_size=d.get("parameter_size") or None, quantization=d.get("quantization_level") or None,
+        format=d.get("format") or None, parameters=parse_parameters(payload.get("parameters")),
+        system_chars=_system_chars(system),
+        template_hash=_hash(payload.get("template")), system_hash=_hash(system),
+        weights_digest=weights_digest(payload.get("modelfile")),
+        model_info=dict(info) if isinstance(info, dict) else {},
+        capabilities=tuple(str(c) for c in caps) if isinstance(caps, list) else (),
+        modified_at=_time_or_none(payload.get("modified_at")),
+    )
+
+
 class HttpOllama:
     simulated = False
 
@@ -115,9 +272,26 @@ class HttpOllama:
             raise OllamaUnavailable("/api/version: no version field")
         return str(data["version"])
 
+    async def tags(self) -> list[InstalledModel]:
+        return parse_tags(await self._get("/api/tags"))
+
+    async def show(self, name: str, timeout: float | None = None) -> ModelDetails:
+        """POST /api/show. 404 = the model is gone (OllamaModelMissing), anything else = unavailable."""
+        try:
+            kwargs = {} if timeout is None else {"timeout": timeout}
+            r = await self._client.post(self._base + "/api/show", json={"model": name}, **kwargs)
+            if r.status_code == 404:
+                raise OllamaModelMissing(name)
+            r.raise_for_status()
+            data = r.json()
+        except (httpx.HTTPError, ValueError) as exc:
+            raise OllamaUnavailable(f"/api/show {name}: {describe(exc)}") from exc
+        return parse_show(name, data)
+
 
 class FakeOllama:
-    """Replays ollama-ps.json / ollama-version.json of a scenario folder. Missing file = Ollama down.
+    """Replays ollama-ps.json / ollama-version.json / ollama-tags.json / ollama-show.json of a scenario
+    folder. Missing file = Ollama down (for that call). ollama-show.json maps model name -> raw answer.
 
     Expiry times are shifted by (now - capturedAt from meta.json), so a model recorded with
     "unloads in 4 minutes" still shows 4 minutes today instead of "unloading since last week".
@@ -154,3 +328,12 @@ class FakeOllama:
 
     async def version(self) -> str:
         return str(self._load("ollama-version.json")["version"])
+
+    async def tags(self) -> list[InstalledModel]:
+        return parse_tags(self._load("ollama-tags.json"))
+
+    async def show(self, name: str, timeout: float | None = None) -> ModelDetails:
+        shows = self._load("ollama-show.json")
+        if not isinstance(shows, dict) or name not in shows:
+            raise OllamaModelMissing(name)
+        return parse_show(name, shows[name])

@@ -187,6 +187,12 @@ export const SAMPLES: Record<UiToken, Sample> = {
     html: '<div class="flex gap-3"><icon name="info" class="size-5 {iconTone.info}"/>' +
       '<icon name="warning" class="size-5 {iconTone.warning}"/><icon name="error" class="size-5 {iconTone.critical}"/></div>',
   },
+  origin: {
+    html: '<dl class="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm"><dt class="text-gray-400">VRAM</dt>' +
+      '<dd class="{origin.measured}">11,3 GiB <span class="text-xs">gemessen</span></dd>' +
+      '<dt class="text-gray-400">VRAM</dt><dd class="{origin.estimated}">≈ 12,0 GiB</dd>' +
+      '<dt class="text-gray-400">Coding</dt><dd class="{origin.adopted}">57,0 <span class="text-xs">BenchLM</span></dd></dl>',
+  },
 };
 
 /** Angular snippet for a token: the override for components, otherwise the rendered sample. */

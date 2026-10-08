@@ -20,6 +20,8 @@
 
 export type Tone = 'normal' | 'warning' | 'critical';
 export type Level = 'info' | 'warning' | 'critical';
+/** Where a number comes from (catalog): seen on this GPU, computed before loading, taken over from BenchLM. */
+export type Origin = 'measured' | 'estimated' | 'adopted';
 
 export const ui = {
   // ---- surfaces ---------------------------------------------------------------------------------
@@ -167,6 +169,15 @@ export const ui = {
     warning: 'text-amber-400',
     critical: 'text-red-400',
   } satisfies Record<Level, string>,
+  /**
+   * Text color of a value by its origin (catalog). Facts from Ollama stay plain white; the color is never
+   * alone: estimates carry "≈", measured and adopted values a word next to them.
+   */
+  origin: {
+    measured: 'text-emerald-300',
+    estimated: 'text-amber-200',
+    adopted: 'text-violet-300',
+  } satisfies Record<Origin, string>,
 } as const;
 
 export type UiToken = keyof typeof ui;
@@ -217,4 +228,5 @@ export const UI_DOCS: Record<UiToken, UiDoc> = {
   dot: { group: 'Hinweise', label: 'Statuspunkt' },
   fill: { group: 'Farben', label: 'Balkenfarbe nach Ton' },
   iconTone: { group: 'Farben', label: 'Iconfarbe nach Stufe' },
+  origin: { group: 'Farben', label: 'Wert nach Herkunft' },
 };

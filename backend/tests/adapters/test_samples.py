@@ -43,3 +43,8 @@ def test_scenario_replays(name):
     else:                                            # the "Ollama down" shape
         with pytest.raises(OllamaUnavailable):
             asyncio.run(ollama.running())
+    if (folder / "ollama-tags.json").is_file():       # installed models (catalog); older captures lack it
+        assert (folder / "ollama-show.json").is_file(), "tags without show: capture both or neither"
+        for m in asyncio.run(ollama.tags()):
+            details = asyncio.run(ollama.show(m.name))
+            assert m.name and m.size >= 0 and details.name == m.name

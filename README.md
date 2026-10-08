@@ -61,6 +61,15 @@ Options: `format=md|json`, `detail=short|full`, `parts=snapshot|events|history` 
 `range=1h|6h|24h|7d|30d`, `anonymize=true|false` (default true: host names, IPs, user folders replaced,
 command lines dropped). `/export` (without `raw`) wraps the same text with file name and token estimate.
 
+## Model catalog
+
+The catalog lists what is installed in Ollama (`/api/tags` + `/api/show`), grouped by origin model
+(`parent_model`, fallback: same weights blob), with the effective context per model, a VRAM estimate
+before loading and what `/api/ps` showed while the model ran (stored per digest x context x GPU in SQLite).
+Ollama's defaults (`OLLAMA_CONTEXT_LENGTH`, KV cache type, flash attention) come from the "server config"
+line in `server.log` - on the second PC, set them in `[modules.catalog]` (`server_context_length`,
+`kv_cache_type`, `flash_attention`). Details: help page "Katalog" (`modules/catalog/HELP.md`).
+
 ## MCP servers
 
 The control center starts, stops and watches the MCP servers listed in `backend/control-center.toml`

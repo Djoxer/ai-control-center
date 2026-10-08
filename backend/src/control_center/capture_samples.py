@@ -11,6 +11,9 @@ are test data with exact values - the tool refuses to overwrite them unless --fo
 
 Writes into the scenario folder:
     ollama-ps.json, ollama-version.json   raw Ollama answers (missing when Ollama is down -> "ollama-down")
+    ollama-tags.json                      installed models (raw /api/tags)
+    ollama-show.json                      /api/show per installed model, REDUCED (see sanitize_show):
+                                          no system prompts, no messages, no license texts, no file paths
     gpu.json, host.json, disks.json       adapter readings; command lines always "short" (or "off")
     meta.json                             capturedAt, so the fake can shift expiry times to "now"
 
@@ -34,11 +37,66 @@ import httpx
 from control_center.adapters.common import SAMPLES_DIR, describe, to_jsonable
 from control_center.adapters.gpu import NvmlGpu
 from control_center.adapters.host import PsutilHost
+from control_center.adapters.ollama import system_placeholder
 from control_center.core.config import SCENARIO_NAME_PATTERN, Settings, load_settings
 from control_center.modules.dashboard.settings import DashboardSettings
 
-FILES = ("ollama-ps.json", "ollama-version.json", "gpu.json", "host.json", "disks.json", "meta.json")
+FILES = ("ollama-ps.json", "ollama-version.json", "ollama-tags.json", "ollama-show.json",
+         "gpu.json", "host.json", "disks.json", "meta.json")
 EXIT_USAGE = 2                                   # argparse uses 2 as well
+
+# /api/show fields that go into a sample as they are. Everything else is dropped or reduced below:
+# system prompts and MESSAGE lines can name customer projects, license texts are kilobytes of noise,
+# and Modelfile FROM lines carry the Windows user folder.
+SHOW_KEEP = ("details", "model_info", "capabilities", "parameters", "template", "modified_at", "projector_info")
+_BLOB = re.compile(r"sha256[-:]([0-9a-fA-F]{64})")
+_PATHLIKE = re.compile(r"^(?:[A-Za-z]:[\\/]|[/~.]|.*\\)")
+
+
+def sanitize_modelfile(text: object) -> str | None:
+    """Keep only FROM/ADAPTER (blob reference or model name) and PARAMETER lines of a Modelfile.
+
+    "FROM C:\\Users\\x\\.ollama\\models\\blobs\\sha256-ab…" -> "FROM <blobs>/sha256-ab…"; a file path that is
+    not a blob becomes "<path>"; a model name ("FROM qwen3:8b", "FROM hf.co/x/y:Q4") stays.
+    """
+    if not isinstance(text, str):
+        return None
+    out = ["# reduced by capture_samples: FROM/ADAPTER/PARAMETER lines only"]
+    in_block = False                                   # inside a """…""" text (SYSTEM, TEMPLATE, LICENSE)
+    for line in text.splitlines():
+        starts_inside = in_block
+        if line.count('"""') % 2:
+            in_block = not in_block
+        if starts_inside:
+            continue                                   # "FROM now on, answer briefly" in a prompt is no FROM line
+        head, _, rest = line.strip().partition(" ")
+        word = head.upper()
+        if word in ("FROM", "ADAPTER"):
+            rest = rest.strip().strip('"')
+            blob = _BLOB.search(rest)
+            if blob:
+                rest = f"<blobs>/sha256-{blob.group(1).lower()}"
+            elif _PATHLIKE.match(rest):
+                rest = "<path>"
+            out.append(f"{word} {rest}")
+        elif word == "PARAMETER":
+            out.append(line.strip())
+    return "\n".join(out) + "\n"
+
+
+def sanitize_show(raw: object) -> dict:
+    """/api/show answer -> what a sample may contain (see SHOW_KEEP). Keeps what the catalog parses."""
+    if not isinstance(raw, dict):
+        return {}
+    out = {k: raw[k] for k in SHOW_KEEP if k in raw}
+    lic = raw.get("license")
+    if isinstance(lic, str) and lic.strip():
+        out["license"] = lic.strip().splitlines()[0][:80] + " …"   # first line names the license
+    system = raw.get("system")
+    if isinstance(system, str) and system:
+        out["system"] = system_placeholder(len(system))            # the length survives, the text does not
+    out["modelfile"] = sanitize_modelfile(raw.get("modelfile"))
+    return out
 
 
 class ScenarioError(ValueError):
@@ -100,6 +158,8 @@ async def capture(target: Path, settings: Settings, cpu_window_s: float = 1.0,
                 written.append(name)
             except (httpx.HTTPError, ValueError) as exc:
                 problems.append(f"{name}: {describe(exc)}")
+        if "ollama-version.json" in written:             # Ollama answers: record the installed models too
+            await _capture_models(client, base, target, written, problems)
 
     gpu = NvmlGpu(cfg.gpu_index)
     try:
@@ -130,6 +190,31 @@ async def capture(target: Path, settings: Settings, cpu_window_s: float = 1.0,
     return written, problems
 
 
+async def _capture_models(client: httpx.AsyncClient, base: str, target: Path,
+                          written: list[str], problems: list[str]) -> None:
+    """ollama-tags.json raw, ollama-show.json reduced. One failing /api/show only drops that model."""
+    try:
+        r = await client.get(base + "/api/tags")
+        r.raise_for_status()
+        tags = r.json()
+    except (httpx.HTTPError, ValueError) as exc:
+        problems.append(f"ollama-tags.json: {describe(exc)}")
+        return
+    _write(target, "ollama-tags.json", tags)
+    written.append("ollama-tags.json")
+    names = [str(m.get("name") or m.get("model")) for m in (tags.get("models") or []) if isinstance(m, dict)]
+    shows: dict[str, dict] = {}
+    for name in names:
+        try:
+            r = await client.post(base + "/api/show", json={"model": name}, timeout=30)
+            r.raise_for_status()
+            shows[name] = sanitize_show(r.json())
+        except (httpx.HTTPError, ValueError) as exc:
+            problems.append(f"ollama-show.json {name}: {describe(exc)}")
+    _write(target, "ollama-show.json", shows)
+    written.append("ollama-show.json")
+
+
 def _parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(
         prog="python -m control_center.capture_samples",
@@ -154,7 +239,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         print(f"  ok       {name}")
     for p in problems:
         print(f"  missing  {p}")
-    print("Check host.json before committing (process names, command lines).")
+    print("Check host.json (process names, command lines) and ollama-tags.json (model names) before committing.")
     return 0 if len(written) > 1 else 1
 
 

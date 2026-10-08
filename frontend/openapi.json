@@ -1,6 +1,308 @@
 {
   "components": {
     "schemas": {
+      "Assumptions": {
+        "description": "The fixed numbers behind every estimate - shown on the page, set in [modules.catalog].",
+        "properties": {
+          "clampToTrained": {
+            "title": "Clamptotrained",
+            "type": "boolean"
+          },
+          "driverOverheadBytes": {
+            "title": "Driveroverheadbytes",
+            "type": "integer"
+          },
+          "fallbackContextLength": {
+            "title": "Fallbackcontextlength",
+            "type": "integer"
+          },
+          "graphReserveBytes": {
+            "title": "Graphreservebytes",
+            "type": "integer"
+          },
+          "tightRatio": {
+            "title": "Tightratio",
+            "type": "number"
+          }
+        },
+        "required": [
+          "graphReserveBytes",
+          "driverOverheadBytes",
+          "tightRatio",
+          "fallbackContextLength",
+          "clampToTrained"
+        ],
+        "title": "Assumptions",
+        "type": "object"
+      },
+      "CatalogModel": {
+        "properties": {
+          "architecture": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Architecture"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
+          "changes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Changes",
+            "type": "array"
+          },
+          "context": {
+            "$ref": "#/components/schemas/ContextInfo"
+          },
+          "depth": {
+            "title": "Depth",
+            "type": "integer"
+          },
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "estimate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VramEstimate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "family": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Family"
+          },
+          "firstSeen": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Firstseen"
+          },
+          "format": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Format"
+          },
+          "loaded": {
+            "default": false,
+            "title": "Loaded",
+            "type": "boolean"
+          },
+          "modifiedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Modifiedat"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "observations": {
+            "items": {
+              "$ref": "#/components/schemas/Observation"
+            },
+            "title": "Observations",
+            "type": "array"
+          },
+          "origin": {
+            "title": "Origin",
+            "type": "string"
+          },
+          "parameterSize": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parametersize"
+          },
+          "parameters": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Parameters",
+            "type": "object"
+          },
+          "parent": {
+            "$ref": "#/components/schemas/ParentInfo"
+          },
+          "quantization": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantization"
+          },
+          "showError": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Showerror"
+          },
+          "sizeBytes": {
+            "title": "Sizebytes",
+            "type": "integer"
+          },
+          "systemChars": {
+            "default": 0,
+            "title": "Systemchars",
+            "type": "integer"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/Verdict"
+          },
+          "weightsDigest": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weightsdigest"
+          }
+        },
+        "required": [
+          "name",
+          "digest",
+          "sizeBytes",
+          "parent",
+          "origin",
+          "depth",
+          "context",
+          "verdict"
+        ],
+        "title": "CatalogModel",
+        "type": "object"
+      },
+      "CatalogOverview": {
+        "properties": {
+          "asOf": {
+            "format": "date-time",
+            "title": "Asof",
+            "type": "string"
+          },
+          "assumptions": {
+            "$ref": "#/components/schemas/Assumptions"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/ModelGroup"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "hardware": {
+            "$ref": "#/components/schemas/HardwareInfo"
+          },
+          "models": {
+            "items": {
+              "$ref": "#/components/schemas/CatalogModel"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "ollama": {
+            "$ref": "#/components/schemas/OllamaState"
+          },
+          "refreshedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Refreshedat"
+          },
+          "removed": {
+            "items": {
+              "$ref": "#/components/schemas/RemovedModel"
+            },
+            "title": "Removed",
+            "type": "array"
+          },
+          "revision": {
+            "title": "Revision",
+            "type": "integer"
+          },
+          "server": {
+            "$ref": "#/components/schemas/ServerConfig"
+          }
+        },
+        "required": [
+          "asOf",
+          "revision",
+          "ollama",
+          "server",
+          "hardware",
+          "assumptions",
+          "models",
+          "groups",
+          "removed"
+        ],
+        "title": "CatalogOverview",
+        "type": "object"
+      },
       "Changelog": {
         "properties": {
           "hint": {
@@ -125,6 +427,72 @@
           "name"
         ],
         "title": "CollectionInfo",
+        "type": "object"
+      },
+      "ContextInfo": {
+        "properties": {
+          "clamped": {
+            "default": false,
+            "title": "Clamped",
+            "type": "boolean"
+          },
+          "effective": {
+            "title": "Effective",
+            "type": "integer"
+          },
+          "own": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Own"
+          },
+          "parallel": {
+            "default": 1,
+            "title": "Parallel",
+            "type": "integer"
+          },
+          "server": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Server"
+          },
+          "source": {
+            "enum": [
+              "model",
+              "server",
+              "fallback"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "trained": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trained"
+          }
+        },
+        "required": [
+          "effective",
+          "source"
+        ],
+        "title": "ContextInfo",
         "type": "object"
       },
       "CrashWatch": {
@@ -754,6 +1122,56 @@
           }
         },
         "title": "HTTPValidationError",
+        "type": "object"
+      },
+      "HardwareInfo": {
+        "properties": {
+          "gpuName": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gpuname"
+          },
+          "key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Key"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "vramTotalBytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vramtotalbytes"
+          }
+        },
+        "title": "HardwareInfo",
         "type": "object"
       },
       "HealthInfo": {
@@ -1775,6 +2193,32 @@
         "title": "McpToolParam",
         "type": "object"
       },
+      "ModelGroup": {
+        "properties": {
+          "installed": {
+            "title": "Installed",
+            "type": "boolean"
+          },
+          "members": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Members",
+            "type": "array"
+          },
+          "origin": {
+            "title": "Origin",
+            "type": "string"
+          }
+        },
+        "required": [
+          "origin",
+          "installed",
+          "members"
+        ],
+        "title": "ModelGroup",
+        "type": "object"
+      },
       "ModuleInfo": {
         "properties": {
           "error": {
@@ -1824,6 +2268,181 @@
           "state"
         ],
         "title": "ModuleInfo",
+        "type": "object"
+      },
+      "Observation": {
+        "properties": {
+          "current": {
+            "title": "Current",
+            "type": "boolean"
+          },
+          "firstSeen": {
+            "format": "date-time",
+            "title": "Firstseen",
+            "type": "string"
+          },
+          "gpuRatio": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gpuratio"
+          },
+          "hardware": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hardware"
+          },
+          "lastSeen": {
+            "format": "date-time",
+            "title": "Lastseen",
+            "type": "string"
+          },
+          "loads": {
+            "title": "Loads",
+            "type": "integer"
+          },
+          "numCtx": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Numctx"
+          },
+          "placement": {
+            "enum": [
+              "gpu",
+              "split",
+              "cpu",
+              "unknown"
+            ],
+            "title": "Placement",
+            "type": "string"
+          },
+          "sizeBytes": {
+            "title": "Sizebytes",
+            "type": "integer"
+          },
+          "vramBytes": {
+            "title": "Vrambytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "numCtx",
+          "hardware",
+          "sizeBytes",
+          "vramBytes",
+          "placement",
+          "gpuRatio",
+          "firstSeen",
+          "lastSeen",
+          "loads",
+          "current"
+        ],
+        "title": "Observation",
+        "type": "object"
+      },
+      "OllamaState": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "online": {
+            "title": "Online",
+            "type": "boolean"
+          },
+          "simulated": {
+            "default": false,
+            "title": "Simulated",
+            "type": "boolean"
+          },
+          "version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
+          }
+        },
+        "required": [
+          "online"
+        ],
+        "title": "OllamaState",
+        "type": "object"
+      },
+      "ParentInfo": {
+        "properties": {
+          "declared": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Declared"
+          },
+          "installed": {
+            "default": false,
+            "title": "Installed",
+            "type": "boolean"
+          },
+          "resolved": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Resolved"
+          },
+          "via": {
+            "anyOf": [
+              {
+                "enum": [
+                  "declared",
+                  "weights"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Via"
+          }
+        },
+        "title": "ParentInfo",
         "type": "object"
       },
       "PortInfo": {
@@ -2019,6 +2638,53 @@
         "title": "RagOverview",
         "type": "object"
       },
+      "RefreshRequest": {
+        "properties": {
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "one model; null = all installed models",
+            "title": "Name"
+          }
+        },
+        "title": "RefreshRequest",
+        "type": "object"
+      },
+      "RemovedModel": {
+        "properties": {
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "measurements": {
+            "title": "Measurements",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "removedAt": {
+            "format": "date-time",
+            "title": "Removedat",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "digest",
+          "removedAt",
+          "measurements"
+        ],
+        "title": "RemovedModel",
+        "type": "object"
+      },
       "SearchHit": {
         "properties": {
           "filename": {
@@ -2169,6 +2835,121 @@
           "rule"
         ],
         "title": "SecretNote",
+        "type": "object"
+      },
+      "ServerConfig": {
+        "description": "Ollama's defaults for models without own values. From server.log and/or [modules.catalog].",
+        "properties": {
+          "contextLength": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Contextlength"
+          },
+          "flashAttention": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flashattention"
+          },
+          "keepAlive": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Keepalive"
+          },
+          "kvCacheType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kvcachetype"
+          },
+          "logFile": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Logfile"
+          },
+          "maxLoadedModels": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Maxloadedmodels"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "numParallel": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Numparallel"
+          },
+          "overridden": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Overridden",
+            "type": "array"
+          },
+          "source": {
+            "enum": [
+              "log",
+              "config",
+              "mixed",
+              "unknown"
+            ],
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "source"
+        ],
+        "title": "ServerConfig",
         "type": "object"
       },
       "ServiceStatus": {
@@ -2626,6 +3407,145 @@
         "title": "ValidationError",
         "type": "object"
       },
+      "Verdict": {
+        "properties": {
+          "basis": {
+            "enum": [
+              "measured",
+              "estimated",
+              "none"
+            ],
+            "title": "Basis",
+            "type": "string"
+          },
+          "expectedBytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expectedbytes"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "needBytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Needbytes"
+          },
+          "state": {
+            "enum": [
+              "fits",
+              "tight",
+              "split",
+              "cpu",
+              "unknown"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "vramTotalBytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vramtotalbytes"
+          }
+        },
+        "required": [
+          "state",
+          "basis",
+          "message"
+        ],
+        "title": "Verdict",
+        "type": "object"
+      },
+      "VramEstimate": {
+        "properties": {
+          "confidence": {
+            "default": "normal",
+            "enum": [
+              "normal",
+              "low"
+            ],
+            "title": "Confidence",
+            "type": "string"
+          },
+          "driverBytes": {
+            "title": "Driverbytes",
+            "type": "integer"
+          },
+          "graphBytes": {
+            "title": "Graphbytes",
+            "type": "integer"
+          },
+          "kvBytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kvbytes"
+          },
+          "kvType": {
+            "title": "Kvtype",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "tokens": {
+            "title": "Tokens",
+            "type": "integer"
+          },
+          "totalBytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Totalbytes"
+          },
+          "weightsBytes": {
+            "title": "Weightsbytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "weightsBytes",
+          "graphBytes",
+          "driverBytes",
+          "kvType",
+          "tokens"
+        ],
+        "title": "VramEstimate",
+        "type": "object"
+      },
       "WriteAccess": {
         "properties": {
           "allowed": {
@@ -2658,6 +3578,76 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/catalog/overview": {
+      "get": {
+        "description": "Installed models grouped by origin, context, VRAM estimate and observations. Ollama down = last known\ninventory with ollama.online false.",
+        "operationId": "catalog_overview",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogOverview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Overview",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/api/v1/catalog/refresh": {
+      "post": {
+        "description": "Reads /api/tags and /api/show again - for one model (name) or all of them - and returns the result.",
+        "operationId": "catalog_refresh",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RefreshRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogOverview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "model not installed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "Ollama not reachable"
+          }
+        },
+        "summary": "Refresh",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
     "/api/v1/dashboard/events": {
       "get": {
         "operationId": "dashboard_events",

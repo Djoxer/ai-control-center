@@ -29,6 +29,25 @@ timeout_s = 2.0                  # per call; a hanging source must not stall the
 disabled = []                    # e.g. ["catalog"] to switch a module off without touching code
 
 # Per-module settings live in [modules.<key>]. Omit a table to use the module's defaults.
+# Catalog: installed models grouped by origin, context, VRAM estimate and what /api/ps showed while
+# they ran (help page "Katalog"). Server defaults come from Ollama's server.log when Ollama runs on this
+# machine; on the second PC set them here to mirror the AI box (they override the log).
+[modules.catalog]
+refresh_interval_s = 60          # /api/tags; /api/show only for new or changed models
+observe_interval_s = 10          # /api/ps -> measured VRAM per model x context x GPU
+show_timeout_s = 10
+# server_context_length = 65536  # OLLAMA_CONTEXT_LENGTH (default: from server.log)
+# kv_cache_type = "q8_0"         # OLLAMA_KV_CACHE_TYPE: f16 | q8_0 | q4_0
+# flash_attention = true         # OLLAMA_FLASH_ATTENTION
+# num_parallel = 1               # OLLAMA_NUM_PARALLEL
+ollama_log_paths = ["%LOCALAPPDATA%/Ollama/server*.log"]
+fallback_context_length = 4096   # neither model nor server says anything: assume this
+clamp_to_trained = true          # Ollama cuts num_ctx to the trained context length of the model
+graph_reserve_gib = 0.4          # estimate: compute buffers (flash attention)
+driver_overhead_gib = 1.2        # estimate: VRAM the driver takes on top of Ollama's count (measured)
+tight_ratio = 0.9                # above this share of the GPU the verdict is "knapp"
+keep_removed_days = 90           # deleted models stay listed with their measurements
+
 [modules.logs]
 tail_interval_s = 1.0            # live tail: seconds between checks for new lines
 max_page_size = 1000             # upper limit for ?limit= on /api/v1/logs/entries

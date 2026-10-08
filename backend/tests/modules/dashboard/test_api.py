@@ -4,6 +4,7 @@ import json
 import time
 from datetime import datetime
 
+import httpx
 import pytest
 import respx
 from fastapi.testclient import TestClient
@@ -133,6 +134,11 @@ def test_capture_round_trip(settings, tmp_path, monkeypatch):
     respx.get("http://capture-box:11434/api/ps").respond(
         json=json.loads((SAMPLES_DIR / "offload" / "ollama-ps.json").read_text(encoding="utf-8")))
     respx.get("http://capture-box:11434/api/version").respond(json={"version": "9.9.9"})
+    respx.get("http://capture-box:11434/api/tags").respond(
+        json=json.loads((SAMPLES_DIR / "offload" / "ollama-tags.json").read_text(encoding="utf-8")))
+    shows = json.loads((SAMPLES_DIR / "offload" / "ollama-show.json").read_text(encoding="utf-8"))
+    respx.post("http://capture-box:11434/api/show").mock(
+        side_effect=lambda request: httpx.Response(200, json=shows[json.loads(request.content)["model"]]))
     sample_gpu = FakeGpu(SAMPLES_DIR / "offload")
 
     class NoGpu:                                     # deterministic on machines with and without NVIDIA
@@ -155,10 +161,13 @@ def test_capture_round_trip(settings, tmp_path, monkeypatch):
     })
     written, problems = asyncio.run(capture_samples.capture(target, s, cpu_window_s=0.05))
 
-    assert set(written) == {"ollama-ps.json", "ollama-version.json", "host.json", "disks.json", "meta.json"}
+    assert set(written) == {"ollama-ps.json", "ollama-version.json", "ollama-tags.json", "ollama-show.json",
+                            "host.json", "disks.json", "meta.json"}
     assert problems == ["gpu.json: GpuUnavailable: NVML: test"] and not (target / "gpu.json").exists()
     assert asyncio.run(FakeOllama(target).version()) == "9.9.9"
     assert asyncio.run(FakeOllama(target).running())[0].name == "qwen2.5-coder:14b-instruct-q4_K_M"
+    installed = asyncio.run(FakeOllama(target).tags())
+    assert len(installed) == 8 and all(asyncio.run(FakeOllama(target).show(m.name)).name == m.name for m in installed)
     host = FakeHost(target)
     assert host.read([], "short").cpu_count >= 1 and host.disks([])[0].total_bytes > 0
     assert sample_gpu.read().vram_total_mib == 16303

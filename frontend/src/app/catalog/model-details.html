@@ -1,0 +1,106 @@
+<!-- model-details.html: facts, origin, context, estimate (packing list), observations, parameters -->
+@let m = model();
+<div class="space-y-6">
+  <p [class]="verdictClass()"><span class="font-semibold">{{ view().label }}:</span> {{ m.verdict.message }}</p>
+
+  <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5">
+    <dt class="text-gray-400">Architektur</dt>
+    <dd class="text-white">{{ m.architecture ?? m.family ?? '—' }} · {{ m.parameterSize ?? '?' }} · {{ m.quantization ?? '?' }}</dd>
+    <dt class="text-gray-400">Größe</dt><dd class="text-white">{{ gib(m.sizeBytes) }} auf der Platte</dd>
+    <dt class="text-gray-400">Digest</dt><dd class="font-mono text-white">{{ shortDigest(m.digest) }}</dd>
+    <dt class="text-gray-400">Gewichte</dt><dd class="font-mono text-white">{{ shortDigest(m.weightsDigest) }}</dd>
+    <dt class="text-gray-400">Abstammung</dt>
+    <dd class="text-white">
+      @if (m.parent.resolved) {
+        {{ m.parent.via === 'weights' ? 'gleiche Gewichte wie' : 'erstellt aus' }} <span class="font-mono">{{ m.parent.resolved }}</span>
+      } @else if (m.parent.declared) {
+        erstellt aus <span class="font-mono">{{ m.parent.declared }}</span> – nicht installiert
+      } @else {
+        Ursprung (geladen aus der Bibliothek oder einer GGUF-Datei)
+      }
+    </dd>
+    @if (m.changes?.length) {
+      <dt class="text-gray-400">ändert</dt><dd class="text-white">{{ m.changes!.join(' · ') }}</dd>
+    }
+    <dt class="text-gray-400">Geändert</dt><dd class="text-white">{{ when(m.modifiedAt) }}</dd>
+    <dt class="text-gray-400">Im Katalog</dt><dd class="text-white">seit {{ when(m.firstSeen) }}</dd>
+  </dl>
+
+  <section>
+    <h3 [class]="ui.sectionTitle">Kontext · {{ fmt.num(m.context.effective) }} Token</h3>
+    <p class="mt-2">{{ context() }}</p>
+  </section>
+
+  @if (m.estimate; as e) {
+    <section>
+      <h3 [class]="ui.sectionTitle">VRAM-Schätzung <span [class]="ui.titleDetail">· vor dem Laden, aus den Modelldaten</span></h3>
+      <table [class]="ui.table" class="mt-2">
+        <tbody [class]="ui.divided">
+          <tr><td class="py-1.5">Gewichte (Dateigröße)</td><td class="py-1.5 text-right font-mono">{{ gib(e.weightsBytes) }}</td></tr>
+          <tr>
+            <td class="py-1.5">KV-Cache · {{ fmt.num(e.tokens) }} Token · {{ e.kvType }}</td>
+            <td class="py-1.5 text-right font-mono">{{ e.kvBytes === null || e.kvBytes === undefined ? '?' : gib(e.kvBytes) }}</td>
+          </tr>
+          <tr><td class="py-1.5">Rechenpuffer (Annahme)</td><td class="py-1.5 text-right font-mono">{{ gib(e.graphBytes) }}</td></tr>
+          <tr>
+            <td class="py-1.5 text-white">= laut Ollama</td>
+            <td class="py-1.5 text-right font-mono" [class]="estimated">
+              ≈ {{ e.totalBytes === null || e.totalBytes === undefined ? '?' : gib(e.totalBytes - e.driverBytes) }}</td>
+          </tr>
+          <tr><td class="py-1.5">+ Treiber über Ollamas Zählung (gemessen 07.10.)</td>
+            <td class="py-1.5 text-right font-mono">{{ gib(e.driverBytes) }}</td></tr>
+          <tr class="font-semibold">
+            <td class="py-1.5 text-white">= auf der Karte</td>
+            <td class="py-1.5 text-right font-mono" [class]="estimated">≈ {{ gib(e.totalBytes) }}</td>
+          </tr>
+        </tbody>
+      </table>
+      @if (e.notes?.length) {
+        <ul class="mt-2 list-disc space-y-0.5 pl-5 text-xs text-gray-400">
+          @for (n of e.notes; track n) { <li>{{ n }}</li> }
+        </ul>
+      }
+      @if (e.confidence === 'low') {
+        <div [class]="lowCallout" class="mt-3" role="note">
+          <p><span class="font-semibold">Ungenau:</span> Diese Architektur passt nicht ganz in die Formel. Nach dem ersten
+            Laden zählt der gemessene Wert.</p>
+        </div>
+      }
+    </section>
+  }
+
+  <section>
+    <h3 [class]="ui.sectionTitle">Beobachtet <span [class]="ui.titleDetail">· laut Ollama, während das Modell lief</span></h3>
+    @if (!m.observations?.length) {
+      <p [class]="ui.meta" class="mt-2">Noch nie geladen gesehen, seit der Katalog läuft.</p>
+    } @else {
+      <ul class="mt-2 space-y-1.5">
+        @for (o of m.observations; track $index) {
+          <li class="flex flex-wrap items-baseline gap-x-3">
+            <span class="font-mono" [class]="measured">{{ observationText(o) }}</span>
+            <span [class]="ui.meta">{{ o.loads }}× geladen · zuletzt {{ when(o.lastSeen) }}
+              @if (o.current) { · aktuelle Einstellung }</span>
+            @if (o.placement === 'split') { <span [class]="ui.pill + ' ' + ui.pillTone.critical">Teil-Offload</span> }
+            @if (o.placement === 'cpu') { <span [class]="ui.pill + ' ' + ui.pillTone.warning">nur CPU</span> }
+          </li>
+        }
+      </ul>
+    }
+  </section>
+
+  <section>
+    <h3 [class]="ui.sectionTitle">Parameter <span [class]="ui.titleDetail">· aus dem Modelfile</span></h3>
+    @if (!params().length && !m.systemChars) {
+      <p [class]="ui.meta" class="mt-2">Keine eigenen Parameter.</p>
+    } @else {
+      <dl class="mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1">
+        @for (p of params(); track p.label) {
+          <dt class="font-mono text-gray-400">{{ p.label }}</dt><dd class="font-mono break-all text-white">{{ p.value }}</dd>
+        }
+        @if (m.systemChars) {
+          <dt class="text-gray-400">System-Prompt</dt><dd class="text-white">{{ fmt.num(m.systemChars) }} Zeichen</dd>
+        }
+      </dl>
+    }
+  </section>
+</div>
