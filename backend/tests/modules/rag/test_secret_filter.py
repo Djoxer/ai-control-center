@@ -19,6 +19,11 @@ from control_center.modules.rag import secret_filter as sf
     ("token ghp_" + "a" * 36, "github-token"),
     ("const t = 'eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiIxMjM0NTY3ODkwIn0.dozjgNryP4J3jVmNHl0w5N_XgL0n3I9PlFUP0THsR8U'", "jwt"),
     ("Authorization: xoxb-1234567890-abcdefghij", "slack-token"),
+    # shapes found on the AI box (08.10.), values made up: a password constant and an API key header
+    ("    private const API_PASSWORD = 'Sommer2024Wetter!';", "assignment"),
+    ("        'x-Api-Key' => 'p01ZabcDEF123ghiJKL456mno',", "assignment"),
+    ("    'password' => 'PROD_DB_2024',", "assignment"),       # all caps, but not a dotted key: still reported
+    ("    'password' => 'summer.2024',", "assignment"),        # a segment starting with a digit: not a key
 ])
 def test_secrets_are_found(line, rule):
     hits = sf.content_hits(f"<?php\n{line}\n")
@@ -40,6 +45,14 @@ def test_secrets_are_found(line, rule):
     "tokenType: 'Bearer'",
     "export class AuthService { token: string = ''; }",
     "const secretOfManaUrl = 'https://example.org/page'",
+    # false alarms of the first run on the AI box (08.10.)
+    "    public const MISSING_API_KEY = 'MISSING_API_KEY';",            # constant name = value
+    "    public const INVALID_CREDENTIALS = 'INVALID_CREDENTIALS';",
+    "  INVALID_CREDENTIALS: 'ERROR.INVALID_CREDENTIALS',",              # translation key
+    "  WRONG_API_KEY: 'ERROR.UNAUTHENTICATED',",
+    "  password: 'auth.password_label',",
+    "<p><span>Ihr neues Passwort: '.$password.' </span></p>",         # PHP string concatenation
+    "$text = 'Token: '.$this->token.'';",
 ])
 def test_ordinary_code_passes(line):
     assert sf.content_hits(line) == []
@@ -72,3 +85,8 @@ def test_hits_are_limited_and_long_lines_stay_fast():
     text = "\n".join(f"'password' => 'secretvalue{i:04d}'," for i in range(100))
     assert len(sf.content_hits(text)) == 20
     assert sf.content_hits("x" * 1_000_000) == []
+
+
+def test_bearer_token_in_a_header_is_reported():
+    jwt = "eyJhbGciOiJIUzI1NiJ9.eyJzdWIiOiJsbXMtY2xpZW50In0.c2lnbmF0dXJlLXZhbHVlLTEyMzQ1"
+    assert [h.rule for h in sf.content_hits(f"        'Authorization' => 'Bearer {jwt}',")] == ["jwt"]

@@ -122,7 +122,7 @@
         @if (r.skippedFiles?.length) {
           <details>
             <summary class="cursor-pointer text-xs text-gray-400 hover:text-gray-200">
-              Übersprungen ({{ r.skippedFiles!.length }}) – alter Punkt bleibt
+              Übersprungen ({{ r.skippedFiles!.length }}) – nicht neu eingebettet
             </summary>
             <ul class="mt-2 space-y-1 text-xs">
               @for (f of r.skippedFiles!; track f.file) {

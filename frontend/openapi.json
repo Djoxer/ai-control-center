@@ -2654,7 +2654,7 @@
   },
   "info": {
     "title": "AI Control Center",
-    "version": "0.9.0"
+    "version": "0.9.1"
   },
   "openapi": "3.1.0",
   "paths": {

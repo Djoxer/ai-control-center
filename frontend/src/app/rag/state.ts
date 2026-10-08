@@ -96,7 +96,7 @@ export function reportFacts(r: SourceReport): Fact[] {
     { label: 'Secret-Filter', value: n(r.secret), tone: r.secret ? 'warning' : 'normal',
       hint: 'sieht nach Zugangsdaten aus – nicht indexiert' },
     { label: 'Übersprungen', value: n(r.skipped), tone: r.skipped ? 'critical' : 'normal',
-      hint: 'nicht lesbar oder Ollama-Fehler – der alte Punkt bleibt' },
+      hint: 'nicht lesbar oder Ollama-Fehler – nicht neu eingebettet, ein früherer Punkt dieser Datei bliebe stehen' },
     { label: 'Entfernt', value: n(r.removed), tone: 'normal',
       hint: 'beim Aufräumen gelöscht: weggefallene, gefilterte und alte Skript-Punkte' },
   ];

@@ -29,6 +29,11 @@ _PLACEHOLDER = re.compile(
     r"passwort|null|none|todo|tbd|required|optional)(?:\b.*)?)$",
     re.IGNORECASE,
 )
+# Translation keys and dotted constants: 'ERROR.UNAUTHENTICATED', 'auth.password_label'. Every segment starts
+# with a letter, so a password like 'summer.2024' is still reported.
+_DOTTED_KEY = re.compile(r"^[a-z_][a-z0-9_]*(?:\.[a-z_][a-z0-9_]*)+$", re.IGNORECASE)
+# String concatenation around a variable: 'Ihr neues Passwort: '.$password.' ' -> the "value" is .$password.
+_CONCAT = re.compile(r"^\.?\$[a-z_][\w>\[\]-]*\.?$", re.IGNORECASE)
 
 # (rule name shown in the report, pattern). A rule with a group named "value" is checked against
 # the placeholder list; the others are specific enough on their own.
@@ -49,9 +54,9 @@ _RULES: tuple[tuple[str, re.Pattern[str]], ...] = (
     ("assignment", re.compile(
         r"""(?ix)
         (?:^|[^a-z0-9])
-        ['"]?[a-z0-9_.-]*(?:passw(?:or)?d|passwort|pwd|pass|secret|api[_-]?key|apikey|access[_-]?key|
+        ['"]?(?P<key>[a-z0-9_.-]*(?:passw(?:or)?d|passwort|pwd|pass|secret|api[_-]?key|apikey|access[_-]?key|
             auth[_-]?token|access[_-]?token|refresh[_-]?token|client[_-]?secret|private[_-]?key|token|
-            credentials?)['"]?
+            credentials?))['"]?
         \s*(?:=>|:=|=|:)\s*
         (?P<quote>['"])(?P<value>[^'"\s]{8,})(?P=quote)
         """)),
@@ -81,14 +86,26 @@ def content_hits(text: str, limit: int = 20) -> list[SecretHit]:
             line = line[:4000]
         for rule, pattern in _RULES:
             for m in pattern.finditer(line):
-                value = m.groupdict().get("value")
-                if value is not None and _PLACEHOLDER.match(value):
-                    continue                    # 'password' => 'changeme', '${DB_PASS}' ...
+                groups = m.groupdict()
+                if _harmless(groups.get("key"), groups.get("value")):
+                    continue
                 hits.append(SecretHit(number, rule))
                 break                           # one hit per rule and line is enough
             if len(hits) >= limit:
                 return hits
     return hits
+
+
+def _harmless(key: str | None, value: str | None) -> bool:
+    """Values that only look like a secret assignment. Rules without a value group are never harmless."""
+    if value is None:
+        return False
+    return bool(
+        _PLACEHOLDER.match(value)                               # 'changeme', '${DB_PASS}', 'required|min:8'
+        or (key is not None and value.lower() == key.lower())   # const MISSING_API_KEY = 'MISSING_API_KEY'
+        or _DOTTED_KEY.match(value)                             # INVALID_CREDENTIALS: 'ERROR.INVALID_CREDENTIALS'
+        or _CONCAT.match(value)                                 # 'Passwort: '.$password.' '
+    )
 
 
 def check(rel_path: str, text: str) -> list[SecretHit]:

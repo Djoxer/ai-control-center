@@ -63,7 +63,7 @@ Jede Datei behält bei jedem Lauf dieselbe ID (berechnet aus Collection und Date
 | **Abgeschnitten** | länger als 6000 Zeichen. Gespeichert und durchsuchbar ist nur der Anfang, der Rest der Datei ist für die Suche unsichtbar. Die Liste nennt jede betroffene Datei |
 | **Leer** | Datei ohne Inhalt (oder nur Leerzeichen), wird übersprungen wie in den Skripten |
 | **Secret-Filter** | aussortiert, weil sie nach Zugangsdaten aussieht (siehe unten) |
-| **Übersprungen** | nicht lesbar, oder Ollama hat einen Fehler gemeldet. Der alte Punkt der Datei bleibt stehen |
+| **Übersprungen** | nicht lesbar, oder Ollama hat einen Fehler gemeldet. Hat die Datei einen Punkt aus einem früheren Lauf des Control Centers, bleibt er stehen. Punkte der alten Skripte werden beim ersten Lauf trotzdem entfernt, die Datei fehlt dann im Index |
 | **Entfernt** | beim Aufräumen gelöscht: Punkte gelöschter Dateien, gefilterter Dateien und alte Punkte aus den Skripten |
 
 Fehlt ein Include-Ordner, steht das als Hinweis im Bericht. Der Bericht der letzten Läufe überlebt
@@ -80,7 +80,9 @@ einer YAML-Datei landete im Index. Der Filter prüft jetzt jede Datei vor dem Ei
 - **Inhalte** wie `'password' => '…'`, `apiKey: "…"`, `mysql://benutzer:passwort@host`, private Schlüssel,
   bekannte Token-Formate (GitHub, AWS, Slack, JWT …)
 
-Platzhalter wie `'changeme'`, `'${DB_PASS}'` oder Validierungsregeln (`'required|min:8'`) zählen nicht.
+Platzhalter wie `'changeme'`, `'${DB_PASS}'`, Validierungsregeln (`'required|min:8'`), Konstanten mit
+ihrem eigenen Namen als Wert (`MISSING_API_KEY = 'MISSING_API_KEY'`), Übersetzungsschlüssel
+(`'ERROR.UNAUTHENTICATED'`) und zusammengesetzte Texte (`'Passwort: '.$password.'`) zählen nicht.
 Bei einem Treffer wird die Datei **nicht** indexiert, und ein vorhandener alter Punkt wird beim
 Aufräumen gelöscht. Der Bericht nennt Datei, Zeile und Regel, aber nie den gefundenen Wert.
 
@@ -223,6 +225,7 @@ stehen in der Datei selbst.
 | „Keine passenden Dateien gefunden“ | Pfad, Ordner oder Endungen falsch. Zur Sicherheit wird dann nichts aufgeräumt |
 | Quelle **fehlgeschlagen**: Ordner fehlt | `path` prüfen. Steht `%USERPROFILE%` drin, muss das Control Center unter dem Benutzer laufen, dem der Ordner gehört |
 | Eine harmlose Datei landet im Secret-Filter | Zeile im Bericht prüfen, dann die Datei in `secret_allow` eintragen |
+| Übersprungen: „the input length exceeds the context length“ | `nomic-embed-text` verarbeitet höchstens 2.048 Tokens. Sehr dichter Code überschreitet das schon unter 6000 Zeichen. Abhilfe bringt erst das Aufteilen langer Dateien (Chunking), siehe unten |
 | Neu indexieren ist ausgegraut | Schreibschutz (anderer Rechner), oder es läuft schon ein Job |
 
 ### Was noch nicht drin ist
