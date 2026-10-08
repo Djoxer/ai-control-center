@@ -32,6 +32,10 @@ class OllamaModelMissing(Exception):
     """/api/show for a name Ollama does not know (deleted between /api/tags and /api/show, or a typo)."""
 
 
+class OllamaRequestFailed(Exception):
+    """Ollama answered, but with an error: model too big, runner crashed, bad options. Text from Ollama."""
+
+
 @dataclass(frozen=True)
 class RunningModel:
     name: str                       # "qwen3.5-9b-64k-code:latest"
@@ -85,6 +89,35 @@ class ModelDetails:
     modified_at: datetime | None = None
 
 
+@dataclass(frozen=True)
+class GenerateResult:
+    """Timings of one /api/generate call (stream off). Durations in seconds, from Ollama's own clocks."""
+    total_s: float | None
+    load_s: float | None            # loading the model into memory (0 when it was loaded already)
+    prompt_tokens: int | None
+    prompt_s: float | None
+    eval_tokens: int | None
+    eval_s: float | None
+    done_reason: str | None         # "stop", "length", "load", "unload"
+
+
+def _seconds(ns: Any) -> float | None:
+    value = _int_or_none(ns)
+    return None if value is None else value / 1e9
+
+
+def parse_generate(payload: Any) -> GenerateResult:
+    if not isinstance(payload, dict):
+        raise OllamaUnavailable("unexpected /api/generate response (not an object)")
+    return GenerateResult(
+        total_s=_seconds(payload.get("total_duration")), load_s=_seconds(payload.get("load_duration")),
+        prompt_tokens=_int_or_none(payload.get("prompt_eval_count")),
+        prompt_s=_seconds(payload.get("prompt_eval_duration")),
+        eval_tokens=_int_or_none(payload.get("eval_count")), eval_s=_seconds(payload.get("eval_duration")),
+        done_reason=payload.get("done_reason") or None,
+    )
+
+
 class OllamaAdapter(Protocol):
     simulated: bool
 
@@ -95,6 +128,11 @@ class OllamaAdapter(Protocol):
     async def tags(self) -> list[InstalledModel]: ...
 
     async def show(self, name: str, timeout: float | None = None) -> ModelDetails: ...
+
+    async def generate(self, name: str, prompt: str, options: dict[str, Any], keep_alive: str | int,
+                       timeout: float) -> GenerateResult: ...
+
+    async def unload(self, name: str, timeout: float = 30) -> None: ...
 
 
 def _int_or_none(value: Any) -> int | None:
@@ -288,6 +326,35 @@ class HttpOllama:
             raise OllamaUnavailable(f"/api/show {name}: {describe(exc)}") from exc
         return parse_show(name, data)
 
+    async def _post_generate(self, body: dict[str, Any], timeout: float) -> Any:
+        """404 -> OllamaModelMissing, other HTTP errors -> OllamaRequestFailed with Ollama's error text."""
+        try:
+            r = await self._client.post(self._base + "/api/generate", json=body, timeout=timeout)
+        except httpx.HTTPError as exc:
+            raise OllamaUnavailable(f"/api/generate: {describe(exc)}") from exc
+        if r.status_code == 404:
+            raise OllamaModelMissing(body.get("model", "?"))
+        if r.status_code >= 400:
+            try:
+                detail = r.json().get("error") or r.text
+            except ValueError:
+                detail = r.text
+            raise OllamaRequestFailed(f"HTTP {r.status_code}: {str(detail).strip()[:500]}")
+        try:
+            return r.json()
+        except ValueError as exc:
+            raise OllamaUnavailable(f"/api/generate: {describe(exc)}") from exc
+
+    async def generate(self, name: str, prompt: str, options: dict[str, Any], keep_alive: str | int,
+                       timeout: float) -> GenerateResult:
+        """Loads the model if needed and answers the prompt; stream off, so the timings come in one piece."""
+        body = {"model": name, "prompt": prompt, "options": options, "keep_alive": keep_alive, "stream": False}
+        return parse_generate(await self._post_generate(body, timeout))
+
+    async def unload(self, name: str, timeout: float = 30) -> None:
+        """keep_alive 0 without a prompt = Ollama's documented way to unload a model right away."""
+        await self._post_generate({"model": name, "keep_alive": 0}, timeout)
+
 
 class FakeOllama:
     """Replays ollama-ps.json / ollama-version.json / ollama-tags.json / ollama-show.json of a scenario
@@ -337,3 +404,16 @@ class FakeOllama:
         if not isinstance(shows, dict) or name not in shows:
             raise OllamaModelMissing(name)
         return parse_show(name, shows[name])
+
+    async def generate(self, name: str, prompt: str, options: dict[str, Any], keep_alive: str | int,
+                       timeout: float) -> GenerateResult:
+        """Simulation: plausible fixed timings for every installed model; nothing is loaded for real."""
+        shows = self._load("ollama-show.json")
+        if not isinstance(shows, dict) or name not in shows:
+            raise OllamaModelMissing(name)
+        predict = int(options.get("num_predict") or 128)
+        return GenerateResult(total_s=6.4 + predict / 60, load_s=4.2, prompt_tokens=58, prompt_s=0.12,
+                              eval_tokens=predict, eval_s=predict / 60, done_reason="length")
+
+    async def unload(self, name: str, timeout: float = 30) -> None:
+        return None

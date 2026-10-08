@@ -1,16 +1,22 @@
-"""CatalogService with a stub Ollama and a real SQLite file: refresh, removal, observations, restart."""
+"""CatalogService with a stub Ollama and a real SQLite file: refresh, removal, observations, restart,
+budget of the card, preflight and test runs."""
 import asyncio
 from types import SimpleNamespace
 
 import pytest
 
 from control_center.adapters.gpu import GpuReading, GpuUnavailable
-from control_center.adapters.ollama import OllamaModelMissing, OllamaUnavailable, RunningModel
+from control_center.adapters.ollama import (
+    GenerateResult, OllamaModelMissing, OllamaRequestFailed, OllamaUnavailable, RunningModel,
+)
 from control_center.core.config import AdaptersConfig, Settings
 from control_center.core.context import AppContext
 from control_center.core.db import Database
 from control_center.core.events import EventBus
-from control_center.modules.catalog.service import TOPIC, CatalogService, OllamaDown, UnknownModel
+from control_center.modules.catalog import bench
+from control_center.modules.catalog.service import (
+    BENCH_TOPIC, TOPIC, Busy, CatalogService, NeedsConfirm, OllamaDown, Refused, UnknownModel,
+)
 from control_center.modules.catalog.settings import CatalogSettings
 
 from .factories import details, tag
@@ -21,9 +27,12 @@ class StubOllama:
 
     def __init__(self):
         self.tags_list, self.shows, self.ps, self.down, self.show_calls = [], {}, [], False, []
+        self.sizes: dict[str, tuple[int, int]] = {}             # name -> (size, size_vram) once loaded
+        self.generated, self.unloaded, self.fail_generate = [], [], None
 
     def install(self, name, **kw):
-        self.tags_list.append(tag(name, digest=kw.pop("digest", None), parent=kw.get("parent")))
+        size = kw.pop("size", 8 * GIB)                          # weights file; the factories' qwen2 shape for KV
+        self.tags_list.append(tag(name, digest=kw.pop("digest", None), parent=kw.get("parent"), size=size))
         self.shows[name] = details(name, **kw)
 
     async def tags(self):
@@ -47,15 +56,41 @@ class StubOllama:
     async def version(self):
         return "0.35.0"
 
+    async def generate(self, name, prompt, options, keep_alive, timeout):
+        self.generated.append((name, options))
+        if self.fail_generate:
+            raise OllamaRequestFailed(self.fail_generate)
+        if name not in self.shows:
+            raise OllamaModelMissing(name)
+        size, vram = self.sizes.get(name, (8 * GIB, 8 * GIB))
+        t = next(t for t in self.tags_list if t.name == name)
+        self.ps = [running(name, digest=t.digest, ctx=options["num_ctx"], size=size, vram=vram)]
+        return GenerateResult(total_s=9.0, load_s=4.5, prompt_tokens=60, prompt_s=0.1, eval_tokens=128,
+                              eval_s=2.0, done_reason="length")
+
+    async def unload(self, name, timeout=30):
+        self.unloaded.append(name)
+        self.ps = [m for m in self.ps if m.name != name]
+
+
+MIB = 1024 ** 2
+GIB = 1024 ** 3
+
 
 class StubGpu:
-    def __init__(self, fail=False):
-        self.fail = fail
+    """The card as NVML sees it: other programs (idle_mib) + what Ollama loaded + 300 MiB per runner.
+    `extra` (MiB) is added to the next readings one by one: a runner that frees its memory late, or a
+    model Ollama is loading before /api/ps lists it."""
+
+    def __init__(self, fail=False, ollama=None, idle_mib=500):
+        self.fail, self.ollama, self.idle_mib, self.extra = fail, ollama, idle_mib, []
 
     def read(self):
         if self.fail:
             raise GpuUnavailable("NVML gone")
-        return GpuReading(name="RTX 5070 Ti", driver_version="610.62", util_percent=0, vram_used_mib=500,
+        loaded = sum(m.size_vram for m in self.ollama.ps) if self.ollama else 0
+        used = self.idle_mib + loaded // MIB + (300 if loaded else 0) + (self.extra.pop(0) if self.extra else 0)
+        return GpuReading(name="RTX 5070 Ti", driver_version="610.62", util_percent=0, vram_used_mib=used,
                           vram_total_mib=16303, temp_c=35, power_w=20.0, power_limit_w=300.0, fan_percent=0,
                           throttle_reasons=())
 
@@ -71,24 +106,44 @@ class Harness:
                                  adapters=AdaptersConfig(ai_host=ai_host, ollama=ollama_mode, gpu=gpu_mode))
         self.cfg = CatalogSettings(**cfg)
         self.ollama = StubOllama()
-        self.gpu = StubGpu()
+        self.gpu = StubGpu(ollama=self.ollama)
         self.published = []
+        self.services: dict = {}
 
     async def service(self, read_log=False) -> CatalogService:
         ctx = AppContext(settings=self.settings, db=Database(self.settings.db_path), events=EventBus())
         ctx.adapters = SimpleNamespace(ollama=self.ollama, gpu=self.gpu, simulated=[], cfg=self.settings.adapters)
+        ctx.services = self.services
         await ctx.db.open()
+        OPEN_DBS.append(ctx.db)
         ctx.events.publish = lambda topic, data: self.published.append((topic, data))
         ctx.events._subscribers.add(asyncio.Queue())             # someone listens -> overview is built and sent
         svc = CatalogService(ctx, self.cfg, read_log=read_log)
         await svc.repo.create()
         svc.rows = {r.record.name: r for r in await svc.repo.load_models()}
+        await svc._load_state()
         svc.hardware = await svc._read_gpu()
         return svc
 
 
+OPEN_DBS: list[Database] = []
+
+
+@pytest.fixture(autouse=True)
+def no_waiting(monkeypatch):
+    monkeypatch.setattr(bench, "POLL_S", 0)                     # settling the card: no real sleeps
+
+
 def run(coro):
-    return asyncio.run(coro)
+    """asyncio.run + close every database the test opened: a live aiosqlite thread outlasting its loop
+    would raise in the background (PytestUnhandledThreadExceptionWarning)."""
+    async def main():
+        try:
+            return await coro
+        finally:
+            while OPEN_DBS:
+                await OPEN_DBS.pop().close()
+    return asyncio.run(main())
 
 
 def test_refresh_collects_and_shows_only_what_changed(tmp_path):
@@ -148,7 +203,7 @@ def test_show_failure_keeps_tags_data_and_retries(tmp_path):
         svc = await h.service()
         await svc.refresh()
         m = (await svc.overview()).models[0]
-        assert "kennt das Modell nicht" in m.show_error and m.size_bytes == 1000
+        assert "kennt das Modell nicht" in m.show_error and m.size_bytes == 8 * GIB
         h.ollama.shows["x:1"] = details("x:1")
         await svc.refresh()                                         # retried without being asked
         assert (await svc.overview()).models[0].show_error is None
@@ -246,12 +301,16 @@ def test_publishes_full_overview_on_change_only(tmp_path):
         await svc.refresh()
         assert len(h.published) == 1 and h.published[0][0] == TOPIC
         assert h.published[0][1]["revision"] == 1 and h.published[0][1]["models"][0]["name"] == "a:1"
-        await svc.refresh()                                          # nothing new
-        await svc.observe()                                          # nothing loaded, nothing changed
+        await svc.observe()                                          # empty card: first reading, not yet trusted
         assert len(h.published) == 1
+        await svc.observe()                                          # the same again: other programs measured
+        assert len(h.published) == 2
+        await svc.refresh()                                          # nothing new
+        await svc.observe()                                          # still empty, same value: nothing to say
+        assert len(h.published) == 2
         h.ollama.ps = [running("a:1")]
         await svc.observe()
-        assert len(h.published) == 2 and h.published[1][1]["models"][0]["loaded"]
+        assert len(h.published) == 3 and h.published[2][1]["models"][0]["loaded"]
 
     run(go())
 
@@ -342,5 +401,251 @@ def test_loop_survives_ollama_down(tmp_path):
         assert not svc._task.done()                                 # OllamaDown did not end the loop
         await svc.shut_down()
         assert svc._task is None
+
+    run(go())
+
+
+# ---- budget of the card -------------------------------------------------------------------------------
+
+def test_an_empty_ollama_measures_the_other_programs(tmp_path):
+    h = Harness(tmp_path)
+    h.gpu.idle_mib = 1424
+
+    async def go():
+        svc = await h.service()
+        b = (await svc.overview()).budget
+        assert (b.other_source, b.other_bytes) == ("assumed", round(1.2 * GIB))       # nothing measured yet
+        await svc.observe()                                                          # /api/ps empty, once
+        assert svc.budget().other_source == "assumed"
+        await svc.observe()                                                          # twice the same: counts
+        b = (await svc.overview()).budget
+        assert (b.other_source, b.other_bytes) == ("measured", 1424 * MIB) and b.other_measured_at is not None
+        assert b.available_bytes == 16303 * MIB - 1424 * MIB - round(0.45 * GIB)
+        h.ollama.ps = [running("x:1", size=GIB, vram=GIB)]
+        h.gpu.idle_mib = 9000                                    # busy card while a model runs: not "other"
+        await svc.observe()
+        assert (await svc.overview()).budget.other_bytes == 1424 * MIB
+        svc2 = await h.service()                                 # survives a restart
+        assert svc2.budget().other_bytes == 1424 * MIB and svc2.budget().other_source == "measured"
+
+    run(go())
+
+
+def test_a_model_that_is_still_loading_is_not_other_programs(tmp_path):
+    """VRAM is allocated before /api/ps lists the model: a rising card must not become "other programs"."""
+    h = Harness(tmp_path)
+    h.gpu.idle_mib = 1424
+
+    async def go():
+        svc = await h.service()
+        await svc.observe()
+        await svc.observe()
+        assert svc.budget().other_bytes == 1424 * MIB
+        h.gpu.extra = [3000, 9000]                               # loading: 4.4 GiB, then 10.2 GiB, ps still empty
+        await svc.observe()
+        await svc.observe()
+        assert svc.budget().other_bytes == 1424 * MIB
+        h.ollama.ps = [running("x:1", size=GIB, vram=GIB)]       # now listed: the reading pair starts over
+        await svc.observe()
+        h.ollama.ps = []
+        h.gpu.extra = [700]                                      # one odd reading after the unload ...
+        await svc.observe()
+        await svc.observe()                                      # ... does not pair with the settled one
+        assert svc.budget().other_bytes == 1424 * MIB
+        h.gpu.idle_mib = 2000                                    # a browser opened: two equal readings count
+        await svc.observe()
+        await svc.observe()
+        assert svc.budget().other_bytes == 2000 * MIB
+
+    run(go())
+
+
+def test_calibration_reaches_relatives_with_the_same_weights(tmp_path):
+    h = Harness(tmp_path)
+    h.ollama.install("base:9b", weights="w", num_ctx=32768)
+    h.ollama.install("small:latest", parent="base:9b", weights="w", num_ctx=8192)
+
+    async def go():
+        svc = await h.service()
+        await svc.refresh()
+        before = {m.name: m for m in (await svc.overview()).models}
+        assert before["small:latest"].estimate.calibrated is None
+        h.ollama.ps = [running("base:9b", digest="d-base:9b", ctx=32768, size=5 * GIB, vram=5 * GIB)]
+        await svc.observe()
+        after = {m.name: m for m in (await svc.overview()).models}
+        base, small = after["base:9b"], after["small:latest"]
+        assert base.verdict.basis == "measured" and base.verdict.need_bytes == 5 * GIB
+        assert small.verdict.basis == "estimated" and "1 Messung" in small.estimate.calibrated
+        kv = small.estimate.kv_bytes
+        kv_32k = 48 * 8 * 256 * 2 * 32768                       # factories: qwen2 shape, stub runs f16
+        assert small.estimate.need_bytes == 5 * GIB - kv_32k + kv
+
+    run(go())
+
+
+# ---- preflight and test runs ----------------------------------------------------------------------------
+
+async def _ready(h, **models):
+    svc = await h.service()
+    await svc.refresh()
+    await svc.observe()                                         # empty card, twice: other programs measured
+    await svc.observe()
+    return svc
+
+
+def test_preflight_says_what_a_context_costs(tmp_path):
+    h = Harness(tmp_path)
+    h.gpu.idle_mib = 1424
+    h.ollama.install("coder:14b", weights="w")                 # 8 GiB + 48 layers x 8 KV heads, f16: 192 KiB/token
+    h.ollama.install("embed:1", caps=("embedding",))
+
+    async def go():
+        svc = await _ready(h)
+        h.ollama.ps = [running("chat:1", size=GIB, vram=GIB)]
+        await svc.observe()
+        ok = await svc.preflight("coder:14b", 4096)
+        assert ok.allowed and not ok.needs_confirm and ok.verdict.state == "fits"
+        assert ok.context.source == "request" and ok.will_unload == ["chat:1"]
+        assert ok.suggestions[0] == 2048 and max(ok.suggestions) == 32768      # trained context of the model
+        split = await svc.preflight("coder:14b", 32768)                         # 8 + 6 + 0.4 GiB > 14.08
+        assert not split.allowed and split.verdict.state == "split" and "kleineren Kontext" in split.reason
+        emb = await svc.preflight("embed:1")
+        assert not emb.allowed and "Einbettungsmodelle" in emb.reason
+        with pytest.raises(UnknownModel):
+            await svc.preflight("nope:1")
+
+    run(go())
+
+
+def test_test_run_measures_and_cleans_up(tmp_path):
+    h = Harness(tmp_path)
+    h.gpu.idle_mib = 1424
+    h.ollama.install("coder:14b", weights="w", num_ctx=8192)
+    h.ollama.sizes["coder:14b"] = (9 * GIB, 9 * GIB)
+
+    async def go():
+        svc = await _ready(h)
+        save, slot_free = svc.repo.save_bench, []
+
+        async def watched_save(*a):                     # "done" is visible as soon as it is stored ...
+            slot_free.append(svc.bench is None)         # ... so the next run must be startable by then
+            await save(*a)
+        svc.repo.save_bench = watched_save
+        h.ollama.ps = [running("chat:1", size=GIB, vram=GIB)]
+        st = await svc.start_bench("coder:14b", None, confirm=False)
+        assert st.state == "queued" and st.num_ctx == 8192
+        await svc.bench.task
+        done = svc.bench_list("coder:14b")[0]
+        assert done.state == "done" and done.unloaded == ["chat:1"] and svc.bench is None and slot_free == [True]
+        r = done.result
+        assert (r.requested_ctx, r.actual_ctx, r.placement) == (8192, 8192, "gpu")
+        assert (r.load_s, r.eval_tps, r.prompt_tps, r.size_bytes) == (4.5, 64.0, 600.0, 9 * GIB)
+        assert r.gpu_before_bytes == 1424 * MIB and r.runner_overhead_bytes == 300 * MIB
+        assert h.ollama.unloaded == ["chat:1", "coder:14b"] and h.ollama.ps == []
+        assert h.ollama.generated[0][1] == {"num_ctx": 8192, "num_predict": 128, "temperature": 0, "seed": 42}
+        phases = [d["phase"] for t, d in h.published if t == BENCH_TOPIC]
+        assert phases == [None, "unload", "baseline", "load", "measure", "cleanup", None]
+        m = (await svc.overview()).models[0]
+        assert m.verdict.basis == "measured" and m.verdict.need_bytes == 9 * GIB      # the run is a measurement
+        assert m.benches[0].id == done.id and m.observations[0].loads == 1
+        svc2 = await h.service()                                                     # stored in SQLite
+        assert svc2.bench_list("coder:14b")[0].result.eval_tps == 64.0
+
+    run(go())
+
+
+def test_test_run_waits_until_the_card_has_settled(tmp_path):
+    """The unloaded runner frees its memory a moment after /api/ps forgot it: the baseline waits for that."""
+    h = Harness(tmp_path)
+    h.gpu.idle_mib = 1424
+    h.ollama.install("coder:14b", weights="w", num_ctx=8192)
+
+    async def go():
+        svc = await _ready(h)
+        h.ollama.ps = [running("chat:1", size=GIB, vram=GIB)]
+        h.gpu.extra = [6000, 2000]                              # chat:1 still (partly) in VRAM for two readings
+        await svc.start_bench("coder:14b", None, confirm=False)
+        await svc.bench.task
+        r = svc.bench_list()[0].result
+        assert r.gpu_before_bytes == 1424 * MIB and svc.budget().other_bytes == 1424 * MIB
+
+    run(go())
+
+
+def test_test_run_refusals(tmp_path):
+    h = Harness(tmp_path)
+    h.gpu.idle_mib = 1424
+    h.ollama.install("coder:14b", weights="w")
+
+    async def go():
+        svc = await _ready(h)
+        with pytest.raises(Refused, match="kleineren Kontext"):
+            await svc.start_bench("coder:14b", 32768, confirm=True)       # split: not even with confirm
+        tight_ctx = 24576                                                 # 8 + 4.5 + 0.4 GiB -> 92 % of 14.08
+        pre = await svc.preflight("coder:14b", tight_ctx)
+        assert pre.allowed and pre.needs_confirm, pre.verdict
+        with pytest.raises(NeedsConfirm):
+            await svc.start_bench("coder:14b", tight_ctx, confirm=False)
+        h.services["rag.service"] = SimpleNamespace(current=object())
+        with pytest.raises(Busy, match="RAG-Indexierung"):
+            await svc.start_bench("coder:14b", 4096, confirm=False)
+        h.services.clear()
+        h.ollama.fail_generate = "HTTP 500: llama runner process has terminated: exit status 0xc0000409"
+        await svc.start_bench("coder:14b", 4096, confirm=False)
+        with pytest.raises(Busy, match="schon ein Testlauf"):
+            await svc.start_bench("coder:14b", 4096, confirm=False)
+        await svc.bench.task
+        failed = svc.bench_list()[0]
+        assert failed.state == "failed" and "0xc0000409" in failed.error and svc.bench is None
+
+    run(go())
+
+
+def test_remote_ollama_locks_test_runs_unless_allowed(tmp_path):
+    h = Harness(tmp_path, ai_host="192.0.2.20", gpu_mode="fake")
+    h.ollama.install("coder:14b", weights="w")
+
+    async def go():
+        svc = await _ready(h)
+        assert not svc.bench_access().allowed and "allow_remote_tests" in svc.bench_access().reason
+        assert not (await svc.preflight("coder:14b", 4096)).allowed
+        svc.cfg = svc.cfg.model_copy(update={"allow_remote_tests": True})
+        assert (await svc.preflight("coder:14b", 4096)).allowed
+
+    run(go())
+
+
+def test_observation_pauses_during_a_test_run(tmp_path):
+    h = Harness(tmp_path)
+    h.ollama.install("coder:14b", weights="w")
+
+    async def go():
+        svc = await _ready(h)
+        svc.bench = SimpleNamespace(status=None, task=None)       # a run is going on
+        h.ollama.ps = [running("coder:14b", digest="d-coder:14b", ctx=4096, size=GIB, vram=GIB)]
+        await svc.observe()
+        assert await svc.repo.load_observations() == []
+
+    run(go())
+
+
+def test_shutdown_cancels_a_running_test_and_keeps_the_report(tmp_path):
+    h = Harness(tmp_path)
+    h.ollama.install("coder:14b", weights="w", num_ctx=8192)
+    started = asyncio.Event()
+
+    async def hanging_generate(name, prompt, options, keep_alive, timeout):
+        started.set()
+        await asyncio.sleep(3600)                               # a big model still loading from disk
+
+    async def go():
+        svc = await _ready(h)
+        h.ollama.generate = hanging_generate
+        await svc.start_bench("coder:14b", None, confirm=False)
+        await started.wait()
+        await svc.shut_down()                                   # Ctrl+C on the AI box
+        assert svc.bench is None
+        stored = (await h.service()).bench_list("coder:14b")[0]
+        assert stored.state == "cancelled" and "beendet" in stored.error
 
     run(go())

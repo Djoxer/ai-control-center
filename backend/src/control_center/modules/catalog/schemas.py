@@ -2,8 +2,9 @@
 
 Every number carries its origin, because the page colors by it:
 - facts from Ollama (size, quantization, parameters) are plain - they are what is installed,
-- "measured" = seen in /api/ps while the model ran on this GPU,
-- "estimated" = computed from the GGUF metadata before loading,
+- "measured" = seen in /api/ps while the model ran on this GPU, or measured by a test run,
+- "estimated" = computed from the GGUF metadata before loading (calibrated by measurements of the same
+  weights where there are some),
 - (later, part c) "adopted" = taken over from BenchLM.
 """
 from __future__ import annotations
@@ -15,13 +16,16 @@ from pydantic import Field
 
 from control_center.core.schemas import CamelModel
 
-Via = Literal["declared", "weights"]
-ContextSource = Literal["model", "server", "fallback"]
+Via = Literal["declared", "weights", "copy"]
+ContextSource = Literal["model", "server", "fallback", "request"]
 ServerSource = Literal["log", "config", "mixed", "unknown"]
 Confidence = Literal["normal", "low"]
 Placement = Literal["gpu", "split", "cpu", "unknown"]
 VerdictState = Literal["fits", "tight", "split", "cpu", "unknown"]
 Basis = Literal["measured", "estimated", "none"]
+OtherSource = Literal["measured", "assumed"]
+BenchState = Literal["queued", "running", "done", "failed", "cancelled"]
+BenchPhase = Literal["unload", "baseline", "load", "measure", "cleanup"]
 
 
 class OllamaState(CamelModel):
@@ -49,13 +53,22 @@ class HardwareInfo(CamelModel):
     key: str | None = None                  # profile measurements are filed under: "<GPU> · <MiB> MiB"
     gpu_name: str | None = None
     vram_total_bytes: int | None = None
-    note: str | None = None                 # German: why the GPU is unknown
+    note: str | None = None                 # German: why the GPU is unknown, or that it is simulated
+
+
+class BudgetInfo(CamelModel):
+    """What the card offers Ollama: total - other programs - Ollama's reserve."""
+    total_bytes: int | None = None
+    other_bytes: int
+    other_source: OtherSource               # measured while Ollama had nothing loaded, or the setting
+    other_measured_at: datetime | None = None
+    reserve_bytes: int
+    available_bytes: int | None = None
 
 
 class Assumptions(CamelModel):
     """The fixed numbers behind every estimate - shown on the page, set in [modules.catalog]."""
     graph_reserve_bytes: int
-    driver_overhead_bytes: int
     tight_ratio: float
     fallback_context_length: int
     clamp_to_trained: bool
@@ -63,7 +76,7 @@ class Assumptions(CamelModel):
 
 class ParentInfo(CamelModel):
     declared: str | None = None             # details.parent_model as Ollama reports it
-    resolved: str | None = None             # installed parent the catalog hangs this model under
+    resolved: str | None = None             # installed model the catalog hangs this one under
     via: Via | None = None
     installed: bool = False                 # the declared parent is installed
 
@@ -82,8 +95,9 @@ class VramEstimate(CamelModel):
     weights_bytes: int
     kv_bytes: int | None = None
     graph_bytes: int
-    driver_bytes: int
-    total_bytes: int | None = None
+    formula_bytes: int | None = None        # weights + KV + graph
+    need_bytes: int | None = None           # calibrated where possible, else the formula
+    calibrated: str | None = None           # German: from which measurements
     kv_type: str
     tokens: int
     notes: list[str] = Field(default_factory=list)
@@ -106,10 +120,48 @@ class Observation(CamelModel):
 class Verdict(CamelModel):
     state: VerdictState
     basis: Basis
-    need_bytes: int | None = None           # Ollama's count (measured size, or estimate without driver)
-    expected_bytes: int | None = None       # need + driver overhead: what the card must hold
-    vram_total_bytes: int | None = None
+    need_bytes: int | None = None           # Ollama's scale (same number as the dashboard)
+    available_bytes: int | None = None      # budget of the card for Ollama
     message: str
+
+
+class BenchResult(CamelModel):
+    """What one test run measured. Speeds from Ollama's own clocks, memory from /api/ps and NVML."""
+    requested_ctx: int
+    actual_ctx: int | None = None           # what Ollama loaded (shows whether it cut the context)
+    hardware: str | None = None
+    kv_type: str | None = None
+    ollama_version: str | None = None
+    load_s: float | None = None
+    prompt_tokens: int | None = None
+    prompt_tps: float | None = None
+    eval_tokens: int | None = None
+    eval_tps: float | None = None
+    total_s: float | None = None
+    size_bytes: int | None = None
+    vram_bytes: int | None = None
+    placement: Placement = "unknown"
+    gpu_before_bytes: int | None = None     # NVML, after the other models were unloaded
+    gpu_after_bytes: int | None = None
+    runner_overhead_bytes: int | None = None  # NVML growth beyond Ollama's own count
+    note: str | None = None
+
+
+class BenchStatus(CamelModel):
+    id: str
+    revision: int = 0
+    as_of: datetime
+    name: str
+    digest: str
+    num_ctx: int
+    state: BenchState
+    phase: BenchPhase | None = None
+    created_at: datetime
+    started_at: datetime | None = None
+    finished_at: datetime | None = None
+    unloaded: list[str] = Field(default_factory=list)   # models the run unloaded first
+    error: str | None = None
+    result: BenchResult | None = None
 
 
 class CatalogModel(CamelModel):
@@ -134,6 +186,8 @@ class CatalogModel(CamelModel):
     estimate: VramEstimate | None = None
     observations: list[Observation] = Field(default_factory=list)
     verdict: Verdict
+    benches: list[BenchStatus] = Field(default_factory=list)   # latest test runs of this model, newest first
+    testable: bool = True                   # embedding models have no test run (yet)
     loaded: bool = False                    # in /api/ps right now
     first_seen: datetime | None = None
     show_error: str | None = None           # /api/show failed: only /api/tags data
@@ -152,6 +206,11 @@ class RemovedModel(CamelModel):
     measurements: int
 
 
+class BenchAccess(CamelModel):
+    allowed: bool
+    reason: str | None = None               # German: why test runs are locked here
+
+
 class CatalogOverview(CamelModel):
     as_of: datetime
     revision: int
@@ -159,7 +218,10 @@ class CatalogOverview(CamelModel):
     ollama: OllamaState
     server: ServerConfig
     hardware: HardwareInfo
+    budget: BudgetInfo
     assumptions: Assumptions
+    tests: BenchAccess
+    bench: BenchStatus | None = None        # the running test run, if any
     models: list[CatalogModel]
     groups: list[ModelGroup]
     removed: list[RemovedModel]
@@ -167,3 +229,22 @@ class CatalogOverview(CamelModel):
 
 class RefreshRequest(CamelModel):
     name: str | None = Field(None, description="one model; null = all installed models")
+
+
+class Preflight(CamelModel):
+    """Before a test run: what loading this model with this context would cost, and whether it may run."""
+    name: str
+    context: ContextInfo
+    estimate: VramEstimate | None = None
+    verdict: Verdict
+    allowed: bool
+    needs_confirm: bool                     # "knapp": only with an explicit confirmation
+    reason: str | None = None               # German: why not (or what to know)
+    will_unload: list[str] = Field(default_factory=list)
+    suggestions: list[int] = Field(default_factory=list)   # context lengths worth trying, ascending
+
+
+class BenchRequest(CamelModel):
+    name: str
+    num_ctx: int | None = Field(None, ge=256, le=4_194_304, description="null = the effective context")
+    confirm: bool = Field(False, description="required when the preflight says 'knapp'")

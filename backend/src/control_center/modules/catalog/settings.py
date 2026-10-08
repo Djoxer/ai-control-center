@@ -33,10 +33,24 @@ class CatalogSettings(BaseModel):
     # "requested context size too large for model"). false = estimate with the uncut value.
     clamp_to_trained: bool = True
 
-    # VRAM estimate = weights + KV cache + graph_reserve + driver_overhead
+    # Need of a model (Ollama's scale) = weights + KV cache + graph_reserve, until a measurement calibrates it
     graph_reserve_gib: float = Field(0.4, ge=0, le=16)         # compute buffers at flash attention, rough
-    driver_overhead_gib: float = Field(1.2, ge=0, le=16)       # what NVML shows on top of Ollama (measured 07.10.)
-    tight_ratio: float = Field(0.9, gt=0, le=1)                # above this share of the GPU = "knapp"
+    # Budget of the card = total - other programs - Ollama's reserve. Other programs are MEASURED whenever
+    # Ollama has nothing loaded (desktop, browser ...: 1.4 GiB on the AI box on 08.10.); this is the fallback.
+    other_usage_gib: float = Field(1.2, ge=0, le=64)
+    ollama_reserve_gib: float = Field(0.45, ge=0, le=16)       # Ollama keeps ~457 MiB per CUDA GPU free (assumption)
+    tight_ratio: float = Field(0.9, gt=0, le=1)                # above this share of the budget = "knapp"
+
+    # Test runs: load a model with a chosen context, answer a fixed prompt, measure speed and memory.
+    # Locked when Ollama runs on another machine - a test unloads the chat model of whoever works there.
+    allow_remote_tests: bool = False
+    test_prompt: str = Field(
+        "Schreibe eine TypeScript-Funktion, die eine Liste von Bestellungen nach Kunde gruppiert und je Kunde "
+        "die Summe bildet. Nur Code mit kurzen Kommentaren.", min_length=1)
+    test_num_predict: int = Field(128, ge=8, le=4096)           # tokens to generate: enough for a stable tok/s
+    test_timeout_s: float = Field(300, gt=0, le=3600)          # loading a big model from disk takes a while
+    unload_after_test: bool = True                              # leave the GPU as free as before
+    keep_tests: int = Field(200, ge=10, le=10_000)              # test results kept in SQLite (all models)
 
     # deleted models stay listed (with their measurements) for this long
     keep_removed_days: int = Field(90, ge=0, le=3650)

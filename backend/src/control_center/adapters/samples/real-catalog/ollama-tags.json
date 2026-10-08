@@ -1,0 +1,292 @@
+{
+  "models": [
+    {
+      "name": "qwen3.5-9b-64k-code:latest",
+      "model": "qwen3.5-9b-64k-code:latest",
+      "modified_at": "2026-09-24T16:50:31.5971898+02:00",
+      "size": 6594474746,
+      "digest": "0cb15d0135cca9e2547e4ad482536c1377601f56aaf8a097f513db6c1531d67a",
+      "details": {
+        "parent_model": "qwen3.5-9b-64k:latest",
+        "format": "gguf",
+        "family": "qwen35",
+        "families": [
+          "qwen35"
+        ],
+        "parameter_size": "9.7B",
+        "quantization_level": "Q4_K_M",
+        "context_length": 262144,
+        "embedding_length": 4096
+      },
+      "capabilities": [
+        "completion",
+        "vision",
+        "tools",
+        "thinking"
+      ]
+    },
+    {
+      "name": "qwen35-24k:latest",
+      "model": "qwen35-24k:latest",
+      "modified_at": "2026-09-18T12:16:07.2162456+02:00",
+      "size": 6594474727,
+      "digest": "b385c1f5424df944d98d5c24aa63a7f726bc4cbec0420d46e78a70dad586eaf3",
+      "details": {
+        "parent_model": "qwen3.5:9b",
+        "format": "gguf",
+        "family": "qwen35",
+        "families": [
+          "qwen35"
+        ],
+        "parameter_size": "9.7B",
+        "quantization_level": "Q4_K_M",
+        "context_length": 262144,
+        "embedding_length": 4096
+      },
+      "capabilities": [
+        "completion",
+        "vision",
+        "tools",
+        "thinking"
+      ]
+    },
+    {
+      "name": "nomic-embed-text:latest",
+      "model": "nomic-embed-text:latest",
+      "modified_at": "2026-09-17T14:21:54.6656007+02:00",
+      "size": 274302450,
+      "digest": "0a109f422b47e3a30ba2b10eca18548e944e8a23073ee3f3e947efcf3c45e59f",
+      "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "nomic-bert",
+        "families": [
+          "nomic-bert"
+        ],
+        "parameter_size": "137M",
+        "quantization_level": "F16",
+        "context_length": 2048,
+        "embedding_length": 768
+      },
+      "capabilities": [
+        "embedding"
+      ]
+    },
+    {
+      "name": "deepseek-coder-24k:latest",
+      "model": "deepseek-coder-24k:latest",
+      "modified_at": "2026-09-17T10:57:01.525134+02:00",
+      "size": 8905126137,
+      "digest": "93ceab6702d58faf0c1efe9473fdecfe1e9f4aabdbddd7a2dd5ab224aadc20f6",
+      "details": {
+        "parent_model": "deepseek-coder-v2:16b",
+        "format": "gguf",
+        "family": "deepseek2",
+        "families": [
+          "deepseek2"
+        ],
+        "parameter_size": "15.7B",
+        "quantization_level": "Q4_0",
+        "context_length": 163840,
+        "embedding_length": 2048
+      },
+      "capabilities": [
+        "completion",
+        "insert"
+      ]
+    },
+    {
+      "name": "gpt-oss:20b",
+      "model": "gpt-oss:20b",
+      "modified_at": "2026-07-21T13:25:24.9616427+02:00",
+      "size": 13793441244,
+      "digest": "17052f91a42e97930aa6e28a6c6c06a983e6a58dbb00434885a0cf5313e376f7",
+      "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "gptoss",
+        "families": [
+          "gptoss"
+        ],
+        "parameter_size": "20.9B",
+        "quantization_level": "MXFP4",
+        "context_length": 131072,
+        "embedding_length": 2880
+      },
+      "capabilities": [
+        "completion",
+        "tools",
+        "thinking"
+      ]
+    },
+    {
+      "name": "qwen3.5-9b-64k:latest",
+      "model": "qwen3.5-9b-64k:latest",
+      "modified_at": "2026-07-21T12:25:35.4223392+02:00",
+      "size": 6594474727,
+      "digest": "b7b9afeaf023a549a9e6fc7960694f3c32fc490d415bbdf1751e2f390cf4ae48",
+      "details": {
+        "parent_model": "qwen3.5:9b",
+        "format": "gguf",
+        "family": "qwen35",
+        "families": [
+          "qwen35"
+        ],
+        "parameter_size": "9.7B",
+        "quantization_level": "Q4_K_M",
+        "context_length": 262144,
+        "embedding_length": 4096
+      },
+      "capabilities": [
+        "completion",
+        "vision",
+        "tools",
+        "thinking"
+      ]
+    },
+    {
+      "name": "qwen3.5:4b",
+      "model": "qwen3.5:4b",
+      "modified_at": "2026-07-21T12:07:17.4378253+02:00",
+      "size": 3389983735,
+      "digest": "2a654d98e6fba55d452b7043684e9b57a947e393bbffa62485a7aac05ee4eefd",
+      "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "qwen35",
+        "families": [
+          "qwen35"
+        ],
+        "parameter_size": "4.7B",
+        "quantization_level": "Q4_K_M",
+        "context_length": 262144,
+        "embedding_length": 2560
+      },
+      "capabilities": [
+        "completion",
+        "vision",
+        "tools",
+        "thinking"
+      ]
+    },
+    {
+      "name": "qwen3.5:9b",
+      "model": "qwen3.5:9b",
+      "modified_at": "2026-07-21T11:59:09.7704462+02:00",
+      "size": 6594474711,
+      "digest": "6488c96fa5faab64bb65cbd30d4289e20e6130ef535a93ef9a49f42eda893ea7",
+      "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "qwen35",
+        "families": [
+          "qwen35"
+        ],
+        "parameter_size": "9.7B",
+        "quantization_level": "Q4_K_M",
+        "context_length": 262144,
+        "embedding_length": 4096
+      },
+      "capabilities": [
+        "completion",
+        "vision",
+        "tools",
+        "thinking"
+      ]
+    },
+    {
+      "name": "deepcoder16:latest",
+      "model": "deepcoder16:latest",
+      "modified_at": "2026-07-01T13:33:27.7864575+02:00",
+      "size": 8905126121,
+      "digest": "63fb193b3a9b4322a18e8c6b250ca2e70a5ff531e962dbf95ba089b2566f2fa5",
+      "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "deepseek2",
+        "families": [
+          "deepseek2"
+        ],
+        "parameter_size": "15.7B",
+        "quantization_level": "Q4_0",
+        "context_length": 163840,
+        "embedding_length": 2048
+      },
+      "capabilities": [
+        "completion",
+        "insert"
+      ]
+    },
+    {
+      "name": "deepseek-coder-v2:16b",
+      "model": "deepseek-coder-v2:16b",
+      "modified_at": "2026-07-01T13:24:25.518042+02:00",
+      "size": 8905126121,
+      "digest": "63fb193b3a9b4322a18e8c6b250ca2e70a5ff531e962dbf95ba089b2566f2fa5",
+      "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "deepseek2",
+        "families": [
+          "deepseek2"
+        ],
+        "parameter_size": "15.7B",
+        "quantization_level": "Q4_0",
+        "context_length": 163840,
+        "embedding_length": 2048
+      },
+      "capabilities": [
+        "completion",
+        "insert"
+      ]
+    },
+    {
+      "name": "coder14:latest",
+      "model": "coder14:latest",
+      "modified_at": "2026-07-01T13:10:01.7487721+02:00",
+      "size": 8988124298,
+      "digest": "9ec8897f747e246e970bc5cfdda85d22f1123dc2e3d34978a010a75968716849",
+      "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "qwen2",
+        "families": [
+          "qwen2"
+        ],
+        "parameter_size": "14.8B",
+        "quantization_level": "Q4_K_M",
+        "context_length": 32768,
+        "embedding_length": 5120
+      },
+      "capabilities": [
+        "completion",
+        "tools",
+        "insert"
+      ]
+    },
+    {
+      "name": "qwen2.5-coder:14b-instruct-q4_K_M",
+      "model": "qwen2.5-coder:14b-instruct-q4_K_M",
+      "modified_at": "2026-07-01T12:58:09.0422035+02:00",
+      "size": 8988124298,
+      "digest": "9ec8897f747e246e970bc5cfdda85d22f1123dc2e3d34978a010a75968716849",
+      "details": {
+        "parent_model": "",
+        "format": "gguf",
+        "family": "qwen2",
+        "families": [
+          "qwen2"
+        ],
+        "parameter_size": "14.8B",
+        "quantization_level": "Q4_K_M",
+        "context_length": 32768,
+        "embedding_length": 5120
+      },
+      "capabilities": [
+        "completion",
+        "tools",
+        "insert"
+      ]
+    }
+  ]
+}

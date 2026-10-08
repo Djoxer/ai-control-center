@@ -12,7 +12,8 @@
     <dt class="text-gray-400">Abstammung</dt>
     <dd class="text-white">
       @if (m.parent.resolved) {
-        {{ m.parent.via === 'weights' ? 'gleiche Gewichte wie' : 'erstellt aus' }} <span class="font-mono">{{ m.parent.resolved }}</span>
+        {{ m.parent.via === 'weights' ? 'gleiche Gewichte wie' : m.parent.via === 'copy' ? 'Kopie von' : 'erstellt aus' }}
+        <span class="font-mono">{{ m.parent.resolved }}</span>
       } @else if (m.parent.declared) {
         erstellt aus <span class="font-mono">{{ m.parent.declared }}</span> – nicht installiert
       } @else {
@@ -33,7 +34,7 @@
 
   @if (m.estimate; as e) {
     <section>
-      <h3 [class]="ui.sectionTitle">VRAM-Schätzung <span [class]="ui.titleDetail">· vor dem Laden, aus den Modelldaten</span></h3>
+      <h3 [class]="ui.sectionTitle">VRAM-Schätzung <span [class]="ui.titleDetail">· vor dem Laden, in Ollamas Zählung</span></h3>
       <table [class]="ui.table" class="mt-2">
         <tbody [class]="ui.divided">
           <tr><td class="py-1.5">Gewichte (Dateigröße)</td><td class="py-1.5 text-right font-mono">{{ gib(e.weightsBytes) }}</td></tr>
@@ -43,31 +44,50 @@
           </tr>
           <tr><td class="py-1.5">Rechenpuffer (Annahme)</td><td class="py-1.5 text-right font-mono">{{ gib(e.graphBytes) }}</td></tr>
           <tr>
-            <td class="py-1.5 text-white">= laut Ollama</td>
-            <td class="py-1.5 text-right font-mono" [class]="estimated">
-              ≈ {{ e.totalBytes === null || e.totalBytes === undefined ? '?' : gib(e.totalBytes - e.driverBytes) }}</td>
+            <td class="py-1.5">= nach Formel</td>
+            <td class="py-1.5 text-right font-mono">{{ e.formulaBytes ? '≈ ' + gib(e.formulaBytes) : '?' }}</td>
           </tr>
-          <tr><td class="py-1.5">+ Treiber über Ollamas Zählung (gemessen 07.10.)</td>
-            <td class="py-1.5 text-right font-mono">{{ gib(e.driverBytes) }}</td></tr>
-          <tr class="font-semibold">
-            <td class="py-1.5 text-white">= auf der Karte</td>
-            <td class="py-1.5 text-right font-mono" [class]="estimated">≈ {{ gib(e.totalBytes) }}</td>
-          </tr>
+          @if (e.calibrated) {
+            <tr class="font-semibold">
+              <td class="py-1.5 text-white">= {{ e.calibrated }}</td>
+              <td class="py-1.5 text-right font-mono" [class]="estimated">≈ {{ gib(e.needBytes) }}</td>
+            </tr>
+          }
         </tbody>
       </table>
+      <p [class]="ui.meta" class="mt-2">Die Karte gibt Ollama {{ gib(m.verdict.availableBytes) }}
+        (Gesamt minus andere Programme minus Ollamas Reserve).</p>
       @if (e.notes?.length) {
         <ul class="mt-2 list-disc space-y-0.5 pl-5 text-xs text-gray-400">
           @for (n of e.notes; track n) { <li>{{ n }}</li> }
         </ul>
       }
-      @if (e.confidence === 'low') {
+      @if (e.confidence === 'low' && !e.calibrated) {
         <div [class]="lowCallout" class="mt-3" role="note">
-          <p><span class="font-semibold">Ungenau:</span> Diese Architektur passt nicht ganz in die Formel. Nach dem ersten
-            Laden zählt der gemessene Wert.</p>
+          <p><span class="font-semibold">Ungenau:</span> Diese Architektur passt nicht ganz in die Formel. Eine Messung
+            (Testlauf oder einfach einmal laden) kalibriert die Schätzung.</p>
         </div>
       }
     </section>
   }
+
+  <section>
+    <h3 [class]="ui.sectionTitle">Testläufe <span [class]="ui.titleDetail">· feste Aufgabe, {{ benchCount() }}</span></h3>
+    @if (!m.benches?.length) {
+      <p [class]="ui.meta" class="mt-2">Noch kein Testlauf. ⋮ → Testlauf … misst Ladezeit, Geschwindigkeit und Speicher.</p>
+    } @else {
+      <ul class="mt-2 space-y-1.5">
+        @for (b of m.benches; track b.id) {
+          <li class="flex flex-wrap items-baseline gap-x-3">
+            <span class="font-mono" [class]="b.state === 'done' ? measured : 'text-red-300'">{{ benchSummary(b) }}</span>
+            <span [class]="ui.meta">{{ when(b.finishedAt ?? b.createdAt) }}
+              @if (b.result?.sizeBytes) { · {{ gib(b.result?.sizeBytes) }} }
+              @if (b.error) { · {{ b.error }} }</span>
+          </li>
+        }
+      </ul>
+    }
+  </section>
 
   <section>
     <h3 [class]="ui.sectionTitle">Beobachtet <span [class]="ui.titleDetail">· laut Ollama, während das Modell lief</span></h3>

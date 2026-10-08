@@ -22,7 +22,7 @@ ollama = "http"                  # http | fake
 ollama_url = "http://{ai_host}:11434"    # {ai_host} is replaced by the value above
 gpu = "nvml"                     # nvml | fake | none (no NVIDIA GPU, no error)
 host = "psutil"                  # psutil | fake
-fake_scenario = "normal"         # synthetic: normal | offload | idle | ollama-down; captured: real-normal | real-idle | real-ollama-down
+fake_scenario = "normal"         # synthetic: normal | offload | idle | ollama-down; captured: real-normal | real-idle | real-ollama-down | real-catalog
 timeout_s = 2.0                  # per call; a hanging source must not stall the others
 
 [modules]
@@ -43,10 +43,17 @@ show_timeout_s = 10
 ollama_log_paths = ["%LOCALAPPDATA%/Ollama/server*.log"]
 fallback_context_length = 4096   # neither model nor server says anything: assume this
 clamp_to_trained = true          # Ollama cuts num_ctx to the trained context length of the model
-graph_reserve_gib = 0.4          # estimate: compute buffers (flash attention)
-driver_overhead_gib = 1.2        # estimate: VRAM the driver takes on top of Ollama's count (measured)
-tight_ratio = 0.9                # above this share of the GPU the verdict is "knapp"
+graph_reserve_gib = 0.4          # estimate: compute buffers (flash attention), until a measurement calibrates it
+other_usage_gib = 1.2            # VRAM of other programs until it was measured with Ollama empty
+ollama_reserve_gib = 0.45        # Ollama keeps ~457 MiB per CUDA GPU free (assumption)
+tight_ratio = 0.9                # above this share of the budget the verdict is "knapp"
 keep_removed_days = 90           # deleted models stay listed with their measurements
+# Test runs (load a model, answer a fixed prompt, measure). Locked when Ollama runs on another machine.
+allow_remote_tests = false
+test_num_predict = 128           # tokens to generate
+test_timeout_s = 300
+unload_after_test = true
+keep_tests = 200
 
 [modules.logs]
 tail_interval_s = 1.0            # live tail: seconds between checks for new lines

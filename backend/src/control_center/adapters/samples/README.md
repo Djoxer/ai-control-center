@@ -12,6 +12,7 @@ Each folder is one situation of the AI box, replayed by the fake adapters
 | `real-normal`      | capture   | AI box, only the coder model loaded (`OLLAMA_MAX_LOADED_MODELS=1`) |
 | `real-idle`        | capture   | AI box, Ollama running, nothing loaded                            |
 | `real-ollama-down` | capture   | AI box, Ollama stopped                                            |
+| `real-catalog`     | capture   | AI box, nothing loaded, all 12 installed models (catalog part b tests: copies, MLA, budget) |
 
 Files: `ollama-ps.json` / `ollama-version.json` / `ollama-tags.json` (raw Ollama API answers),
 `ollama-show.json` (model name -> reduced `/api/show` answer, for the catalog), `gpu.json`, `host.json`,
@@ -20,7 +21,9 @@ Files: `ollama-ps.json` / `ollama-version.json` / `ollama-tags.json` (raw Ollama
 `normal`, `offload` and `idle` share the same installed models (`ollama-tags.json`/`ollama-show.json`,
 generated once, identical in all three): a base model with two derivations (`parent_model`), one model
 attached only through the same weights blob, one whose parent was deleted, a coder without own `num_ctx`,
-`gpt-oss:20b` (sliding window) and the embedding model. Captures made before the catalog existed have no
+`gpt-oss:20b` (sliding window) and the embedding model. `real-catalog` is the real inventory: catalog tests
+check a few of its values (12 models, 1424 MiB of other programs, gpt-oss "tight" at 64k) - re-recording it
+means updating those tests. Captures made before the catalog existed have no
 `ollama-tags.json`: the catalog then reports the file as missing - record the scenario again.
 
 ## Two kinds of folders

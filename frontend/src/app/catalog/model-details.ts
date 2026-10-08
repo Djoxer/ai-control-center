@@ -4,7 +4,7 @@ import { CatalogModel } from '../api/models/catalog-model';
 import * as fmt from '../dashboard/format';
 import { ui } from '../ui/tokens';
 import {
-  contextExplain, gib, observationText, parameterList, shortDigest, verdictOrigin, verdictView, when,
+  benchSummary, contextExplain, gib, observationText, parameterList, shortDigest, verdictOrigin, verdictView, when,
 } from './state';
 
 /**
@@ -25,8 +25,13 @@ export class ModelDetails {
   protected readonly when = when;
   protected readonly shortDigest = shortDigest;
   protected readonly observationText = observationText;
+  protected readonly benchSummary = benchSummary;
 
   readonly context = computed(() => contextExplain(this.model().context));
+  readonly benchCount = computed(() => {
+    const n = this.model().benches?.length ?? 0;
+    return n === 1 ? '1 Lauf' : `${n} Läufe`;
+  });
   readonly params = computed(() => parameterList(this.model().parameters));
   readonly view = computed(() => verdictView(this.model().verdict));
   readonly verdictClass = computed(() => {

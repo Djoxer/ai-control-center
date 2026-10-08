@@ -1,20 +1,36 @@
-"""Context length, VRAM estimate and verdict - the numbers the offload protection will build on."""
+"""Context length, VRAM estimate, calibration, budget and verdict - the numbers the offload protection uses."""
+import asyncio
+from datetime import datetime, timezone
+
 import pytest
 
+from control_center.adapters.common import SAMPLES_DIR
+from control_center.adapters.ollama import FakeOllama
+from control_center.modules.catalog.collector import record_from
 from control_center.modules.catalog.estimate import (
-    GIB, ContextResult, Seen, effective_context, effective_kv_type, estimate_vram, placement, verdict,
+    GIB, Budget, ContextResult, Point, Seen, effective_context, effective_kv_type, estimate_vram, kv_plan,
+    placement, verdict,
 )
 from control_center.modules.catalog.settings import CatalogSettings
 
 from .factories import QWEN2, rec
 
 CFG = CatalogSettings()
-GPU_16 = 16303 * 1024 * 1024                         # RTX 5070 Ti as NVML reports it
+MIB = 1024 ** 2
+# the AI box on 08.10.: 16303 MiB card, 1424 MiB used by other programs with Ollama empty, Ollama's reserve
+BOX = Budget(total_bytes=16303 * MIB, other_bytes=1424 * MIB, other_source="measured", reserve_bytes=round(0.45 * GIB))
 
 
 def ctx(effective, parallel=1, **kw):
     return ContextResult(effective=effective, source="model", own=None, server=None, trained=None, clamped=False,
                          parallel=parallel, **kw)
+
+
+def real(name):
+    """A model exactly as the AI box reported it (scenario real-catalog, recorded 08.10.)."""
+    fake = FakeOllama(SAMPLES_DIR / "real-catalog")
+    tag = next(t for t in asyncio.run(fake.tags()) if t.name == name)
+    return record_from(tag, asyncio.run(fake.show(name)), datetime.now(timezone.utc))
 
 
 # ---- context ----------------------------------------------------------------------------------------
@@ -30,13 +46,18 @@ def test_context_sources_in_order():
     assert (f.effective, f.source, f.clamped, f.parallel) == (4096, "fallback", False, 1)
 
 
+def test_requested_context_beats_everything_but_is_clamped_too():
+    own = rec("m", params={"num_ctx": ["8192"]}, info=QWEN2)
+    r = effective_context(own, 65536, 1, CFG, requested=16384)
+    assert (r.effective, r.source, r.own) == (16384, "request", 8192)
+    assert effective_context(own, 65536, 1, CFG, requested=131072).effective == 32768
+
+
 def test_context_clamp_can_be_switched_off_and_junk_is_ignored():
     plain = rec("m", info=QWEN2, params={"num_ctx": ["nope"]})
     c = effective_context(plain, 65536, 2, CFG.model_copy(update={"clamp_to_trained": False}))
     assert (c.effective, c.source, c.own, c.clamped, c.parallel) == (65536, "server", None, False, 2)
 
-
-# ---- KV type ----------------------------------------------------------------------------------------
 
 @pytest.mark.parametrize("kv, fa, expected, noted", [
     ("q8_0", True, "q8_0", False),
@@ -50,15 +71,16 @@ def test_effective_kv_type(kv, fa, expected, noted):
     assert t == expected and (note is not None) == noted
 
 
-# ---- estimate ---------------------------------------------------------------------------------------
+# ---- formula ----------------------------------------------------------------------------------------
 
 def test_estimate_standard_transformer_exact():
     coder = rec("coder", info=QWEN2, size=8_988_124_069)
     est = estimate_vram(coder, ctx(32768), "q8_0", CFG)
     # 48 layers x 8 KV heads x (128 + 128) x 34/32 bytes x 32768 tokens
     assert est.kv_bytes == 48 * 8 * 256 * 34 * 32768 // 32 == 3_422_552_064
-    assert est.total_bytes == 8_988_124_069 + 3_422_552_064 + round(0.4 * GIB) + round(1.2 * GIB)
-    assert est.confidence == "normal" and est.notes[0] == "48 Schichten × 8 KV-Köpfe × 128+128 × q8_0"
+    assert est.need_bytes == est.formula_bytes == 8_988_124_069 + 3_422_552_064 + round(0.4 * GIB)
+    assert est.calibrated is None and est.confidence == "normal"
+    assert est.notes[0] == "48 Schichten × 8 KV-Köpfe × 128+128 × q8_0"
 
 
 def test_parallel_slots_multiply_the_kv_cache():
@@ -68,19 +90,79 @@ def test_parallel_slots_multiply_the_kv_cache():
     assert two.kv_bytes == 2 * one and any("2 parallele" in n for n in two.notes)
 
 
-def test_hybrid_interval_keeps_kv_in_every_nth_layer_only():
-    info = {"general.architecture": "qwen3next", "qwen3next.block_count": 48, "qwen3next.attention.head_count": 16,
-            "qwen3next.attention.head_count_kv": 2, "qwen3next.attention.key_length": 256,
-            "qwen3next.full_attention_interval": 4, "qwen3next.ssm.state_size": 128}
-    est = estimate_vram(rec("next", info=info), ctx(1000), "f16", CFG)
-    assert est.kv_bytes == 12 * 2 * 512 * 2 * 1000 and est.confidence == "normal"
-    assert est.notes[0].startswith("12 Schichten")
+def test_real_qwen35_hybrid_with_per_layer_heads():
+    """Qwen3.5 9B as Ollama ships it: 8 of 32 layers with 4 KV heads of 256+256, plus a vision encoder."""
+    m = real("qwen3.5-9b-64k-code:latest")
+    est = estimate_vram(m, ctx(65536), "q8_0", CFG)
+    assert est.kv_bytes == 8 * 4 * 512 * 34 * 65536 // 32 == 1_140_850_688
+    assert est.notes[0] == "8 Schichten × 4 KV-Köpfe × 256+256 × q8_0"
+    assert any("Hybrid" in n for n in est.notes) and any("Bild-Encoder" in n for n in est.notes)
 
 
-def test_ssm_without_layer_plan_is_low_confidence():
-    info = {"general.architecture": "mamba-ish", "mamba-ish.block_count": 4, "mamba-ish.attention.head_count": 4,
-            "mamba-ish.embedding_length": 64, "mamba-ish.ssm.inner_size": 128}
-    est = estimate_vram(rec("m", info=info), ctx(100), "f16", CFG)
+def test_real_qwen35_calibrated_by_the_measurement_of_07_10():
+    """real-normal (07.10.): this very model at 65,536 tokens = 7,172,322,753 bytes laut Ollama.
+
+    The formula says ~7.6 GiB (the file contains the vision encoder). One measurement fixes the constant part,
+    and the relatives with the same weights (24k variant) inherit it.
+    """
+    measured = [Point(65536, 7_172_322_753)]
+    same_ctx = estimate_vram(real("qwen3.5-9b-64k-code:latest"), ctx(65536), "q8_0", CFG, points=measured)
+    assert same_ctx.need_bytes == 7_172_322_753 and "1 Messung" in same_ctx.calibrated
+    relative = estimate_vram(real("qwen35-24k:latest"), ctx(24576), "q8_0", CFG, points=measured)
+    kv_24k = 8 * 4 * 512 * 34 * 24576 // 32
+    assert relative.need_bytes == 7_172_322_753 - 1_140_850_688 + kv_24k
+    assert relative.formula_bytes - relative.need_bytes > 0.8 * GIB      # the formula alone was too high
+
+
+def test_two_measurements_give_the_real_cost_per_token():
+    coder = rec("coder", info=QWEN2, size=8_000_000_000)
+    pts = [Point(8192, 9_000_000_000), Point(32768, 11_000_000_000)]    # 81,380 bytes per token, measured
+    est = estimate_vram(coder, ctx(16384), "q8_0", CFG, points=pts)
+    assert est.need_bytes == round(9_000_000_000 + (16384 - 8192) * 2_000_000_000 / (32768 - 8192))
+    assert est.calibrated == "aus 2 Messungen (8.192 und 32.768 Token)" and est.confidence == "normal"
+    # a falling line is nonsense (other settings at the time): fall back to the nearest single measurement
+    odd = estimate_vram(coder, ctx(16384), "q8_0", CFG, points=[Point(8192, 9e9), Point(32768, 8e9)])
+    assert "1 Messung (8.192 Token)" in odd.calibrated
+
+
+def test_calibration_without_formula_only_at_the_measured_context():
+    blind = rec("x", info={"general.architecture": "x"})
+    exact = estimate_vram(blind, ctx(4096), "f16", CFG, points=[Point(4096, 5000)])
+    assert exact.need_bytes == 5000 and exact.calibrated == "gleich der Messung bei 4.096 Token"
+    assert estimate_vram(blind, ctx(8192), "f16", CFG, points=[Point(4096, 5000)]).need_bytes is None
+
+
+def test_real_deepseek_old_gguf_has_full_kv_and_says_so():
+    m = real("deepseek-coder-v2:16b")
+    est = estimate_vram(m, ctx(65536), "q8_0", CFG)
+    assert est.kv_bytes == 27 * 16 * 320 * 34 * 65536 // 32
+    assert est.confidence == "low" and any("Älteres GGUF ohne MLA" in n for n in est.notes)
+
+
+def test_newer_mla_gguf_keeps_only_the_latent():
+    info = {"general.architecture": "deepseek2", "deepseek2.block_count": 2, "deepseek2.attention.head_count": 16,
+            "deepseek2.attention.head_count_kv": 16, "deepseek2.attention.key_length": 192,
+            "deepseek2.attention.value_length": 128, "deepseek2.attention.kv_lora_rank": 512,
+            "deepseek2.attention.key_length_mla": 192, "deepseek2.rope.dimension_count": 64}
+    est = estimate_vram(rec("m", info=info), ctx(10), "f16", CFG)
+    assert est.kv_bytes == 2 * (512 + 64) * 2 * 10 and est.confidence == "normal"
+
+
+def test_real_gpt_oss_sliding_window():
+    est = estimate_vram(real("gpt-oss:20b"), ctx(65536), "q8_0", CFG)
+    assert est.kv_bytes == 12 * 8 * 128 * 34 * 65536 // 32 + 12 * 8 * 128 * 34 * 128 // 32
+    assert any("Sliding Window 128 Token in 12 von 24" in n for n in est.notes)
+    plan = kv_plan(real("gpt-oss:20b"))
+    assert plan.bytes_at(100, 2.0) == 24 * 8 * 128 * 2 * 100       # below the window every layer is "full"
+
+
+def test_unknown_sliding_window_layout_and_ssm_without_plan_are_low_confidence():
+    swa = {"general.architecture": "newarch", "newarch.block_count": 2, "newarch.attention.head_count": 2,
+           "newarch.embedding_length": 128, "newarch.attention.sliding_window": 16}
+    assert estimate_vram(rec("m", info=swa), ctx(1000), "f16", CFG).confidence == "low"
+    ssm = {"general.architecture": "mamba-ish", "mamba-ish.block_count": 4, "mamba-ish.attention.head_count": 4,
+           "mamba-ish.embedding_length": 64, "mamba-ish.ssm.inner_size": 128}
+    est = estimate_vram(rec("m", info=ssm), ctx(100), "f16", CFG)
     assert est.confidence == "low" and est.kv_bytes is not None
 
 
@@ -93,77 +175,63 @@ def test_per_layer_head_list_and_mismatched_length():
     assert est.kv_bytes == 3 * 8 * 128 * 2 * 10 and any("passen nicht" in n for n in est.notes)
 
 
-def test_sliding_window_gpt_oss():
-    info = {"general.architecture": "gptoss", "gptoss.block_count": 24, "gptoss.attention.head_count": 64,
-            "gptoss.attention.head_count_kv": 8, "gptoss.attention.key_length": 64, "gptoss.attention.value_length": 64,
-            "gptoss.attention.sliding_window": 128}
-    est = estimate_vram(rec("oss", info=info), ctx(65536), "f16", CFG)
-    assert est.kv_bytes == 12 * 8 * 128 * 2 * 65536 + 12 * 8 * 128 * 2 * 128
-    assert est.confidence == "normal"
-    small = estimate_vram(rec("oss", info=info), ctx(100), "f16", CFG)       # context below the window
-    assert small.kv_bytes == 24 * 8 * 128 * 2 * 100
-
-
-def test_unknown_sliding_window_layout_and_mla_are_low_confidence():
-    swa = {"general.architecture": "newarch", "newarch.block_count": 2, "newarch.attention.head_count": 2,
-           "newarch.embedding_length": 128, "newarch.attention.sliding_window": 16}
-    assert estimate_vram(rec("m", info=swa), ctx(1000), "f16", CFG).confidence == "low"
-    mla = {"general.architecture": "deepseek2", "deepseek2.block_count": 2, "deepseek2.attention.head_count": 2,
-           "deepseek2.attention.head_count_kv": 2, "deepseek2.attention.key_length": 192,
-           "deepseek2.attention.value_length": 128, "deepseek2.attention.kv_lora_rank": 512}
-    est = estimate_vram(rec("m", info=mla), ctx(10), "f16", CFG)
-    assert est.confidence == "low" and est.kv_bytes == 2 * 2 * 320 * 2 * 10
-
-
 def test_embedding_model_has_no_kv_cache():
-    est = estimate_vram(rec("nomic", caps=["embedding"], info={}), ctx(2048), "q8_0", CFG)
-    assert est.kv_bytes == 0 and est.total_bytes == 1000 + round(0.4 * GIB) + round(1.2 * GIB)
+    est = estimate_vram(real("nomic-embed-text:latest"), ctx(2048), "q8_0", CFG)
+    assert est.kv_bytes == 0 and est.need_bytes == 274_302_450 + round(0.4 * GIB)
 
 
 def test_missing_metadata_gives_no_number():
     est = estimate_vram(rec("m", info={"general.architecture": "x"}), ctx(10), "f16", CFG)
-    assert est.kv_bytes is None and est.total_bytes is None and est.confidence == "low"
-    no_heads = {"general.architecture": "x", "x.block_count": 2}
-    assert estimate_vram(rec("m", info=no_heads), ctx(10), "f16", CFG).kv_bytes is None
-    no_width = {"general.architecture": "x", "x.block_count": 2, "x.attention.head_count_kv": 2}
-    assert estimate_vram(rec("m", info=no_width), ctx(10), "f16", CFG).kv_bytes is None
+    assert est.kv_bytes is None and est.need_bytes is None and est.confidence == "low"
+    assert estimate_vram(rec("m", info={"general.architecture": "x", "x.block_count": 2}), ctx(10), "f16",
+                         CFG).kv_bytes is None
 
 
-# ---- verdict ----------------------------------------------------------------------------------------
+# ---- budget and verdict -----------------------------------------------------------------------------
 
-def _est(total_gib):
+def test_budget_of_the_ai_box():
+    assert BOX.available_bytes == (16303 - 1424) * MIB - round(0.45 * GIB)       # ~14.08 GiB
+    assert Budget(None, 0, "assumed", 0).available_bytes is None
+    assert Budget(100, 200, "measured", 0).available_bytes == 0
+
+
+def _est(need_gib):
     e = estimate_vram(rec("m", caps=["embedding"], info={}, size=0), ctx(1), "f16", CFG)
-    e.weights_bytes = round(total_gib * GIB) - e.graph_bytes - e.driver_bytes
+    e.need_bytes = round(need_gib * GIB)
     return e
 
 
-@pytest.mark.parametrize("total_gib, state", [(10, "fits"), (14.5, "tight"), (15.9, "tight"), (16.5, "split")])
-def test_verdict_from_the_estimate(total_gib, state):
-    v = verdict(_est(total_gib), None, GPU_16, CFG)
-    assert (v.state, v.basis) == (state, "estimated")
+@pytest.mark.parametrize("need_gib, state", [(10, "fits"), (12.8, "tight"), (14.05, "tight"), (14.2, "split")])
+def test_verdict_from_the_estimate_against_the_budget(need_gib, state):
+    v = verdict(_est(need_gib), None, BOX, CFG)
+    assert (v.state, v.basis, v.available_bytes) == (state, "estimated", BOX.available_bytes)
     if state == "split":
         assert "num_ctx verkleinern" in v.message
 
 
+def test_real_gpt_oss_is_right_at_the_edge():
+    """gpt-oss:20b crashed on the box (split). The estimate at 64k lands at 99.8 % of the budget."""
+    est = estimate_vram(real("gpt-oss:20b"), ctx(65536), "q8_0", CFG)
+    v = verdict(est, None, BOX, CFG)
+    assert v.state == "tight" and est.need_bytes / BOX.available_bytes > 0.99
+
+
 def test_verdict_measured_beats_estimated():
-    est = _est(10)                                               # estimate says: fits easily
-    split = verdict(est, Seen(size_bytes=100, vram_bytes=84), GPU_16, CFG)
+    est = _est(10)
+    split = verdict(est, Seen(size_bytes=100, vram_bytes=84), BOX, CFG)
     assert (split.state, split.basis) == ("split", "measured") and "84 %" in split.message
-    assert verdict(est, Seen(100, 0), GPU_16, CFG).state == "cpu"
-    full = verdict(_est(16.5), Seen(round(8 * GIB), round(8 * GIB)), GPU_16, CFG)
-    assert (full.state, full.basis) == ("fits", "measured")      # it ran - the estimate was too careful
-    tight = verdict(est, Seen(round(14 * GIB), round(14 * GIB)), GPU_16, CFG)
-    assert tight.state == "tight" and tight.need_bytes == round(14 * GIB)
-    assert tight.expected_bytes == round(14 * GIB) + round(1.2 * GIB)      # the driver comes on top
-    split_need = verdict(est, Seen(size_bytes=1000, vram_bytes=840), GPU_16, CFG)
-    assert split_need.need_bytes == 1000                                   # the whole model, not just its GPU part
+    assert verdict(est, Seen(100, 0), BOX, CFG).state == "cpu"
+    full = verdict(_est(16.5), Seen(round(8 * GIB), round(8 * GIB)), BOX, CFG)
+    assert (full.state, full.basis, full.need_bytes) == ("fits", "measured", round(8 * GIB))
+    tight = verdict(est, Seen(round(13.5 * GIB), round(13.5 * GIB)), BOX, CFG)
+    assert tight.state == "tight"
 
 
 def test_verdict_without_numbers_or_gpu():
-    assert verdict(None, None, GPU_16, CFG).state == "unknown"
-    v = verdict(_est(10), None, None, CFG)
-    assert (v.state, v.basis, v.expected_bytes) == ("unknown", "estimated", round(10 * GIB))
-    assert v.need_bytes == round(10 * GIB) - round(1.2 * GIB)              # Ollama's scale: without the driver
+    assert verdict(None, None, BOX, CFG).state == "unknown"
+    v = verdict(_est(10), None, Budget(None, 0, "assumed", 0), CFG)
+    assert (v.state, v.basis, v.need_bytes) == ("unknown", "estimated", round(10 * GIB))
+    assert verdict(_est(30), None, BOX, CFG, embedding=True).state == "fits"
 
 
 @pytest.mark.parametrize("size, vram, where", [(0, 0, "unknown"), (10, 0, "cpu"), (10, 9, "split"), (10, 10, "gpu")])

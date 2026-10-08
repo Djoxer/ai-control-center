@@ -2,8 +2,11 @@
 
 One background loop, two clocks:
 - every observe_interval_s (10 s): /api/ps -> which model runs with which context, how much VRAM
-  (an upsert per model x context x GPU = the "measured" values),
+  (an upsert per model x context x GPU = the "measured" values). When nothing is loaded, the GPU's used
+  memory is what OTHER programs occupy - the budget of the card shrinks by that.
 - every refresh_interval_s (60 s): /api/tags, and /api/show for every model that is new or changed.
+
+Test runs (bench.py) load one model on request; the preflight here refuses what would split.
 
 The page gets the whole overview via GET and, after every meaningful change, via SSE (topic
 catalog.overview, with a revision against overtaking). Ollama down = last known inventory from SQLite
@@ -19,26 +22,36 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 
 from control_center.adapters.gpu import GpuUnavailable
-from control_center.adapters.ollama import InstalledModel, ModelDetails, OllamaModelMissing, OllamaUnavailable
+from control_center.adapters.ollama import (
+    InstalledModel, ModelDetails, OllamaModelMissing, OllamaUnavailable, RunningModel,
+)
 from control_center.core.context import AppContext
+from control_center.modules.catalog.bench import BenchJob, new_job, run_bench
 from control_center.modules.catalog.collector import ModelRecord, ServerDefaults, read_server_config, record_from
 from control_center.modules.catalog.estimate import (
-    GIB, Seen, effective_context, effective_kv_type, estimate_vram, placement, verdict,
+    GIB, Budget, ContextResult, Estimate, Point, Seen, effective_context, effective_kv_type, estimate_vram,
+    placement, verdict,
 )
+from control_center.modules.catalog.estimate import Verdict as Judgement
 from control_center.modules.catalog.lineage import build_lineage, changes
 from control_center.modules.catalog.repository import CatalogRepository, ModelRow, ObservationRow
 from control_center.modules.catalog.schemas import (
-    Assumptions, CatalogModel, CatalogOverview, ContextInfo, HardwareInfo, ModelGroup, Observation, OllamaState,
-    ParentInfo, RemovedModel, ServerConfig, Verdict, VramEstimate,
+    Assumptions, BenchAccess, BenchStatus, BudgetInfo, CatalogModel, CatalogOverview, ContextInfo, HardwareInfo,
+    ModelGroup, Observation, OllamaState, ParentInfo, Preflight, RemovedModel, ServerConfig, Verdict, VramEstimate,
 )
 from control_center.modules.catalog.settings import CatalogSettings
 
 log = logging.getLogger("control_center.modules.catalog")
 
 TOPIC = "catalog.overview"
+BENCH_TOPIC = "catalog.bench"       # full BenchStatus on every phase change
 LOCAL_HOSTS = {"127.0.0.1", "localhost", "::1"}
 SHOW_PARALLEL = 4                   # /api/show reads only GGUF headers, a few at a time is fine
 OVERRIDE_KEYS = ("server_context_length", "kv_cache_type", "flash_attention", "num_parallel")
+OTHER_KEY = "other_usage"           # catalog_state: VRAM of other programs, measured while Ollama was empty
+OTHER_SAVE_STEP = 64 * 1024 ** 2    # write the measurement only when it moved by more than this
+BENCHES_PER_MODEL = 5               # shown on the page; SQLite keeps [modules.catalog] keep_tests
+CTX_STEPS = (2048, 4096, 8192, 16384, 24576, 32768, 49152, 65536, 98304, 131072, 262144)
 
 
 class OllamaDown(Exception):
@@ -47,6 +60,18 @@ class OllamaDown(Exception):
 
 class UnknownModel(KeyError):
     pass
+
+
+class Busy(Exception):
+    """A test run (or a RAG reindex) is running. German message."""
+
+
+class Refused(Exception):
+    """The preflight says no (would split, embedding model, locked here). German message."""
+
+
+class NeedsConfirm(Exception):
+    """'knapp' - allowed only with confirm=true. German message."""
 
 
 def _utc(ts: float) -> datetime:
@@ -97,6 +122,12 @@ class CatalogService:
         self._last_refresh: float | None = None
         # the first /api/ps after a start sees models loaded before it - they were counted back then
         self._observed_once = False
+        # VRAM of other programs (bytes, unix time), measured while Ollama had nothing loaded
+        self.other: tuple[int, float] | None = None
+        # last NVML reading of an empty /api/ps: "other programs" counts only when the next one agrees
+        self._idle_used: int | None = None
+        self.bench: BenchJob | None = None                # the running test run
+        self.benches: list[BenchStatus] = []              # finished ones, newest first
 
     # ---- lifecycle --------------------------------------------------------------------------------
 
@@ -106,14 +137,29 @@ class CatalogService:
             self.rows = {r.record.name: r for r in await self.repo.load_models()}
         except Exception:
             log.exception("catalog: stored inventory unreadable - starting empty")
+        await self._load_state()
         await self._read_environment()
         self._task = asyncio.create_task(self._run(), name="catalog")
 
+    async def _load_state(self) -> None:
+        try:
+            stored = await self.repo.get_state(OTHER_KEY)
+            if stored is not None and isinstance(stored[0], int):
+                self.other = (stored[0], stored[1])
+            for raw in await self.repo.load_benches(self.cfg.keep_tests):
+                try:
+                    self.benches.append(BenchStatus.model_validate(raw))
+                except ValueError:
+                    continue                                  # written by another version: skip it
+        except Exception:
+            log.exception("catalog: stored state unreadable")
+
     async def shut_down(self) -> None:
-        if self._task is not None:
-            self._task.cancel()
-            await asyncio.gather(self._task, return_exceptions=True)
-            self._task = None
+        tasks = [t for t in (self._task, self.bench.task if self.bench else None) if t is not None]
+        for t in tasks:
+            t.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        self._task = None
 
     async def _run(self) -> None:
         while True:
@@ -149,6 +195,39 @@ class CatalogService:
                                 else f"Ollama läuft auf {host} – sein Log ist von hier aus nicht lesbar.")
         self.hardware = await self._read_gpu()
         return before != (self.server_log, self.server_note, self.hardware)
+
+    async def gpu_used(self) -> int | None:
+        """Used VRAM of the whole card (bytes) right now, None when the GPU is not ours to read."""
+        gpu = self.ctx.adapters.gpu
+        if not self.gpu_visible or gpu is None:
+            return None
+        try:
+            return (await asyncio.to_thread(gpu.read)).vram_used_mib * 1024 * 1024
+        except (GpuUnavailable, OSError):
+            return None
+
+    async def record_other_usage(self, used: int) -> None:
+        """Ollama holds nothing: whatever the card shows belongs to other programs. Saved when it moved."""
+        now = time.time()
+        moved = self.other is None or abs(self.other[0] - used) > OTHER_SAVE_STEP
+        self.other = (used, now)
+        if moved:
+            try:
+                await self.repo.set_state(OTHER_KEY, used, now)
+            except Exception:
+                log.exception("catalog: cannot store the VRAM of other programs")
+
+    def budget(self) -> Budget:
+        if self.other is not None:
+            other, source = self.other[0], "measured"
+        else:
+            other, source = round(self.cfg.other_usage_gib * GIB), "assumed"
+        return Budget(total_bytes=self.hardware.vram_total_bytes, other_bytes=other, other_source=source,
+                      reserve_bytes=round(self.cfg.ollama_reserve_gib * GIB))
+
+    def kv_type(self) -> str:
+        eff = self.effective()
+        return effective_kv_type(eff.kv_cache_type, eff.flash_attention)[0]
 
     async def _read_gpu(self) -> HardwareInfo:
         if not self.gpu_visible:
@@ -291,14 +370,21 @@ class CatalogService:
     # ---- observations -----------------------------------------------------------------------------
 
     async def observe(self) -> None:
-        """/api/ps -> one upsert per loaded model. A new load (or a new context) counts once."""
+        """/api/ps -> one upsert per loaded model. A new load (or a new context) counts once.
+
+        Paused during a test run: the run records its own measurement and would be counted twice.
+        """
+        if self.bench is not None:
+            return
         try:
             running = await self.ctx.adapters.ollama.running()
         except OllamaUnavailable:
+            self._idle_used = None
             if self.loaded:
                 self.loaded = {}
                 await self._publish()
             return
+        await self._watch_idle_card(running)
         hardware = self.hardware.key or ""
         ts = time.time()
         current: dict[str, tuple[str, int, str]] = {}
@@ -319,15 +405,171 @@ class CatalogService:
             self.loaded = current
             await self._publish()
 
+    async def _watch_idle_card(self, running: list[RunningModel]) -> None:
+        """Ollama holds nothing -> what the card shows belongs to other programs (desktop, browser ...).
+
+        Counted only when two empty ticks in a row agree: a model Ollama is just loading can hold VRAM
+        before /api/ps lists it, and that must not end up as "other programs" for hours.
+        """
+        if running:
+            self._idle_used = None
+            return
+        used = await self.gpu_used()
+        prev, self._idle_used = self._idle_used, used
+        if used is None or prev is None or abs(prev - used) > OTHER_SAVE_STEP:
+            return
+        before = self.other
+        await self.record_other_usage(used)
+        if before is None or abs(before[0] - used) > OTHER_SAVE_STEP:
+            await self._publish()
+
+    async def record_observation(self, m: RunningModel, new_load: bool) -> None:
+        """Called by a test run: the measurement goes where /api/ps sightings go."""
+        try:
+            await self.repo.observe(m.digest, m.name, m.context_length or 0, self.hardware.key or "", m.size,
+                                    m.size_vram, time.time(), new_load=new_load)
+        except Exception:
+            log.exception("catalog: cannot store the observation of %s", m.name)
+
+    # ---- preflight and test runs ------------------------------------------------------------------
+
+    def bench_access(self) -> BenchAccess:
+        acfg = self.ctx.settings.adapters
+        if acfg.ollama == "fake" or acfg.ai_host in LOCAL_HOSTS or self.cfg.allow_remote_tests:
+            return BenchAccess(allowed=True)
+        return BenchAccess(allowed=False, reason=(
+            f"Testläufe gesperrt: Ollama läuft auf {acfg.ai_host}. Ein Test entlädt dort das Modell, mit dem "
+            f"gerade jemand arbeitet. Freigeben mit allow_remote_tests = true in [modules.catalog]."))
+
+    def _model(self, name: str) -> ModelRecord:
+        row = self.rows.get(name)
+        if row is None or row.removed_at is not None:
+            raise UnknownModel(name)
+        return row.record
+
+    async def preflight(self, name: str, num_ctx: int | None = None) -> Preflight:
+        """What loading `name` with `num_ctx` (None = effective) would cost, and whether a test may run."""
+        rec = self._model(name)
+        observed = await self._observations()
+        eff = self.effective()
+        kv_type, kv_note = effective_kv_type(eff.kv_cache_type, eff.flash_attention)
+        ctx = effective_context(rec, eff.context_length, eff.num_parallel, self.cfg, requested=num_ctx)
+        est, v = self._estimate(rec, ctx, kv_type, kv_note, observed)
+        reason, allowed, confirm = None, True, False
+        access = self.bench_access()
+        if "embedding" in rec.capabilities and "completion" not in rec.capabilities:
+            allowed, reason = False, "Einbettungsmodelle haben (noch) keinen Testlauf."
+        elif not access.allowed:
+            allowed, reason = False, access.reason
+        elif v.state == "split":
+            # the verdict message above it says the numbers; this says why the button stays grey
+            allowed, reason = False, ("Gesperrt: Kippt das Modell in den Teil-Offload, stürzt der Runner ab. "
+                                      "Einen kleineren Kontext wählen.")
+        elif v.state in ("tight", "unknown"):
+            confirm = True
+            reason = v.message if v.state == "tight" else "Prognose unklar – Absturzgefahr bei Teil-Offload."
+        upper = ctx.trained or max(CTX_STEPS)
+        return Preflight(
+            name=name, context=self._context_info(ctx), estimate=self._estimate_info(est), verdict=self._verdict(v),
+            allowed=allowed, needs_confirm=confirm and allowed, reason=reason,
+            will_unload=sorted(n for n in self.loaded if n != name),
+            suggestions=sorted({c for c in CTX_STEPS if c <= upper} | {ctx.effective}),
+        )
+
+    async def start_bench(self, name: str, num_ctx: int | None, confirm: bool) -> BenchStatus:
+        if self.bench is not None:
+            raise Busy("Es läuft schon ein Testlauf – erst abwarten.")
+        rag = self.ctx.service("rag.service")
+        if getattr(rag, "current", None) is not None:
+            raise Busy("Gerade läuft eine RAG-Indexierung – sie braucht das Einbettungsmodell. Danach testen.")
+        pre = await self.preflight(name, num_ctx)
+        if not pre.allowed:
+            raise Refused(pre.reason or "Testlauf nicht möglich.")
+        if pre.needs_confirm and not confirm:
+            raise NeedsConfirm(pre.reason or "Nur mit Bestätigung.")
+        job = new_job(name, self._model(name).digest, pre.context.effective)
+        self.bench = job                                    # set before the task runs: a double click gets Busy
+        job.task = asyncio.create_task(run_bench(self, job), name=f"catalog-bench-{job.status.id}")
+        await self.publish_bench(job)
+        return job.status
+
+    async def publish_bench(self, job: BenchJob) -> None:
+        st = job.status
+        st.revision += 1
+        st.as_of = datetime.now(timezone.utc)
+        self.ctx.events.publish(BENCH_TOPIC, st.model_dump(mode="json", by_alias=True))
+
+    async def finish_bench(self, job: BenchJob) -> None:
+        """Called by run_bench at the very end: keep the report, free the slot, tell the page."""
+        st = job.status
+        # free the slot before the first await: whoever sees "done" (GET /bench) may start the next run
+        self.benches.insert(0, st)
+        del self.benches[self.cfg.keep_tests:]
+        self.bench = None
+        self.loaded = {}                                    # the next /api/ps tick sees the real state
+        try:
+            await self.repo.save_bench(st.id, st.name, job.digest, st.created_at.timestamp(),
+                                       st.model_dump(mode="json"))
+            await self.repo.prune_benches(self.cfg.keep_tests)
+        except Exception:
+            log.exception("catalog: cannot store test run %s", st.id)
+        await self.publish_bench(job)
+        await self._publish()
+
+    def bench_list(self, name: str | None = None) -> list[BenchStatus]:
+        running = [self.bench.status] if self.bench else []
+        out = running + self.benches
+        return [b for b in out if name is None or b.name == name]
+
     # ---- overview ---------------------------------------------------------------------------------
 
-    async def overview(self) -> CatalogOverview:
+    async def _observations(self) -> list[ObservationRow]:
         try:
-            observed = await self.repo.load_observations()
+            return await self.repo.load_observations()
         except Exception:
             log.exception("catalog: observations unreadable")
-            observed = []
-        return self._build(observed)
+            return []
+
+    async def overview(self) -> CatalogOverview:
+        return self._build(await self._observations())
+
+    def _weights_of(self) -> dict[str, str]:
+        """digest -> weights digest (or the digest itself), also for removed models: their measurements
+        still calibrate models with the same weights."""
+        return {r.record.digest: r.record.weights_digest or r.record.digest for r in self.rows.values()}
+
+    def _estimate(self, rec: ModelRecord, ctx: ContextResult, kv_type: str, kv_note: str | None,
+                  observed: list[ObservationRow]) -> tuple[Estimate, Judgement]:
+        """Estimate (calibrated by measurements of the same weights on this GPU) and verdict for one context."""
+        hw = self.hardware.key or ""
+        weights = self._weights_of()
+        mine = rec.weights_digest or rec.digest
+        points, seen = [], None
+        for o in observed:
+            if o.hardware != hw or weights.get(o.digest, o.digest) != mine or o.size_bytes <= 0:
+                continue
+            points.append(Point(num_ctx=o.num_ctx, size_bytes=o.size_bytes))
+            if seen is None and o.digest == rec.digest and o.num_ctx == ctx.effective:
+                seen = Seen(o.size_bytes, o.vram_bytes)
+        est = estimate_vram(rec, ctx, kv_type, self.cfg, kv_note, points)
+        embedding = "embedding" in rec.capabilities and "completion" not in rec.capabilities
+        return est, verdict(est, seen, self.budget(), self.cfg, embedding=embedding)
+
+    @staticmethod
+    def _context_info(ctx: ContextResult) -> ContextInfo:
+        return ContextInfo(effective=ctx.effective, source=ctx.source, own=ctx.own, server=ctx.server,
+                           trained=ctx.trained, clamped=ctx.clamped, parallel=ctx.parallel)
+
+    @staticmethod
+    def _estimate_info(est: Estimate) -> VramEstimate:
+        return VramEstimate(weights_bytes=est.weights_bytes, kv_bytes=est.kv_bytes, graph_bytes=est.graph_bytes,
+                            formula_bytes=est.formula_bytes, need_bytes=est.need_bytes, calibrated=est.calibrated,
+                            kv_type=est.kv_type, tokens=est.tokens, notes=est.notes, confidence=est.confidence)
+
+    @staticmethod
+    def _verdict(v: Judgement) -> Verdict:
+        return Verdict(state=v.state, basis=v.basis, need_bytes=v.need_bytes, available_bytes=v.available_bytes,
+                       message=v.message)
 
     def _build(self, observed: list[ObservationRow]) -> CatalogOverview:
         cfg = self.cfg
@@ -338,33 +580,31 @@ class CatalogService:
         eff = self.effective()
         kv_type, kv_note = effective_kv_type(eff.kv_cache_type, eff.flash_attention)
         hw_key = self.hardware.key or ""
-        vram_total = self.hardware.vram_total_bytes
         obs_by_digest: dict[str, list[ObservationRow]] = defaultdict(list)
         for o in observed:
             obs_by_digest[o.digest].append(o)
+        benches_by_name: dict[str, list[BenchStatus]] = defaultdict(list)
+        for b in self.bench_list():
+            if len(benches_by_name[b.name]) < BENCHES_PER_MODEL:
+                benches_by_name[b.name].append(b)
 
         models = []
         for row in rows:
             rec = row.record
             ctx = effective_context(rec, eff.context_length, eff.num_parallel, cfg)
-            est = estimate_vram(rec, ctx, kv_type, cfg, kv_note)
-            seen = None
+            est, v = self._estimate(rec, ctx, kv_type, kv_note, observed)
             obs = []
             for o in obs_by_digest.get(rec.digest, []):
-                current = o.num_ctx == ctx.effective and o.hardware == hw_key
-                if current and seen is None:
-                    seen = Seen(o.size_bytes, o.vram_bytes)
-                where = placement(o.size_bytes, o.vram_bytes)
                 obs.append(Observation(
                     num_ctx=o.num_ctx or None, hardware=o.hardware or None, size_bytes=o.size_bytes,
-                    vram_bytes=o.vram_bytes, placement=where,
+                    vram_bytes=o.vram_bytes, placement=placement(o.size_bytes, o.vram_bytes),
                     gpu_ratio=round(min(o.vram_bytes / o.size_bytes, 1.0), 4) if o.size_bytes else None,
-                    first_seen=_utc(o.first_seen), last_seen=_utc(o.last_seen), loads=o.loads, current=current))
-            embedding = "embedding" in rec.capabilities and "completion" not in rec.capabilities
-            v = verdict(est, seen, vram_total, cfg, embedding=embedding)
+                    first_seen=_utc(o.first_seen), last_seen=_utc(o.last_seen), loads=o.loads,
+                    current=o.num_ctx == ctx.effective and o.hardware == hw_key))
             link = links[rec.name]
             parent_rec = by_name.get(link.parent) if link.parent else None
             declared_installed = bool(rec.parent_model) and link.via == "declared"
+            embedding = "embedding" in rec.capabilities and "completion" not in rec.capabilities
             models.append(CatalogModel(
                 name=rec.name, digest=rec.digest, size_bytes=rec.size, modified_at=_parse_time(rec.modified_at),
                 family=rec.family, parameter_size=rec.parameter_size, quantization=rec.quantization,
@@ -374,15 +614,8 @@ class CatalogService:
                                   installed=declared_installed),
                 origin=link.origin, depth=link.depth,
                 changes=changes(rec, parent_rec) if parent_rec else [],
-                context=ContextInfo(effective=ctx.effective, source=ctx.source, own=ctx.own, server=ctx.server,
-                                    trained=ctx.trained, clamped=ctx.clamped, parallel=ctx.parallel),
-                estimate=VramEstimate(weights_bytes=est.weights_bytes, kv_bytes=est.kv_bytes,
-                                      graph_bytes=est.graph_bytes, driver_bytes=est.driver_bytes,
-                                      total_bytes=est.total_bytes, kv_type=est.kv_type, tokens=est.tokens,
-                                      notes=est.notes, confidence=est.confidence),
-                observations=obs,
-                verdict=Verdict(state=v.state, basis=v.basis, need_bytes=v.need_bytes, expected_bytes=v.expected_bytes,
-                                vram_total_bytes=v.vram_total_bytes, message=v.message),
+                context=self._context_info(ctx), estimate=self._estimate_info(est), observations=obs,
+                verdict=self._verdict(v), benches=benches_by_name.get(rec.name, []), testable=not embedding,
                 loaded=rec.name in self.loaded, first_seen=_utc(row.first_seen), show_error=rec.show_error,
             ))
         order = {name: i for i, name in enumerate(n for g in groups for n in g.members)}
@@ -392,14 +625,17 @@ class CatalogService:
             measured[o.digest] += 1
         removed = sorted((r for r in self.rows.values() if r.removed_at is not None),
                          key=lambda r: r.removed_at or 0, reverse=True)
+        b = self.budget()
         return CatalogOverview(
             as_of=datetime.now(timezone.utc), revision=self.revision, refreshed_at=self.refreshed_at,
-            ollama=self.ollama, server=self.server_config(),
-            hardware=self.hardware,
+            ollama=self.ollama, server=self.server_config(), hardware=self.hardware,
+            budget=BudgetInfo(total_bytes=b.total_bytes, other_bytes=b.other_bytes, other_source=b.other_source,
+                              other_measured_at=_utc(self.other[1]) if self.other else None,
+                              reserve_bytes=b.reserve_bytes, available_bytes=b.available_bytes),
             assumptions=Assumptions(graph_reserve_bytes=round(cfg.graph_reserve_gib * GIB),
-                                    driver_overhead_bytes=round(cfg.driver_overhead_gib * GIB),
                                     tight_ratio=cfg.tight_ratio, fallback_context_length=cfg.fallback_context_length,
                                     clamp_to_trained=cfg.clamp_to_trained),
+            tests=self.bench_access(), bench=self.bench.status if self.bench else None,
             models=models,
             groups=[ModelGroup(origin=g.origin, installed=g.installed, members=g.members) for g in groups],
             removed=[RemovedModel(name=r.record.name, digest=r.record.digest, removed_at=_utc(r.removed_at or 0),

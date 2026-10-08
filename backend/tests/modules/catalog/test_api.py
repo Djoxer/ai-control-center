@@ -106,6 +106,80 @@ def test_inventory_survives_a_restart_with_ollama_down(make):
     assert ov["ollama"]["online"] is False and len(ov["models"]) == 8
 
 
+def test_preflight_endpoint(make):
+    c = make()
+    ready(c)
+    r = c.get("/api/v1/catalog/preflight", params={"name": "qwen35-24k:latest", "num_ctx": 8192})
+    assert r.status_code == 200
+    p = r.json()
+    assert p["allowed"] and p["context"] == {"effective": 8192, "source": "request", "own": 24576, "server": 65536,
+                                             "trained": 262144, "clamped": False, "parallel": 1}
+    assert p["willUnload"] == ["nomic-embed-text:latest", "qwen3.5-9b-64k-code:latest"]
+    assert c.get("/api/v1/catalog/preflight", params={"name": "nope:1"}).status_code == 404
+    assert c.get("/api/v1/catalog/preflight", params={"name": "x", "num_ctx": 10}).status_code == 422
+
+
+def wait_bench(client, timeout=5.0):
+    end = time.monotonic() + timeout
+    while time.monotonic() < end:
+        runs = client.get("/api/v1/catalog/bench").json()
+        if runs and runs[0]["state"] not in ("queued", "running"):
+            return runs[0]
+        time.sleep(0.02)
+    raise AssertionError("test run did not finish")
+
+
+def test_bench_endpoints_in_the_simulation(make):
+    c = make()
+    ready(c)
+    r = c.post("/api/v1/catalog/bench", json={"name": "qwen35-24k:latest"})
+    assert r.status_code == 202, r.text
+    assert r.json()["numCtx"] == 24576
+    done = wait_bench(c)
+    assert done["state"] == "done" and done["result"]["evalTps"] == 60.0 and "Simulation" in done["result"]["note"]
+    assert done["result"]["gpuBeforeBytes"] is None and done["result"]["sizeBytes"] is None   # nothing faked as measured
+    assert c.get("/api/v1/catalog/bench", params={"name": "gpt-oss:20b"}).json() == []
+    ov = c.get("/api/v1/catalog/overview").json()
+    model = by_name(ov)["qwen35-24k:latest"]
+    assert model["benches"][0]["id"] == done["id"] and model["testable"]
+    # the scenario's card holds loaded models: a simulated run must not take that for "other programs"
+    assert ov["budget"]["otherSource"] == "assumed"
+    # gpt-oss at 64k is "knapp": only with confirm; the embedding model never
+    r = c.post("/api/v1/catalog/bench", json={"name": "gpt-oss:20b"})
+    assert r.status_code == 409 and "Knapp" in r.json()["detail"]
+    r = c.post("/api/v1/catalog/bench", json={"name": "nomic-embed-text:latest", "confirm": True})
+    assert r.status_code == 409 and "Einbettungsmodelle" in r.json()["detail"]
+    assert c.post("/api/v1/catalog/bench", json={"name": "nope:1"}).status_code == 404
+
+
+def test_bench_is_guarded_against_cross_site_requests(make):
+    c = make()
+    ready(c)
+    r = c.post("/api/v1/catalog/bench", json={"name": "qwen35-24k:latest"}, headers=CROSS_SITE)
+    assert r.status_code == 403
+    assert c.get("/api/v1/catalog/bench").json() == []
+
+
+def test_real_catalog_scenario(make):
+    """The AI box as recorded on 08.10.: 12 models, budget from its empty card (1424 MiB other programs).
+    The empty card counts after two /api/ps looks in a row - the shortest interval keeps the test short."""
+    c = make("real-catalog", observe_interval_s=2)
+    end = time.monotonic() + 8
+    while True:
+        ov = c.get("/api/v1/catalog/overview").json()
+        if ov["refreshedAt"] and ov["budget"]["otherSource"] == "measured":
+            break
+        assert time.monotonic() < end, ov["budget"]
+        time.sleep(0.02)
+    assert len(ov["models"]) == 12 and len(ov["groups"]) == 6
+    assert ov["budget"]["otherBytes"] == 1424 * 1024 ** 2
+    m = by_name(ov)
+    assert m["gpt-oss:20b"]["verdict"]["state"] == "tight"
+    assert m["deepseek-coder-v2:16b"]["verdict"]["state"] == "split"           # old GGUF, full KV at 64k
+    assert m["deepseek-coder-24k:latest"]["verdict"]["state"] == "fits"
+    assert m["coder14:latest"]["parent"]["via"] == "copy"
+
+
 def test_disabled_module_has_no_routes(settings):
     mods = type(settings.modules).model_validate({"disabled": ["catalog"]})
     with TestClient(create_app(settings.model_copy(update={"modules": mods}))) as c:

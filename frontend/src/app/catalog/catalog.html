@@ -56,6 +56,16 @@
           }
         </dl>
       }
+      <!-- the card's budget: what the verdicts compare against -->
+      <div class="mt-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
+        <h3 [class]="ui.sectionTitle">GPU-Budget</h3>
+        <p [class]="ui.meta">was die Karte Ollama lässt</p>
+      </div>
+      <dl class="mt-2 flex flex-wrap gap-x-6 gap-y-2 text-sm">
+        @for (f of budget(); track f.label) {
+          <div><dt [class]="ui.meta">{{ f.label }}</dt><dd class="font-mono text-white">{{ f.value }}</dd></div>
+        }
+      </dl>
       @if (ov.server.source === 'unknown') {
         <div [class]="infoCallout" class="mt-3" role="note">
           <app-icon name="info" class="mt-0.5 size-5" />
@@ -70,8 +80,9 @@
       }
       <p [class]="ui.meta" class="mt-3">
         Herkunft der Zahlen: weiß = Ollama ·
-        <span [class]="measured">grün = gemessen</span> (beobachtet, während das Modell lief) ·
-        <span [class]="estimated">≈ gelb = geschätzt</span> (aus den Modelldaten, vor dem Laden)
+        <span [class]="measured">grün = gemessen</span> (beobachtet oder Testlauf) ·
+        <span [class]="estimated">≈ gelb = geschätzt</span> (aus den Modelldaten; „kalibriert“ = an einer Messung
+        derselben Gewichte ausgerichtet)
       </p>
     </section>
   }
@@ -99,12 +110,14 @@
       </header>
       <div class="hidden gap-x-4 px-4 pt-2 sm:grid sm:grid-cols-[minmax(0,1fr)_7.5rem_12rem_8.5rem]" aria-hidden="true">
         <span [class]="ui.meta">Modell</span><span [class]="ui.meta">Kontext</span>
-        <span [class]="ui.meta" title="Ollamas Zählung; der Balken rechnet den Treiber dazu">VRAM-Bedarf</span><span [class]="ui.meta" class="text-right">Prognose</span>
+        <span [class]="ui.meta" title="Ollamas Zählung; der Balken misst sie am GPU-Budget">VRAM-Bedarf</span><span [class]="ui.meta" class="text-right">Prognose</span>
       </div>
       <div [class]="ui.divided">
         @for (m of g.models; track m.name) {
           <app-catalog-model-row [model]="m" [indent]="indent(m.depth, g.group.installed)" [busy]="isBusy(m.name)"
-                                 [locked]="locked()" (refresh)="refresh(m.name)" (details)="detailName.set(m.name)" />
+                                 [locked]="locked()" [testLocked]="testLocked()"
+                                 [live]="liveBench()?.name === m.name ? liveBench() : null" (refresh)="refresh(m.name)"
+                                 (details)="detailName.set(m.name)" (test)="openBench(m.name)" />
         }
       </div>
     </article>
@@ -127,6 +140,15 @@
     </details>
   }
 </div>
+
+<app-dialog [title]="'Testlauf: ' + (benchModel()?.name ?? '')" size="md" [open]="benchModel() !== null"
+            (dismiss)="closeBench()">
+  @if (benchModel(); as m) {
+    <app-catalog-bench-panel [model]="m" [bench]="panelRun()" [locked]="panelRun() ? null : testLocked()"
+                             [starting]="benchStarting()" [error]="benchError()" (start)="startBench($event)"
+                             (again)="shownRun.set(null); bench.set(null)" />
+  }
+</app-dialog>
 
 <app-dialog [title]="detail()?.name ?? 'Modell'" size="lg" [open]="detail() !== null" (dismiss)="detailName.set(null)">
   @if (detail(); as m) {

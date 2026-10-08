@@ -1,10 +1,12 @@
-"""SQLite storage of the catalog: installed models and what was observed while they ran.
+"""SQLite storage of the catalog: installed models, what was observed while they ran, test runs.
 
-Two tables, deliberately plain:
+Four tables, deliberately plain:
 - catalog_models: one row per model name. Key columns for queries, the rest as JSON in `data`
   (ModelRecord). New fields in the record need no migration - older rows just lack them.
 - catalog_observations: one row per model digest x context length x GPU. "Measured" in the catalog
   means: Ollama reported this size and VRAM share in /api/ps while the model was loaded.
+- catalog_benches: one row per test run, the full report as JSON (like the models).
+- catalog_state: small key/value facts that must survive a restart (VRAM of other programs).
 
 Removed models keep their row (removed_at set) for keep_removed_days - their measurements stay
 visible and come back if the model is pulled again.
@@ -47,6 +49,23 @@ observations = Table(
     Column("last_seen", Float, nullable=False),
     Column("loads", Integer, nullable=False),           # how often it was seen being loaded this way
     UniqueConstraint("digest", "num_ctx", "hardware", name="uq_catalog_observation"),
+)
+
+
+benches = Table(
+    "catalog_benches", metadata,
+    Column("id", String, primary_key=True),
+    Column("name", String, nullable=False),
+    Column("digest", String, nullable=False),
+    Column("created", Float, nullable=False, index=True),
+    Column("data", Text, nullable=False),               # BenchStatus as JSON
+)
+
+state = Table(
+    "catalog_state", metadata,
+    Column("key", String, primary_key=True),
+    Column("value", Text, nullable=False),              # JSON
+    Column("updated", Float, nullable=False),
 )
 
 
@@ -153,3 +172,48 @@ class CatalogRepository:
         async with self._engine.connect() as conn:
             rows = (await conn.execute(select(observations).order_by(observations.c.last_seen.desc()))).mappings()
             return [ObservationRow(**{k: r[k] for k in ObservationRow.__dataclass_fields__}) for r in rows]
+
+    # ---- test runs ----------------------------------------------------------------------------
+
+    async def save_bench(self, bench_id: str, name: str, digest: str, created: float, data: dict) -> None:
+        stmt = insert(benches).values(id=bench_id, name=name, digest=digest, created=created,
+                                      data=json.dumps(data, ensure_ascii=False))
+        stmt = stmt.on_conflict_do_update(index_elements=[benches.c.id], set_={"data": stmt.excluded.data})
+        async with self._engine.begin() as conn:
+            await conn.execute(stmt)
+
+    async def load_benches(self, limit: int) -> list[dict]:
+        """Newest first; unreadable rows are skipped."""
+        async with self._engine.connect() as conn:
+            rows = (await conn.execute(select(benches.c.data).order_by(benches.c.created.desc()).limit(limit))).all()
+        out = []
+        for (data,) in rows:
+            try:
+                out.append(json.loads(data))
+            except ValueError:
+                continue
+        return out
+
+    async def prune_benches(self, keep: int) -> None:
+        async with self._engine.begin() as conn:
+            newest = select(benches.c.id).order_by(benches.c.created.desc()).limit(keep)
+            await conn.execute(delete(benches).where(benches.c.id.not_in(newest)))
+
+    # ---- small facts --------------------------------------------------------------------------
+
+    async def get_state(self, key: str) -> tuple[object, float] | None:
+        async with self._engine.connect() as conn:
+            row = (await conn.execute(select(state.c.value, state.c.updated).where(state.c.key == key))).first()
+        if row is None:
+            return None
+        try:
+            return json.loads(row[0]), row[1]
+        except ValueError:
+            return None
+
+    async def set_state(self, key: str, value: object, now: float) -> None:
+        stmt = insert(state).values(key=key, value=json.dumps(value), updated=now)
+        stmt = stmt.on_conflict_do_update(index_elements=[state.c.key],
+                                          set_={"value": stmt.excluded.value, "updated": stmt.excluded.updated})
+        async with self._engine.begin() as conn:
+            await conn.execute(stmt)

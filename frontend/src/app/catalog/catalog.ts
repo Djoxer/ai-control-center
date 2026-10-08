@@ -3,27 +3,32 @@ import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angula
 import { Api } from '../api/api';
 import { catalogOverview } from '../api/fn/catalog/catalog-overview';
 import { catalogRefresh } from '../api/fn/catalog/catalog-refresh';
+import { catalogStartBench } from '../api/fn/catalog/catalog-start-bench';
+import { BenchStatus } from '../api/models/bench-status';
 import { CatalogOverview } from '../api/models/catalog-overview';
 import { StreamService } from '../core/stream.service';
 import * as fmt from '../dashboard/format';
 import { Icon } from '../layout/icon';
 import { Dialog } from '../ui/dialog';
 import { ui } from '../ui/tokens';
+import { BenchPanel, BenchStart } from './bench-panel';
 import { ModelDetails } from './model-details';
 import { ModelRow } from './model-row';
 import {
-  OVERVIEW_TOPIC, gib, groupViews, isNewerOverview, message, serverFacts, serverSourceText, when,
+  BENCH_TOPIC, OVERVIEW_TOPIC, budgetFacts, gib, groupViews, isBenchRunning, isNewerBench, isNewerOverview, message,
+  serverFacts, serverSourceText, when,
 } from './state';
 
 const ALL = '*';                      // busy marker of "refresh everything"
 
 /**
- * Catalog page: installed models grouped by origin, effective context, expected VRAM and verdict.
- * The overview comes via GET and, after every change on the server, complete via SSE (catalog.overview).
+ * Catalog page: installed models grouped by origin, effective context, VRAM need against the card's budget,
+ * verdict, test runs. The overview comes via GET and, after every change on the server, complete via SSE
+ * (catalog.overview); a running test run reports each phase via SSE (catalog.bench).
  */
 @Component({
   selector: 'app-catalog',
-  imports: [Dialog, Icon, ModelDetails, ModelRow],
+  imports: [BenchPanel, Dialog, Icon, ModelDetails, ModelRow],
   templateUrl: './catalog.html',
 })
 export class Catalog implements OnInit {
@@ -41,6 +46,12 @@ export class Catalog implements OnInit {
   readonly busy = signal<string | null>(null);          // model name, ALL, or null
   readonly detailName = signal<string | null>(null);
   readonly streamState = this.stream.state;
+  // test runs
+  readonly bench = signal<BenchStatus | null>(null);   // newest status seen (any model)
+  readonly benchName = signal<string | null>(null);    // test dialog open for this model
+  readonly shownRun = signal<string | null>(null);     // id of the run the dialog shows
+  readonly benchStarting = signal(false);
+  readonly benchError = signal<string | null>(null);
 
   readonly groups = computed(() => {
     const ov = this.overview();
@@ -55,6 +66,31 @@ export class Catalog implements OnInit {
     return ov ? serverSourceText(ov.server) : '';
   });
   readonly detail = computed(() => this.overview()?.models.find((m) => m.name === this.detailName()) ?? null);
+  readonly budget = computed(() => {
+    const ov = this.overview();
+    return ov ? budgetFacts(ov.budget) : [];
+  });
+  readonly benchModel = computed(() => this.overview()?.models.find((m) => m.name === this.benchName()) ?? null);
+  /** The run the dialog shows: the one started there, or a run of that model that is going on right now. */
+  readonly panelRun = computed(() => {
+    const b = this.bench();
+    if (!b || b.name !== this.benchName()) return null;
+    return b.id === this.shownRun() || isBenchRunning(b) ? b : null;
+  });
+  /** The running test run (SSE reports every phase; the overview only start and end). */
+  readonly liveBench = computed(() => {
+    const b = this.bench();
+    return isBenchRunning(b) ? b : null;
+  });
+  /** Why no test run may start right now (rows and dialog), or null. */
+  readonly testLocked = computed<string | null>(() => {
+    const ov = this.overview();
+    if (!ov) return 'Lade …';
+    if (!ov.tests.allowed) return ov.tests.reason ?? 'Testläufe gesperrt';
+    if (!ov.ollama.online) return 'Ollama ist nicht erreichbar';
+    if (isBenchRunning(this.bench()) || isBenchRunning(ov.bench)) return 'Es läuft schon ein Testlauf';
+    return null;
+  });
   readonly loadedCount = computed(() => this.overview()?.models.filter((m) => m.loaded).length ?? 0);
   /** Why reading from Ollama is not possible right now, or null. */
   readonly locked = computed<string | null>(() => {
@@ -77,7 +113,11 @@ export class Catalog implements OnInit {
 
   constructor() {
     const off = this.stream.on<CatalogOverview>(OVERVIEW_TOPIC, (ov) => this.accept(ov));
-    inject(DestroyRef).onDestroy(off);
+    const offBench = this.stream.on<BenchStatus>(BENCH_TOPIC, (b) => this.acceptBench(b));
+    inject(DestroyRef).onDestroy(() => {
+      off();
+      offBench();
+    });
   }
 
   async ngOnInit(): Promise<void> {
@@ -95,7 +135,42 @@ export class Catalog implements OnInit {
   }
 
   accept(ov: CatalogOverview): void {
-    if (isNewerOverview(ov, this.overview())) this.overview.set(ov);
+    if (!isNewerOverview(ov, this.overview())) return;
+    this.overview.set(ov);
+    if (ov.bench) this.acceptBench(ov.bench);
+  }
+
+  acceptBench(b: BenchStatus): void {
+    if (isNewerBench(b, this.bench())) this.bench.set(b);
+  }
+
+  // ---- test runs ----------------------------------------------------------------------------
+
+  openBench(name: string): void {
+    this.benchError.set(null);
+    this.shownRun.set(null);
+    this.benchName.set(name);
+  }
+
+  closeBench(): void {
+    this.benchName.set(null);
+    this.shownRun.set(null);
+  }
+
+  async startBench(s: BenchStart): Promise<void> {
+    const name = this.benchName();
+    if (!name || this.benchStarting()) return;
+    this.benchStarting.set(true);
+    this.benchError.set(null);
+    try {
+      const st = await this.api.invoke(catalogStartBench, { body: { name, numCtx: s.numCtx, confirm: s.confirm } });
+      this.acceptBench(st);
+      this.shownRun.set(st.id);
+    } catch (e) {
+      this.benchError.set(message(e));
+    } finally {
+      this.benchStarting.set(false);
+    }
   }
 
   /** Read /api/tags and /api/show again - all models (name null) or one. Loads nothing into the GPU. */

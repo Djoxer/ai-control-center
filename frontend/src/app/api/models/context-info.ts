@@ -7,6 +7,6 @@ export interface ContextInfo {
   own?: (number | null);
   parallel?: number;
   server?: (number | null);
-  source: 'model' | 'server' | 'fallback';
+  source: 'model' | 'server' | 'fallback' | 'request';
   trained?: (number | null);
 }

@@ -1,0 +1,65 @@
+{
+  "cpu_percent": 8.2,
+  "cpu_count": 16,
+  "ram_total_bytes": 33157378048,
+  "ram_used_bytes": 17560371200,
+  "boot_time": "2026-09-14T21:31:31.229203+00:00",
+  "processes": [
+    {
+      "name": "com.docker.backend.exe",
+      "pid": 29168,
+      "cpu_percent": 0.0,
+      "rss_bytes": 222515200,
+      "cmdline": "com.docker.backend.exe services",
+      "ppid": 31176
+    },
+    {
+      "name": "python.exe",
+      "pid": 23184,
+      "cpu_percent": 0.0,
+      "rss_bytes": 158932992,
+      "cmdline": "python.exe -m control_center",
+      "ppid": 2580
+    },
+    {
+      "name": "python.exe",
+      "pid": 10664,
+      "cpu_percent": 0.0,
+      "rss_bytes": 122339328,
+      "cmdline": "python.exe mcp_server.py",
+      "ppid": 23184
+    },
+    {
+      "name": "python.exe",
+      "pid": 24824,
+      "cpu_percent": 1.1,
+      "rss_bytes": 117673984,
+      "cmdline": "python.exe -m control_center.capture_samples real-catalog --note all installed models, catalog part a",
+      "ppid": 25476
+    },
+    {
+      "name": "com.docker.backend.exe",
+      "pid": 31176,
+      "cpu_percent": 0.0,
+      "rss_bytes": 66699264,
+      "cmdline": "com.docker.backend.exe",
+      "ppid": 31760
+    },
+    {
+      "name": "ollama.exe",
+      "pid": 6828,
+      "cpu_percent": 0.0,
+      "rss_bytes": 53645312,
+      "cmdline": "ollama.exe serve",
+      "ppid": 18308
+    },
+    {
+      "name": "ollama app.exe",
+      "pid": 18308,
+      "cpu_percent": 0.0,
+      "rss_bytes": 50020352,
+      "cmdline": "ollama app.exe",
+      "ppid": 16736
+    }
+  ]
+}

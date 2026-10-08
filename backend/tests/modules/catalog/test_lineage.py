@@ -92,3 +92,48 @@ def test_weights_link_keeps_the_recorded_direction():
     assert links["child:1"].parent == "parent:1" and links["child:1"].via == "declared"
     assert links["parent:1"].parent is None
     assert groups == [("gone:1", False, ["parent:1", "child:1"])]
+
+
+def test_identical_digest_is_a_copy_of_the_older_name():
+    """ollama cp: same manifest digest under two names (coder14 / deepcoder16 on the AI box)."""
+    links, groups = tree([
+        rec("coder14:latest", digest="same", weights="w", modified="2026-07-01T13:10:00+00:00"),
+        rec("qwen2.5-coder:14b", digest="same", weights="w", modified="2026-07-01T12:58:00+00:00"),
+    ])
+    assert (links["coder14:latest"].parent, links["coder14:latest"].via) == ("qwen2.5-coder:14b", "copy")
+    assert groups == [("qwen2.5-coder:14b", True, ["qwen2.5-coder:14b", "coder14:latest"])]
+    assert changes(rec("a", digest="same"), rec("b", digest="same")) == []
+
+
+def test_copy_beats_a_recorded_parent():
+    # a copy of a derived model carries the same parent_model - it still hangs below its twin
+    links, _ = tree([rec("code:1", parent="base:1", digest="d", modified="2026-01-01T00:00:00+00:00"),
+                     rec("mycode:1", parent="base:1", digest="d", modified="2026-02-01T00:00:00+00:00"),
+                     rec("base:1")])
+    assert (links["mycode:1"].parent, links["mycode:1"].via) == ("code:1", "copy")
+    assert (links["code:1"].parent, links["code:1"].via) == ("base:1", "declared")
+
+
+def test_real_ai_box_inventory():
+    """The 12 models of the AI box (real-catalog, 08.10.) end up in 6 groups as on the screenshots."""
+    import asyncio
+    from datetime import datetime, timezone
+
+    from control_center.adapters.common import SAMPLES_DIR
+    from control_center.adapters.ollama import FakeOllama
+    from control_center.modules.catalog.collector import record_from
+
+    fake = FakeOllama(SAMPLES_DIR / "real-catalog")
+    now = datetime.now(timezone.utc)
+    records = [record_from(t, asyncio.run(fake.show(t.name)), now) for t in asyncio.run(fake.tags())]
+    links, groups = tree(records)
+    assert [(o, n) for o, _, n in groups] == [
+        ("deepseek-coder-v2:16b", ["deepseek-coder-v2:16b", "deepcoder16:latest", "deepseek-coder-24k:latest"]),
+        ("gpt-oss:20b", ["gpt-oss:20b"]),
+        ("nomic-embed-text:latest", ["nomic-embed-text:latest"]),
+        ("qwen2.5-coder:14b-instruct-q4_K_M", ["qwen2.5-coder:14b-instruct-q4_K_M", "coder14:latest"]),
+        ("qwen3.5:4b", ["qwen3.5:4b"]),
+        ("qwen3.5:9b", ["qwen3.5:9b", "qwen3.5-9b-64k:latest", "qwen3.5-9b-64k-code:latest", "qwen35-24k:latest"]),
+    ]
+    assert links["deepcoder16:latest"].via == "copy" and links["coder14:latest"].via == "copy"
+    assert links["qwen3.5-9b-64k-code:latest"].via == "declared" and links["qwen35-24k:latest"].via == "declared"

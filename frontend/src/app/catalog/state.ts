@@ -3,6 +3,8 @@
 
 import { HttpErrorResponse } from '@angular/common/http';
 
+import { BenchStatus } from '../api/models/bench-status';
+import { BudgetInfo } from '../api/models/budget-info';
 import { CatalogModel } from '../api/models/catalog-model';
 import { CatalogOverview } from '../api/models/catalog-overview';
 import { ContextInfo } from '../api/models/context-info';
@@ -14,6 +16,7 @@ import { GIB, num } from '../dashboard/format';
 import { Origin, Tone } from '../ui/tokens';
 
 export const OVERVIEW_TOPIC = 'catalog.overview';
+export const BENCH_TOPIC = 'catalog.bench';
 
 /** VRAM always in GiB with one decimal: "12,0 GiB" - sizes of models never need MiB precision. */
 export function gib(value: number | null | undefined): string {
@@ -42,10 +45,10 @@ export function verdictOrigin(v: Verdict): Origin | null {
   return v.basis === 'measured' ? 'measured' : v.basis === 'estimated' ? 'estimated' : null;
 }
 
-/** Expected VRAM as share of the card, 0..100+ (the meter clamps); null when either side is unknown. */
+/** Need as share of what the card offers Ollama, 0..100+ (the meter clamps); null when either side is unknown. */
 export function vramPercent(v: Verdict): number | null {
-  if (!v.expectedBytes || !v.vramTotalBytes) return null;
-  return (v.expectedBytes / v.vramTotalBytes) * 100;
+  if (!v.needBytes || !v.availableBytes) return null;
+  return (v.needBytes / v.availableBytes) * 100;
 }
 
 /**
@@ -57,17 +60,24 @@ export function vramText(v: Verdict): string {
   return v.basis === 'estimated' ? `≈ ${gib(v.needBytes)}` : gib(v.needBytes);
 }
 
-/** Tooltip of the meter: how the bar length comes about (the driver is on top of Ollama's count). */
+/** Tooltip of the meter: what the bar compares. */
 export function vramHint(v: Verdict): string {
-  if (!v.needBytes || !v.expectedBytes) return v.message;
-  const card = v.vramTotalBytes ? ` von ${gib(v.vramTotalBytes)}` : '';
-  return `${gib(v.needBytes)} laut Ollama + ${gib(v.expectedBytes - v.needBytes)} Treiber ≈ ${gib(v.expectedBytes)}${card}`;
+  if (!v.needBytes || !v.availableBytes) return v.message;
+  return `${gib(v.needBytes)} Bedarf von ${gib(v.availableBytes)}, die die Karte Ollama lässt`;
+}
+
+/** The word next to the VRAM figure: where it comes from. */
+export function originWord(m: CatalogModel): string {
+  if (m.verdict.basis === 'measured') return 'gemessen';
+  if (m.verdict.basis === 'estimated') return m.estimate?.calibrated ? 'kalibriert' : 'geschätzt';
+  return '';
 }
 
 const CONTEXT_SOURCE: Record<ContextInfo['source'], string> = {
   model: 'eigener Wert',
   server: 'Server-Standard',
   fallback: 'angenommen',
+  request: 'gewählt',
 };
 
 /** Short line under the number: where the context comes from. */
@@ -79,7 +89,8 @@ export function contextSource(c: ContextInfo): string {
 /** The full derivation for the details dialog. */
 export function contextExplain(c: ContextInfo): string {
   const parts: string[] = [];
-  if (c.source === 'model') parts.push(`Das Modell setzt selbst num_ctx ${num(c.own)}.`);
+  if (c.source === 'request') parts.push(`Gewählt: ${num(c.effective)} Token (wie ein Client es pro Anfrage verlangen kann).`);
+  else if (c.source === 'model') parts.push(`Das Modell setzt selbst num_ctx ${num(c.own)}.`);
   else if (c.source === 'server') parts.push(`Kein eigener Wert – Ollama nimmt den Server-Standard ${num(c.server)}.`);
   else parts.push(`Weder Modell noch Server nennen einen Wert – angenommen: ${num(c.effective)}.`);
   if (c.clamped) parts.push(`Trainiert ist das Modell auf ${num(c.trained)} Token; Ollama kürzt darauf.`);
@@ -103,6 +114,7 @@ export function capabilityChips(caps: string[] | null | undefined): string[] {
 /** One line about where a model hangs in the tree, or null when the indentation says it all. */
 export function relationText(m: CatalogModel): string | null {
   const p = m.parent;
+  if (p.via === 'copy') return `Kopie von ${p.resolved}`;
   if (p.via === 'weights') return `gleiche Gewichte wie ${p.resolved}`;
   if (!p.resolved && p.declared) return `erstellt aus ${p.declared} (nicht installiert)`;
   return null;
@@ -205,4 +217,69 @@ export function message(e: unknown): string {
     return `HTTP ${e.status}`;
   }
   return e instanceof Error ? e.message : String(e);
+}
+
+/** The card's budget for Ollama as short facts: total, other programs, Ollama's reserve, what is left. */
+export function budgetFacts(b: BudgetInfo, now: Date = new Date()): Fact[] {
+  const out: Fact[] = [];
+  if (b.totalBytes) out.push({ label: 'Karte', value: gib(b.totalBytes) });
+  const other = b.otherSource === 'measured'
+    ? `${gib(b.otherBytes)} (gemessen ${when(b.otherMeasuredAt, now)})`
+    : `${gib(b.otherBytes)} (angenommen)`;
+  out.push({ label: 'andere Programme', value: other });
+  out.push({ label: 'Reserve Ollama', value: `${num(b.reserveBytes / GIB, 2)} GiB` });   // 0,45: one decimal would lie
+  if (b.availableBytes !== null && b.availableBytes !== undefined) out.push({ label: 'verfügbar', value: gib(b.availableBytes) });
+  return out;
+}
+
+// ---- test runs ------------------------------------------------------------------------------------
+
+export function isBenchRunning(b: BenchStatus | null | undefined): boolean {
+  return !!b && (b.state === 'queued' || b.state === 'running');
+}
+
+/** Newest wins: same run -> higher revision; another run -> the one created later. */
+export function isNewerBench(next: BenchStatus, current: BenchStatus | null | undefined): boolean {
+  if (!current) return true;
+  if (next.id === current.id) return (next.revision ?? 0) >= (current.revision ?? 0);
+  return Date.parse(next.createdAt) >= Date.parse(current.createdAt);
+}
+
+const PHASES: Record<NonNullable<BenchStatus['phase']>, string> = {
+  unload: 'Geladene Modelle entladen',
+  baseline: 'Leere Karte messen',
+  load: 'Laden und antworten',
+  measure: 'Speicher messen',
+  cleanup: 'Wieder entladen',
+};
+export const PHASE_ORDER = Object.keys(PHASES) as NonNullable<BenchStatus['phase']>[];
+
+export function phaseLabel(p: BenchStatus['phase']): string {
+  return p ? PHASES[p] ?? p : '';
+}
+
+export function benchStateView(b: BenchStatus): VerdictView {
+  switch (b.state) {
+    case 'queued':
+    case 'running':
+      return { label: 'läuft …', tone: 'normal' };
+    case 'done':
+      return { label: 'fertig', tone: 'normal' };
+    case 'cancelled':
+      return { label: 'abgebrochen', tone: 'warning' };
+    default:
+      return { label: 'fehlgeschlagen', tone: 'critical' };
+  }
+}
+
+/** "64 tok/s · Laden 4,5 s" - or the error / state in words. */
+export function benchSummary(b: BenchStatus): string {
+  if (isBenchRunning(b)) return `Testlauf: ${phaseLabel(b.phase) || 'startet'} …`;
+  if (b.state !== 'done' || !b.result) return `Testlauf ${benchStateView(b).label}`;
+  const r = b.result;
+  const parts = [];
+  if (r.evalTps !== null && r.evalTps !== undefined) parts.push(`${num(r.evalTps, 1)} tok/s`);
+  if (r.loadS !== null && r.loadS !== undefined) parts.push(`Laden ${num(r.loadS, 1)} s`);
+  parts.push(`${num(r.actualCtx ?? r.requestedCtx)} Token`);
+  return parts.join(' · ');
 }

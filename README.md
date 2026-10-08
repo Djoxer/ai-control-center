@@ -68,7 +68,14 @@ The catalog lists what is installed in Ollama (`/api/tags` + `/api/show`), group
 before loading and what `/api/ps` showed while the model ran (stored per digest x context x GPU in SQLite).
 Ollama's defaults (`OLLAMA_CONTEXT_LENGTH`, KV cache type, flash attention) come from the "server config"
 line in `server.log` - on the second PC, set them in `[modules.catalog]` (`server_context_length`,
-`kv_cache_type`, `flash_attention`). Details: help page "Katalog" (`modules/catalog/HELP.md`).
+`kv_cache_type`, `flash_attention`).
+
+The verdict compares the need with the card's budget for Ollama: total VRAM - other programs (measured by
+NVML whenever `/api/ps` is empty) - Ollama's reserve. Estimates are calibrated by measurements of the same
+weights blob. A test run (menu of a model) unloads what is loaded, loads the model with a chosen context,
+answers a fixed prompt and stores load time, tok/s and VRAM; runs that would end in a partial offload are
+refused, "tight" ones need a confirmation, and test runs are locked when Ollama runs on another machine
+(`allow_remote_tests`). Details: help page "Katalog" (`modules/catalog/HELP.md`).
 
 ## MCP servers
 

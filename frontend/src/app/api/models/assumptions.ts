@@ -7,7 +7,6 @@
  */
 export interface Assumptions {
   clampToTrained: boolean;
-  driverOverheadBytes: number;
   fallbackContextLength: number;
   graphReserveBytes: number;
   tightRatio: number;

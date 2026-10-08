@@ -21,6 +21,12 @@
     @if (m.showError) {
       <p class="mt-1 text-xs text-amber-300">Nur Grunddaten – {{ m.showError }}</p>
     }
+    @if (bench()) {
+      <p class="mt-1 flex items-center gap-1.5 text-xs" [class]="benchClass()">
+        @if (benchRunning()) { <span [class]="ui.dot" class="animate-pulse bg-sky-400"></span> }
+        {{ benchText() }}
+      </p>
+    }
   </div>
 
   <div class="flex items-baseline gap-2 sm:block">
@@ -45,6 +51,10 @@
       <app-icon menuTrigger name="more-vertical" class="size-5" />
       <button type="button" role="menuitem" [class]="ui.menuItem" (click)="details.emit()">
         <app-icon name="info" class="size-4" /> Details …
+      </button>
+      <button type="button" role="menuitem" [class]="ui.menuItem" [disabled]="testBlock() !== null"
+              [title]="testBlock() ?? ''" (click)="test.emit()">
+        <app-icon name="stopwatch" class="size-4" /> Testlauf …
       </button>
       <button type="button" role="menuitem" [class]="ui.menuItem" [disabled]="busy() || locked() !== null"
               [title]="locked() ?? ''" (click)="refresh.emit()">

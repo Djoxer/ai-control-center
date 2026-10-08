@@ -3,6 +3,8 @@
 Think of it like a family register with two kinds of proof:
 1. The birth certificate: "ollama create" writes the source model into details.parent_model.
    If that model is still installed, the link is certain ("declared").
+0. Identical twins: the same manifest digest under two names is a copy ("ollama cp"). The newer name
+   hangs below the older one as "Kopie von".
 2. The DNA test: the weights blob (sha256 in the Modelfile FROM line). A model whose parent was
    deleted, or that was created straight from the GGUF file, still shares its weights with its
    relatives ("weights"). It hangs below the oldest model with the same weights that has no
@@ -18,7 +20,7 @@ from typing import Literal
 
 from control_center.modules.catalog.collector import ModelRecord
 
-Via = Literal["declared", "weights"]
+Via = Literal["declared", "weights", "copy"]
 REGISTRY_PREFIXES = ("registry.ollama.ai/library/", "registry.ollama.ai/")
 
 
@@ -63,10 +65,22 @@ def build_lineage(records: list[ModelRecord]) -> tuple[dict[str, Link], list[Gro
         key = norm(r.parent_model)
         return None if key == norm(r.name) else key
 
+    # 0) identical twins: same manifest digest = "ollama cp", the oldest name is the original
+    by_digest: dict[str, list[ModelRecord]] = {}
+    for r in records:
+        if r.digest:
+            by_digest.setdefault(r.digest, []).append(r)
+    for twins in by_digest.values():
+        if len(twins) > 1:
+            original = sorted(twins, key=_sort_key)[0]
+            for r in twins:
+                if r is not original:
+                    links[r.name].parent, links[r.name].via = original.name, "copy"
+
     # 1) birth certificates
     for r in records:
         key = declared(r)
-        if key and key in by_key:
+        if links[r.name].via is None and key and key in by_key:
             links[r.name].parent, links[r.name].via = by_key[key].name, "declared"
 
     def ancestors(name: str) -> set[str]:

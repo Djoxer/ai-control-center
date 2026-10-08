@@ -5,5 +5,5 @@ export interface ParentInfo {
   declared?: (string | null);
   installed?: boolean;
   resolved?: (string | null);
-  via?: ('declared' | 'weights' | null);
+  via?: ('declared' | 'weights' | 'copy' | null);
 }

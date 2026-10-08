@@ -1,0 +1,136 @@
+<!-- bench-panel.html: setup (context, preflight, start) or run (phases, result) -->
+@let m = model();
+@if (bench(); as b) {
+  <div class="space-y-5">
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <span [class]="statePill()">{{ stateView()?.label }}</span>
+      <p [class]="ui.meta">{{ fmt.num(b.numCtx) }} Token angefragt</p>
+    </div>
+
+    <ol class="space-y-1.5">
+      @for (p of phases; track p) {
+        <li class="flex items-center gap-2">
+          @switch (phaseState(p)) {
+            @case ('done') { <app-icon name="check" class="size-4 text-emerald-400" /> }
+            @case ('now') { <span [class]="ui.dot" class="mx-1 animate-pulse bg-sky-400"></span> }
+            @default { <span [class]="ui.dot" class="mx-1 bg-gray-600"></span> }
+          }
+          <span [class.text-white]="phaseState(p) === 'now'" [class.text-gray-500]="phaseState(p) === 'todo'">
+            {{ phaseLabel(p) }}</span>
+        </li>
+      }
+    </ol>
+    @if (b.unloaded?.length) {
+      <p [class]="ui.meta">Entladen: <span class="font-mono">{{ b.unloaded!.join(', ') }}</span></p>
+    }
+
+    @if (b.error) {
+      <p [class]="ui.errorBox" class="px-3 py-2" role="alert">{{ b.error }}</p>
+    }
+    @if (b.state === 'done' && b.result; as r) {
+      <section>
+        <h3 [class]="ui.sectionTitle">Gemessen</h3>
+        <dl class="mt-2 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-1.5">
+          <dt class="text-gray-400">Antwort</dt>
+          <dd class="font-mono" [class]="measured">{{ fmt.num(r.evalTps, 1) }} tok/s
+            <span [class]="ui.meta">({{ fmt.num(r.evalTokens) }} Token)</span></dd>
+          <dt class="text-gray-400">Prompt</dt>
+          <dd class="font-mono" [class]="measured">{{ fmt.num(r.promptTps, 1) }} tok/s
+            <span [class]="ui.meta">({{ fmt.num(r.promptTokens) }} Token)</span></dd>
+          <dt class="text-gray-400">Laden</dt><dd class="font-mono" [class]="measured">{{ fmt.num(r.loadS, 1) }} s</dd>
+          <dt class="text-gray-400">Kontext</dt>
+          <dd class="font-mono text-white">{{ fmt.num(r.actualCtx ?? r.requestedCtx) }} Token</dd>
+          @if (r.sizeBytes) {
+            <dt class="text-gray-400">Speicher</dt>
+            <dd class="font-mono" [class]="measured">{{ gib(r.sizeBytes) }} laut Ollama
+              @if (r.placement === 'gpu') { <span [class]="ui.meta">· komplett auf der GPU</span> }
+            </dd>
+          }
+          @if (r.gpuBeforeBytes && r.gpuAfterBytes) {
+            <dt class="text-gray-400">Karte</dt>
+            <dd class="font-mono text-white">{{ gib(r.gpuBeforeBytes) }} → {{ gib(r.gpuAfterBytes) }}
+              @if (r.runnerOverheadBytes !== null && r.runnerOverheadBytes !== undefined) {
+                <span [class]="ui.meta">· {{ gib(r.runnerOverheadBytes) }} mehr als Ollama zählt</span>
+              }
+            </dd>
+          }
+        </dl>
+        @if (r.placement === 'split') {
+          <div [class]="critCallout" class="mt-3" role="alert">
+            <app-icon name="error" class="mt-0.5 size-5" />
+            <p><span class="font-semibold">Teil-Offload:</span> Das Modell lag nicht komplett auf der GPU.</p>
+          </div>
+        }
+        @if (r.note) { <p [class]="ui.meta" class="mt-3">{{ r.note }}</p> }
+      </section>
+    }
+    @if (!running()) {
+      <button type="button" [class]="ui.button" class="flex items-center gap-2" (click)="again.emit()">
+        <app-icon name="refresh" class="size-4" /> Neuer Testlauf
+      </button>
+    }
+  </div>
+} @else {
+  <div class="space-y-5">
+    <p>Lädt <span class="font-mono text-white">{{ m.name }}</span> mit dem gewählten Kontext, lässt es eine feste
+      Aufgabe beantworten und misst Ladezeit, Geschwindigkeit und Speicher. Das Ergebnis zählt danach als Messung.</p>
+
+    <label class="block">
+      <span [class]="ui.fieldLabel">Kontext (Token)</span>
+      <select [class]="ui.field" class="mt-1 w-full font-mono" [value]="selected()"
+              (change)="choose($any($event.target).value)">
+        @for (o of options(); track o) {
+          <option [value]="o" [selected]="o === selected()">
+            {{ fmt.num(o) }}{{ o === m.context.effective ? ' (wirksam)' : '' }}</option>
+        }
+      </select>
+    </label>
+
+    @if (checkError(); as err) {
+      <p [class]="ui.errorBox" class="px-3 py-2" role="alert">{{ err }}</p>
+    }
+    @if (preflight(); as p) {
+      <section [class.opacity-50]="checking()">
+        <div class="flex flex-wrap items-baseline justify-between gap-2">
+          <span class="font-mono" [class]="p.verdict.basis === 'measured' ? measured : estimated">
+            {{ p.verdict.basis === 'estimated' ? '≈ ' : '' }}{{ gib(p.verdict.needBytes) }}
+            <span [class]="ui.meta">von {{ gib(p.verdict.availableBytes) }}</span></span>
+          <span [class]="pill()">{{ view()?.label }}</span>
+        </div>
+        <app-meter class="mt-2" [value]="percent()" [tone]="view()?.tone ?? 'normal'" [label]="'VRAM-Bedarf'" />
+        <p class="mt-2">{{ p.verdict.message }}</p>
+        @if (p.estimate?.calibrated; as cal) { <p [class]="ui.meta" class="mt-1">Schätzung {{ cal }}.</p> }
+      </section>
+
+      @if (p.willUnload?.length) {
+        <div [class]="warnCallout" role="note">
+          <app-icon name="warning" class="mt-0.5 size-5" />
+          <p>Entlädt <span class="font-mono">{{ p.willUnload!.join(', ') }}</span> – wer gerade damit arbeitet, wartet
+            beim nächsten Prompt aufs Neuladen.</p>
+        </div>
+      }
+      @if (!p.allowed && p.reason) {
+        <div [class]="p.verdict.state === 'split' ? critCallout : lockCallout" role="status">
+          <app-icon [name]="p.verdict.state === 'split' ? 'error' : 'lock'" class="mt-0.5 size-5" />
+          <p>{{ p.reason }}</p>
+        </div>
+      }
+      @if (p.allowed && p.needsConfirm) {
+        <label [class]="ui.checkLabel">
+          <input type="checkbox" [class]="ui.check" [checked]="confirmed()"
+                 (change)="confirmed.set($any($event.target).checked)" />
+          Mir ist klar: Kippt es in den Teil-Offload, stürzt der Runner ab.
+        </label>
+      }
+    }
+    @if (locked(); as l) { <p [class]="ui.meta">{{ l }}</p> }
+    @if (error(); as err) {
+      <p [class]="ui.errorBox" class="px-3 py-2" role="alert">{{ err }}</p>
+    }
+
+    <button type="button" [class]="ui.button" class="flex items-center gap-2" [disabled]="blocked() !== null || starting()"
+            [title]="blocked() ?? ''" (click)="go()">
+      <app-icon name="stopwatch" class="size-4" /> {{ starting() ? 'Startet …' : 'Testlauf starten' }}
+    </button>
+  </div>
+}

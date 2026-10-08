@@ -1,5 +1,6 @@
 import { Component, computed, input, output } from '@angular/core';
 
+import { BenchStatus } from '../api/models/bench-status';
 import { CatalogModel } from '../api/models/catalog-model';
 import * as fmt from '../dashboard/format';
 import { Meter } from '../dashboard/meter';
@@ -7,12 +8,13 @@ import { Icon } from '../layout/icon';
 import { Menu } from '../ui/menu';
 import { ui } from '../ui/tokens';
 import {
-  capabilityChips, contextSource, relationText, verdictOrigin, verdictView, vramHint, vramPercent, vramText,
+  benchSummary, capabilityChips, contextSource, isBenchRunning, originWord, relationText, verdictOrigin, verdictView,
+  vramHint, vramPercent, vramText, when,
 } from './state';
 
 /**
  * One installed model inside its origin group: name and what it changes, effective context,
- * expected VRAM against the card, verdict. Presentational: the page sends refresh requests.
+ * VRAM need against the card's budget, verdict, latest test run. Presentational: the page sends requests.
  */
 @Component({
   selector: 'app-catalog-model-row',
@@ -25,8 +27,11 @@ export class ModelRow {
   readonly indent = input(0);                       // tree level inside the group card
   readonly busy = input(false);                     // a refresh of this model is running
   readonly locked = input<string | null>(null);     // why refreshing is not possible right now
+  readonly testLocked = input<string | null>(null); // why a test run is not possible right now
+  readonly live = input<BenchStatus | null>(null);  // the running test run of this model (SSE), newer than the overview
   readonly refresh = output<void>();
   readonly details = output<void>();
+  readonly test = output<void>();
 
   protected readonly ui = ui;
   protected readonly fmt = fmt;
@@ -44,10 +49,23 @@ export class ModelRow {
     const o = verdictOrigin(this.model().verdict);
     return o ? ui.origin[o] : 'text-gray-500';
   });
-  readonly originWord = computed(() => {
-    const v = this.model().verdict;
-    return v.basis === 'measured' ? 'gemessen' : v.basis === 'estimated' ? 'geschätzt' : '';
+  readonly originWord = computed(() => originWord(this.model()));
+  /** Latest test run of this model: the live one, else the newest the overview knows. */
+  readonly bench = computed(() => this.live() ?? this.model().benches?.[0] ?? null);
+  readonly benchRunning = computed(() => isBenchRunning(this.bench()));
+  readonly benchText = computed(() => {
+    const b = this.bench();
+    if (!b) return '';
+    return this.benchRunning() ? benchSummary(b) : `${benchSummary(b)} · ${when(b.finishedAt ?? b.createdAt)}`;
   });
+  readonly benchClass = computed(() => {
+    const b = this.bench();
+    if (!b || this.benchRunning()) return 'text-sky-300';
+    return b.state === 'done' ? ui.origin.measured : 'text-red-300';
+  });
+  /** Why the test entry is disabled, or null. */
+  readonly testBlock = computed(() =>
+    this.model().testable === false ? 'Einbettungsmodelle haben (noch) keinen Testlauf.' : this.testLocked());
   /** Warnings deserve their sentence in the row, not only in a tooltip. */
   readonly warn = computed(() => this.view().tone !== 'normal');
 }

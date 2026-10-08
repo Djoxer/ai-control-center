@@ -8,10 +8,6 @@
             "title": "Clamptotrained",
             "type": "boolean"
           },
-          "driverOverheadBytes": {
-            "title": "Driveroverheadbytes",
-            "type": "integer"
-          },
           "fallbackContextLength": {
             "title": "Fallbackcontextlength",
             "type": "integer"
@@ -27,12 +23,458 @@
         },
         "required": [
           "graphReserveBytes",
-          "driverOverheadBytes",
           "tightRatio",
           "fallbackContextLength",
           "clampToTrained"
         ],
         "title": "Assumptions",
+        "type": "object"
+      },
+      "BenchAccess": {
+        "properties": {
+          "allowed": {
+            "title": "Allowed",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          }
+        },
+        "required": [
+          "allowed"
+        ],
+        "title": "BenchAccess",
+        "type": "object"
+      },
+      "BenchRequest": {
+        "properties": {
+          "confirm": {
+            "default": false,
+            "description": "required when the preflight says 'knapp'",
+            "title": "Confirm",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "numCtx": {
+            "anyOf": [
+              {
+                "maximum": 4194304.0,
+                "minimum": 256.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "description": "null = the effective context",
+            "title": "Numctx"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "BenchRequest",
+        "type": "object"
+      },
+      "BenchResult": {
+        "description": "What one test run measured. Speeds from Ollama's own clocks, memory from /api/ps and NVML.",
+        "properties": {
+          "actualCtx": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actualctx"
+          },
+          "evalTokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaltokens"
+          },
+          "evalTps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaltps"
+          },
+          "gpuAfterBytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gpuafterbytes"
+          },
+          "gpuBeforeBytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gpubeforebytes"
+          },
+          "hardware": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hardware"
+          },
+          "kvType": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kvtype"
+          },
+          "loadS": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loads"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "ollamaVersion": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ollamaversion"
+          },
+          "placement": {
+            "default": "unknown",
+            "enum": [
+              "gpu",
+              "split",
+              "cpu",
+              "unknown"
+            ],
+            "title": "Placement",
+            "type": "string"
+          },
+          "promptTokens": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompttokens"
+          },
+          "promptTps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompttps"
+          },
+          "requestedCtx": {
+            "title": "Requestedctx",
+            "type": "integer"
+          },
+          "runnerOverheadBytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Runneroverheadbytes"
+          },
+          "sizeBytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sizebytes"
+          },
+          "totalS": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Totals"
+          },
+          "vramBytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Vrambytes"
+          }
+        },
+        "required": [
+          "requestedCtx"
+        ],
+        "title": "BenchResult",
+        "type": "object"
+      },
+      "BenchStatus": {
+        "properties": {
+          "asOf": {
+            "format": "date-time",
+            "title": "Asof",
+            "type": "string"
+          },
+          "createdAt": {
+            "format": "date-time",
+            "title": "Createdat",
+            "type": "string"
+          },
+          "digest": {
+            "title": "Digest",
+            "type": "string"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "finishedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finishedat"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "numCtx": {
+            "title": "Numctx",
+            "type": "integer"
+          },
+          "phase": {
+            "anyOf": [
+              {
+                "enum": [
+                  "unload",
+                  "baseline",
+                  "load",
+                  "measure",
+                  "cleanup"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Phase"
+          },
+          "result": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BenchResult"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "revision": {
+            "default": 0,
+            "title": "Revision",
+            "type": "integer"
+          },
+          "startedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Startedat"
+          },
+          "state": {
+            "enum": [
+              "queued",
+              "running",
+              "done",
+              "failed",
+              "cancelled"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "unloaded": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Unloaded",
+            "type": "array"
+          }
+        },
+        "required": [
+          "id",
+          "asOf",
+          "name",
+          "digest",
+          "numCtx",
+          "state",
+          "createdAt"
+        ],
+        "title": "BenchStatus",
+        "type": "object"
+      },
+      "BudgetInfo": {
+        "description": "What the card offers Ollama: total - other programs - Ollama's reserve.",
+        "properties": {
+          "availableBytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Availablebytes"
+          },
+          "otherBytes": {
+            "title": "Otherbytes",
+            "type": "integer"
+          },
+          "otherMeasuredAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Othermeasuredat"
+          },
+          "otherSource": {
+            "enum": [
+              "measured",
+              "assumed"
+            ],
+            "title": "Othersource",
+            "type": "string"
+          },
+          "reserveBytes": {
+            "title": "Reservebytes",
+            "type": "integer"
+          },
+          "totalBytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Totalbytes"
+          }
+        },
+        "required": [
+          "otherBytes",
+          "otherSource",
+          "reserveBytes"
+        ],
+        "title": "BudgetInfo",
         "type": "object"
       },
       "CatalogModel": {
@@ -47,6 +489,13 @@
               }
             ],
             "title": "Architecture"
+          },
+          "benches": {
+            "items": {
+              "$ref": "#/components/schemas/BenchStatus"
+            },
+            "title": "Benches",
+            "type": "array"
           },
           "capabilities": {
             "items": {
@@ -204,6 +653,11 @@
             "title": "Systemchars",
             "type": "integer"
           },
+          "testable": {
+            "default": true,
+            "title": "Testable",
+            "type": "boolean"
+          },
           "verdict": {
             "$ref": "#/components/schemas/Verdict"
           },
@@ -241,6 +695,19 @@
           },
           "assumptions": {
             "$ref": "#/components/schemas/Assumptions"
+          },
+          "bench": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BenchStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "budget": {
+            "$ref": "#/components/schemas/BudgetInfo"
           },
           "groups": {
             "items": {
@@ -287,6 +754,9 @@
           },
           "server": {
             "$ref": "#/components/schemas/ServerConfig"
+          },
+          "tests": {
+            "$ref": "#/components/schemas/BenchAccess"
           }
         },
         "required": [
@@ -295,7 +765,9 @@
           "ollama",
           "server",
           "hardware",
+          "budget",
           "assumptions",
+          "tests",
           "models",
           "groups",
           "removed"
@@ -471,7 +943,8 @@
             "enum": [
               "model",
               "server",
-              "fallback"
+              "fallback",
+              "request"
             ],
             "title": "Source",
             "type": "string"
@@ -2431,7 +2904,8 @@
               {
                 "enum": [
                   "declared",
-                  "weights"
+                  "weights",
+                  "copy"
                 ],
                 "type": "string"
               },
@@ -2507,6 +2981,73 @@
           "open"
         ],
         "title": "PortInfo",
+        "type": "object"
+      },
+      "Preflight": {
+        "description": "Before a test run: what loading this model with this context would cost, and whether it may run.",
+        "properties": {
+          "allowed": {
+            "title": "Allowed",
+            "type": "boolean"
+          },
+          "context": {
+            "$ref": "#/components/schemas/ContextInfo"
+          },
+          "estimate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VramEstimate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "needsConfirm": {
+            "title": "Needsconfirm",
+            "type": "boolean"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "suggestions": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Suggestions",
+            "type": "array"
+          },
+          "verdict": {
+            "$ref": "#/components/schemas/Verdict"
+          },
+          "willUnload": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Willunload",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "context",
+          "verdict",
+          "allowed",
+          "needsConfirm"
+        ],
+        "title": "Preflight",
         "type": "object"
       },
       "ProcessInfo": {
@@ -3409,16 +3950,7 @@
       },
       "Verdict": {
         "properties": {
-          "basis": {
-            "enum": [
-              "measured",
-              "estimated",
-              "none"
-            ],
-            "title": "Basis",
-            "type": "string"
-          },
-          "expectedBytes": {
+          "availableBytes": {
             "anyOf": [
               {
                 "type": "integer"
@@ -3427,7 +3959,16 @@
                 "type": "null"
               }
             ],
-            "title": "Expectedbytes"
+            "title": "Availablebytes"
+          },
+          "basis": {
+            "enum": [
+              "measured",
+              "estimated",
+              "none"
+            ],
+            "title": "Basis",
+            "type": "string"
           },
           "message": {
             "title": "Message",
@@ -3454,17 +3995,6 @@
             ],
             "title": "State",
             "type": "string"
-          },
-          "vramTotalBytes": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Vramtotalbytes"
           }
         },
         "required": [
@@ -3477,6 +4007,17 @@
       },
       "VramEstimate": {
         "properties": {
+          "calibrated": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Calibrated"
+          },
           "confidence": {
             "default": "normal",
             "enum": [
@@ -3486,9 +4027,16 @@
             "title": "Confidence",
             "type": "string"
           },
-          "driverBytes": {
-            "title": "Driverbytes",
-            "type": "integer"
+          "formulaBytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Formulabytes"
           },
           "graphBytes": {
             "title": "Graphbytes",
@@ -3509,6 +4057,17 @@
             "title": "Kvtype",
             "type": "string"
           },
+          "needBytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Needbytes"
+          },
           "notes": {
             "items": {
               "type": "string"
@@ -3520,17 +4079,6 @@
             "title": "Tokens",
             "type": "integer"
           },
-          "totalBytes": {
-            "anyOf": [
-              {
-                "type": "integer"
-              },
-              {
-                "type": "null"
-              }
-            ],
-            "title": "Totalbytes"
-          },
           "weightsBytes": {
             "title": "Weightsbytes",
             "type": "integer"
@@ -3539,7 +4087,6 @@
         "required": [
           "weightsBytes",
           "graphBytes",
-          "driverBytes",
           "kvType",
           "tokens"
         ],
@@ -3578,6 +4125,108 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/api/v1/catalog/bench": {
+      "get": {
+        "description": "Test runs, the running one first, then the finished ones, newest first.",
+        "operationId": "catalog_benches",
+        "parameters": [
+          {
+            "description": "only this model",
+            "in": "query",
+            "name": "name",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "only this model",
+              "title": "Name"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/BenchStatus"
+                  },
+                  "title": "Response Catalog Benches",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Benches",
+        "tags": [
+          "catalog"
+        ]
+      },
+      "post": {
+        "description": "Starts a test run in the background; progress and result follow via SSE catalog.bench.",
+        "operationId": "catalog_start_bench",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/BenchRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BenchStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "model not installed"
+          },
+          "409": {
+            "description": "a run is going on, the preflight refuses, or confirm is missing"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Start Bench",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
     "/api/v1/catalog/overview": {
       "get": {
         "description": "Installed models grouped by origin, context, VRAM estimate and observations. Ollama down = last known\ninventory with ollama.online false.",
@@ -3595,6 +4244,74 @@
           }
         },
         "summary": "Overview",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/api/v1/catalog/preflight": {
+      "get": {
+        "description": "What loading the model with this context would cost on this GPU, and whether a test run may start.",
+        "operationId": "catalog_preflight",
+        "parameters": [
+          {
+            "description": "installed model name",
+            "in": "query",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "description": "installed model name",
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "description": "context to check; empty = the effective one",
+            "in": "query",
+            "name": "num_ctx",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 4194304,
+                  "minimum": 256,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "context to check; empty = the effective one",
+              "title": "Num Ctx"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Preflight"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "model not installed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Preflight",
         "tags": [
           "catalog"
         ]
