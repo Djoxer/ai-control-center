@@ -2,6 +2,12 @@
 
 Automatisch aus den Commit-Nachrichten erzeugt. Neu = `feat`, Behoben = `fix`, Schneller = `perf`.
 
+## 0.9.0 – 08.10.2026
+
+### Neu
+
+- **rag:** RAG page - reindex sources in the background, secret filter, collections and test search, version 0.9.0
+
 ## 0.8.0 – 07.10.2026
 
 ### Neu
