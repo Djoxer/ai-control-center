@@ -2,6 +2,7 @@ import { Component, computed, input } from '@angular/core';
 
 import { CatalogModel } from '../api/models/catalog-model';
 import * as fmt from '../dashboard/format';
+import { GIB } from '../dashboard/format';
 import { ui } from '../ui/tokens';
 import {
   benchSummary, contextExplain, gib, observationText, parameterList, shortDigest, verdictOrigin, verdictView, when,
@@ -22,6 +23,7 @@ export class ModelDetails {
   protected readonly ui = ui;
   protected readonly fmt = fmt;
   protected readonly gib = gib;
+  protected readonly GIB = GIB;
   protected readonly when = when;
   protected readonly shortDigest = shortDigest;
   protected readonly observationText = observationText;

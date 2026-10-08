@@ -29,15 +29,16 @@ from control_center.core.context import AppContext
 from control_center.modules.catalog.bench import BenchJob, new_job, run_bench
 from control_center.modules.catalog.collector import ModelRecord, ServerDefaults, read_server_config, record_from
 from control_center.modules.catalog.estimate import (
-    GIB, Budget, ContextResult, Estimate, Point, Seen, effective_context, effective_kv_type, estimate_vram,
-    placement, verdict,
+    GIB, VISION_NOTE, Budget, ContextResult, Estimate, Point, Seen, effective_context, effective_kv_type,
+    estimate_vram, extra_beyond_reserve, placement, verdict,
 )
 from control_center.modules.catalog.estimate import Verdict as Judgement
 from control_center.modules.catalog.lineage import build_lineage, changes
 from control_center.modules.catalog.repository import CatalogRepository, ModelRow, ObservationRow
 from control_center.modules.catalog.schemas import (
     Assumptions, BenchAccess, BenchStatus, BudgetInfo, CatalogModel, CatalogOverview, ContextInfo, HardwareInfo,
-    ModelGroup, Observation, OllamaState, ParentInfo, Preflight, RemovedModel, ServerConfig, Verdict, VramEstimate,
+    ModelGroup, Observation, OllamaState, OverheadInfo, ParentInfo, Preflight, RemovedModel, ServerConfig, Verdict,
+    VramEstimate,
 )
 from control_center.modules.catalog.settings import CatalogSettings
 
@@ -538,9 +539,32 @@ class CatalogService:
         still calibrate models with the same weights."""
         return {r.record.digest: r.record.weights_digest or r.record.digest for r in self.rows.values()}
 
+    def _overheads(self) -> dict[str, BenchStatus]:
+        """weights digest -> newest test run on this GPU that measured what the runner holds beyond Ollama's
+        count. Only test runs know it: they read the empty card right before loading."""
+        hw = self.hardware.key
+        weights = self._weights_of()
+        out: dict[str, BenchStatus] = {}
+        for b in self.bench_list():                     # newest first
+            r = b.result
+            if b.state == "done" and r is not None and r.runner_overhead_bytes is not None and r.hardware == hw:
+                out.setdefault(weights.get(b.digest, b.digest), b)
+        return out
+
+    def _overhead_info(self, run: BenchStatus | None) -> OverheadInfo | None:
+        if run is None or run.result is None or run.result.runner_overhead_bytes is None:
+            return None
+        budget = self.budget()
+        measured = run.result.runner_overhead_bytes
+        return OverheadInfo(measured_bytes=measured, reserve_bytes=budget.reserve_bytes,
+                            extra_bytes=extra_beyond_reserve(measured, budget), model=run.name,
+                            measured_at=run.finished_at or run.created_at)
+
     def _estimate(self, rec: ModelRecord, ctx: ContextResult, kv_type: str, kv_note: str | None,
-                  observed: list[ObservationRow]) -> tuple[Estimate, Judgement]:
-        """Estimate (calibrated by measurements of the same weights on this GPU) and verdict for one context."""
+                  observed: list[ObservationRow],
+                  overheads: dict[str, BenchStatus] | None = None) -> tuple[Estimate, Judgement]:
+        """Estimate (calibrated by measurements of the same weights on this GPU) and verdict for one context,
+        plus what a test run of the same weights measured beyond Ollama's count."""
         hw = self.hardware.key or ""
         weights = self._weights_of()
         mine = rec.weights_digest or rec.digest
@@ -552,8 +576,17 @@ class CatalogService:
             if seen is None and o.digest == rec.digest and o.num_ctx == ctx.effective:
                 seen = Seen(o.size_bytes, o.vram_bytes)
         est = estimate_vram(rec, ctx, kv_type, self.cfg, kv_note, points)
+        run = (overheads if overheads is not None else self._overheads()).get(mine)
+        budget = self.budget()
+        extra = extra_beyond_reserve(run.result.runner_overhead_bytes, budget) if run and run.result else 0
+        if "vision" in rec.capabilities and (est.calibrated or seen is not None):
+            # the number is Ollama's count now: the encoder left it; a test run brings it back as "extra"
+            est.notes = [n for n in est.notes if n != VISION_NOTE]
+            if run is None:
+                est.notes.append("Bild-Encoder: fehlt in dieser Zahl (Ollamas Zählung) – erst ein Testlauf zeigt, "
+                                 "wie viel die Karte zusätzlich belegt")
         embedding = "embedding" in rec.capabilities and "completion" not in rec.capabilities
-        return est, verdict(est, seen, self.budget(), self.cfg, embedding=embedding)
+        return est, verdict(est, seen, budget, self.cfg, embedding=embedding, extra_bytes=extra)
 
     @staticmethod
     def _context_info(ctx: ContextResult) -> ContextInfo:
@@ -569,7 +602,7 @@ class CatalogService:
     @staticmethod
     def _verdict(v: Judgement) -> Verdict:
         return Verdict(state=v.state, basis=v.basis, need_bytes=v.need_bytes, available_bytes=v.available_bytes,
-                       message=v.message)
+                       extra_bytes=v.extra_bytes, message=v.message)
 
     def _build(self, observed: list[ObservationRow]) -> CatalogOverview:
         cfg = self.cfg
@@ -587,12 +620,13 @@ class CatalogService:
         for b in self.bench_list():
             if len(benches_by_name[b.name]) < BENCHES_PER_MODEL:
                 benches_by_name[b.name].append(b)
+        overheads = self._overheads()
 
         models = []
         for row in rows:
             rec = row.record
             ctx = effective_context(rec, eff.context_length, eff.num_parallel, cfg)
-            est, v = self._estimate(rec, ctx, kv_type, kv_note, observed)
+            est, v = self._estimate(rec, ctx, kv_type, kv_note, observed, overheads)
             obs = []
             for o in obs_by_digest.get(rec.digest, []):
                 obs.append(Observation(
@@ -615,7 +649,8 @@ class CatalogService:
                 origin=link.origin, depth=link.depth,
                 changes=changes(rec, parent_rec) if parent_rec else [],
                 context=self._context_info(ctx), estimate=self._estimate_info(est), observations=obs,
-                verdict=self._verdict(v), benches=benches_by_name.get(rec.name, []), testable=not embedding,
+                verdict=self._verdict(v), overhead=self._overhead_info(overheads.get(rec.weights_digest or rec.digest)),
+                benches=benches_by_name.get(rec.name, []), testable=not embedding,
                 loaded=rec.name in self.loaded, first_seen=_utc(row.first_seen), show_error=rec.show_error,
             ))
         order = {name: i for i, name in enumerate(n for g in groups for n in g.members)}

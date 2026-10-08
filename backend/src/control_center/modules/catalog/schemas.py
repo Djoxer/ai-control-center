@@ -122,7 +122,17 @@ class Verdict(CamelModel):
     basis: Basis
     need_bytes: int | None = None           # Ollama's scale (same number as the dashboard)
     available_bytes: int | None = None      # budget of the card for Ollama
+    extra_bytes: int = 0                    # held beyond Ollama's count and the reserve (test run); compared too
     message: str
+
+
+class OverheadInfo(CamelModel):
+    """What the runner held beyond Ollama's count in the newest test run of the same weights on this GPU."""
+    measured_bytes: int                     # NVML growth minus Ollama's size_vram
+    reserve_bytes: int                      # covered by the budget's reserve already
+    extra_bytes: int                        # the rest: added to the need in the verdict
+    model: str                              # the model that ran (a relative with the same weights counts too)
+    measured_at: datetime
 
 
 class BenchResult(CamelModel):
@@ -186,6 +196,7 @@ class CatalogModel(CamelModel):
     estimate: VramEstimate | None = None
     observations: list[Observation] = Field(default_factory=list)
     verdict: Verdict
+    overhead: OverheadInfo | None = None    # measured by a test run of the same weights
     benches: list[BenchStatus] = Field(default_factory=list)   # latest test runs of this model, newest first
     testable: bool = True                   # embedding models have no test run (yet)
     loaded: bool = False                    # in /api/ps right now

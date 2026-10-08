@@ -57,6 +57,18 @@
       </table>
       <p [class]="ui.meta" class="mt-2">Die Karte gibt Ollama {{ gib(m.verdict.availableBytes) }}
         (Gesamt minus andere Programme minus Ollamas Reserve).</p>
+      @if (m.overhead; as o) {
+        <p class="mt-2">Außerhalb von Ollamas Zählung belegt der Runner <span class="font-mono" [class]="measured">{{
+          gib(o.measuredBytes) }}</span> (Testlauf {{ o.model === m.name ? '' : 'von ' + o.model + ', gleiche Gewichte, ' }}{{
+          when(o.measuredAt) }}).
+          @if (o.extraBytes) {
+            Die Reserve deckt {{ fmt.num(o.reserveBytes / GIB, 2) }} GiB davon, <span class="font-mono">+ {{
+            gib(o.extraBytes) }}</span> zählt die Prognose dazu.
+          } @else {
+            Das deckt die Reserve ({{ fmt.num(o.reserveBytes / GIB, 2) }} GiB).
+          }
+        </p>
+      }
       @if (e.notes?.length) {
         <ul class="mt-2 list-disc space-y-0.5 pl-5 text-xs text-gray-400">
           @for (n of e.notes; track n) { <li>{{ n }}</li> }

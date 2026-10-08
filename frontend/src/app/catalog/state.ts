@@ -45,10 +45,15 @@ export function verdictOrigin(v: Verdict): Origin | null {
   return v.basis === 'measured' ? 'measured' : v.basis === 'estimated' ? 'estimated' : null;
 }
 
-/** Need as share of what the card offers Ollama, 0..100+ (the meter clamps); null when either side is unknown. */
+/** Need plus what Ollama does not count, as share of what the card offers Ollama, 0..100+ (the meter clamps). */
 export function vramPercent(v: Verdict): number | null {
   if (!v.needBytes || !v.availableBytes) return null;
-  return (v.needBytes / v.availableBytes) * 100;
+  return ((v.needBytes + (v.extraBytes ?? 0)) / v.availableBytes) * 100;
+}
+
+/** "+0,8": what the card holds beyond Ollama's count and the reserve (measured by a test run), or ''. */
+export function extraText(v: Verdict): string {
+  return v.extraBytes ? `+${num(v.extraBytes / GIB, 1)}` : '';
 }
 
 /**
@@ -63,7 +68,8 @@ export function vramText(v: Verdict): string {
 /** Tooltip of the meter: what the bar compares. */
 export function vramHint(v: Verdict): string {
   if (!v.needBytes || !v.availableBytes) return v.message;
-  return `${gib(v.needBytes)} Bedarf von ${gib(v.availableBytes)}, die die Karte Ollama lässt`;
+  const extra = v.extraBytes ? ` + ${gib(v.extraBytes)} außerhalb Ollamas Zählung` : '';
+  return `${gib(v.needBytes)} Bedarf${extra} von ${gib(v.availableBytes)}, die die Karte Ollama lässt`;
 }
 
 /** The word next to the VRAM figure: where it comes from. */

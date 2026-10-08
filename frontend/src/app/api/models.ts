@@ -47,6 +47,7 @@ export type { ModelGroup } from './models/model-group';
 export type { ModuleInfo } from './models/module-info';
 export type { Observation } from './models/observation';
 export type { OllamaState } from './models/ollama-state';
+export type { OverheadInfo } from './models/overhead-info';
 export type { ParentInfo } from './models/parent-info';
 export type { PortInfo } from './models/port-info';
 export type { Preflight } from './models/preflight';

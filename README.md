@@ -73,9 +73,10 @@ line in `server.log` - on the second PC, set them in `[modules.catalog]` (`serve
 The verdict compares the need with the card's budget for Ollama: total VRAM - other programs (measured by
 NVML whenever `/api/ps` is empty) - Ollama's reserve. Estimates are calibrated by measurements of the same
 weights blob. A test run (menu of a model) unloads what is loaded, loads the model with a chosen context,
-answers a fixed prompt and stores load time, tok/s and VRAM; runs that would end in a partial offload are
-refused, "tight" ones need a confirmation, and test runs are locked when Ollama runs on another machine
-(`allow_remote_tests`). Details: help page "Katalog" (`modules/catalog/HELP.md`).
+answers a fixed prompt and stores load time, tok/s and VRAM. What the runner holds beyond Ollama's count
+(1.2 GiB for qwen3.5 with its vision encoder) is added to the need of the same weights. Runs that would end
+in a partial offload are refused, "tight" ones need a confirmation, and test runs are locked when Ollama
+runs on another machine (`allow_remote_tests`). Details: help page "Katalog" (`modules/catalog/HELP.md`).
 
 ## MCP servers
 

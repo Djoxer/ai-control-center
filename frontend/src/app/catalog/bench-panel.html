@@ -94,7 +94,8 @@
         <div class="flex flex-wrap items-baseline justify-between gap-2">
           <span class="font-mono" [class]="p.verdict.basis === 'measured' ? measured : estimated">
             {{ p.verdict.basis === 'estimated' ? '≈ ' : '' }}{{ gib(p.verdict.needBytes) }}
-            <span [class]="ui.meta">von {{ gib(p.verdict.availableBytes) }}</span></span>
+            @if (extra()) { <span class="ml-1 text-gray-400" title="außerhalb Ollamas Zählung (Testlauf)">{{ extra() }}</span> }
+            <span [class]="ui.meta" class="ml-1">von {{ gib(p.verdict.availableBytes) }}</span></span>
           <span [class]="pill()">{{ view()?.label }}</span>
         </div>
         <app-meter class="mt-2" [value]="percent()" [tone]="view()?.tone ?? 'normal'" [label]="'VRAM-Bedarf'" />

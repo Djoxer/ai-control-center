@@ -82,14 +82,14 @@ class StubGpu:
     `extra` (MiB) is added to the next readings one by one: a runner that frees its memory late, or a
     model Ollama is loading before /api/ps lists it."""
 
-    def __init__(self, fail=False, ollama=None, idle_mib=500):
-        self.fail, self.ollama, self.idle_mib, self.extra = fail, ollama, idle_mib, []
+    def __init__(self, fail=False, ollama=None, idle_mib=500, runner_mib=300):
+        self.fail, self.ollama, self.idle_mib, self.runner_mib, self.extra = fail, ollama, idle_mib, runner_mib, []
 
     def read(self):
         if self.fail:
             raise GpuUnavailable("NVML gone")
         loaded = sum(m.size_vram for m in self.ollama.ps) if self.ollama else 0
-        used = self.idle_mib + loaded // MIB + (300 if loaded else 0) + (self.extra.pop(0) if self.extra else 0)
+        used = self.idle_mib + loaded // MIB + (self.runner_mib if loaded else 0) + (self.extra.pop(0) if self.extra else 0)
         return GpuReading(name="RTX 5070 Ti", driver_version="610.62", util_percent=0, vram_used_mib=used,
                           vram_total_mib=16303, temp_c=35, power_w=20.0, power_limit_w=300.0, fan_percent=0,
                           throttle_reasons=())
@@ -550,6 +550,61 @@ def test_test_run_measures_and_cleans_up(tmp_path):
         assert m.benches[0].id == done.id and m.observations[0].loads == 1
         svc2 = await h.service()                                                     # stored in SQLite
         assert svc2.bench_list("coder:14b")[0].result.eval_tps == 64.0
+
+    run(go())
+
+
+VISION = ("completion", "vision")
+
+
+def test_what_the_runner_holds_beyond_ollamas_count_goes_into_the_verdict(tmp_path):
+    """qwen3.5 on the AI box, 08.10.: 6.7 GiB laut Ollama, the card held 1.2 GiB more (vision encoder)."""
+    h = Harness(tmp_path)
+    h.gpu.idle_mib, h.gpu.runner_mib = 1424, 1229
+    h.ollama.install("vis:9b", weights="v", num_ctx=8192, caps=VISION)
+    h.ollama.install("vis-64k:latest", parent="vis:9b", weights="v", num_ctx=8192, caps=VISION)
+    h.ollama.install("text:14b", weights="t", num_ctx=8192)
+    h.ollama.sizes["vis:9b"] = (12 * GIB, 12 * GIB)
+
+    async def go():
+        svc = await _ready(h)
+        await svc.start_bench("vis:9b", None, confirm=False)
+        await svc.bench.task
+        assert svc.bench_list()[0].result.runner_overhead_bytes == 1229 * MIB
+        m = {x.name: x for x in (await svc.overview()).models}
+        extra = 1229 * MIB - round(0.45 * GIB)
+        vis, relative, text = m["vis:9b"], m["vis-64k:latest"], m["text:14b"]
+        assert (vis.verdict.basis, vis.verdict.need_bytes, vis.verdict.extra_bytes) == ("measured", 12 * GIB, extra)
+        assert vis.verdict.state == "tight"                      # 12 GiB fit Ollama's 90 %, + 0.75 GiB do not
+        assert vis.overhead.measured_bytes == 1229 * MIB and vis.overhead.extra_bytes == extra
+        assert relative.verdict.extra_bytes == extra and relative.overhead.model == "vis:9b"   # same weights
+        assert not any("Bild-Encoder" in n for n in relative.estimate.notes)                   # measured now
+        assert text.overhead is None and text.verdict.extra_bytes == 0
+        pre = await svc.preflight("vis-64k:latest")
+        assert pre.verdict.extra_bytes == extra and "außerhalb Ollamas Zählung" in pre.verdict.message
+        assert pre.needs_confirm                                  # tight because of the extra
+        svc.hardware = svc.hardware.model_copy(update={"key": "RTX 4090 · 24564 MiB"})   # another card
+        other = {x.name: x for x in (await svc.overview()).models}["vis:9b"]
+        assert other.overhead is None and other.verdict.extra_bytes == 0   # measured on the 5070 Ti only
+
+    run(go())
+
+
+def test_a_vision_model_measured_by_ollama_only_says_what_is_missing(tmp_path):
+    h = Harness(tmp_path)
+    h.ollama.install("vis:9b", weights="v", num_ctx=8192, caps=VISION)
+
+    async def go():
+        svc = await _ready(h)
+        notes = (await svc.overview()).models[0].estimate.notes
+        assert any(n.startswith("Bild-Encoder: steckt in der Dateigröße") for n in notes)    # formula only
+        h.ollama.ps = [running("vis:9b", digest="d-vis:9b", ctx=8192, size=7 * GIB, vram=7 * GIB)]
+        await svc.observe()
+        m = (await svc.overview()).models[0]
+        assert m.verdict.basis == "measured" and m.overhead is None
+        assert [n for n in m.estimate.notes if "Bild-Encoder" in n] == [
+            "Bild-Encoder: fehlt in dieser Zahl (Ollamas Zählung) – erst ein Testlauf zeigt, wie viel die Karte "
+            "zusätzlich belegt"]
 
     run(go())
 

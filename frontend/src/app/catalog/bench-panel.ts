@@ -10,7 +10,7 @@ import { Meter } from '../dashboard/meter';
 import { Icon } from '../layout/icon';
 import { ui } from '../ui/tokens';
 import {
-  PHASE_ORDER, benchStateView, gib, isBenchRunning, message, phaseLabel, verdictView, vramPercent,
+  PHASE_ORDER, benchStateView, extraText, gib, isBenchRunning, message, phaseLabel, verdictView, vramPercent,
 } from './state';
 
 export interface BenchStart {
@@ -91,6 +91,10 @@ export class BenchPanel {
   readonly pill = computed(() => {
     const v = this.view();
     return v ? `${ui.pill} ${ui.pillTone[v.tone]}` : ui.pill;
+  });
+  readonly extra = computed(() => {
+    const p = this.preflight();
+    return p ? extraText(p.verdict) : '';
   });
   readonly percent = computed(() => {
     const p = this.preflight();

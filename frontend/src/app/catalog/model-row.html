@@ -38,7 +38,12 @@
   <div>
     <div class="flex items-baseline justify-between gap-2">
       <span [class]="ui.fieldLabel" class="sm:hidden">VRAM</span>
-      <span [class]="vramClass()" class="font-mono text-sm">{{ vram() }}</span>
+      <span class="font-mono text-sm">
+        <span [class]="vramClass()">{{ vram() }}</span>
+        @if (extra()) {
+          <span class="ml-1 text-gray-400" title="belegt der Runner zusätzlich, außerhalb Ollamas Zählung (Testlauf)">{{ extra() }}</span>
+        }
+      </span>
       <span [class]="ui.meta">{{ originWord() }}</span>
     </div>
     <app-meter class="mt-1.5" [value]="percent()" [tone]="view().tone" [label]="'VRAM-Bedarf ' + m.name"

@@ -1,5 +1,6 @@
 """Context length, VRAM estimate, calibration, budget and verdict - the numbers the offload protection uses."""
 import asyncio
+import json
 from datetime import datetime, timezone
 
 import pytest
@@ -8,8 +9,8 @@ from control_center.adapters.common import SAMPLES_DIR
 from control_center.adapters.ollama import FakeOllama
 from control_center.modules.catalog.collector import record_from
 from control_center.modules.catalog.estimate import (
-    GIB, Budget, ContextResult, Point, Seen, effective_context, effective_kv_type, estimate_vram, kv_plan,
-    placement, verdict,
+    GIB, Budget, ContextResult, Point, Seen, effective_context, effective_kv_type, estimate_vram,
+    extra_beyond_reserve, kv_plan, placement, verdict,
 )
 from control_center.modules.catalog.settings import CatalogSettings
 
@@ -139,6 +140,16 @@ def test_real_deepseek_old_gguf_has_full_kv_and_says_so():
     assert est.confidence == "low" and any("Älteres GGUF ohne MLA" in n for n in est.notes)
 
 
+def test_real_deepseek_test_run_confirms_the_full_kv_cache():
+    """Test run on the AI box, 08.10.: deepseek-coder-v2:16b at 16,384 tokens = 10.5 GiB laut Ollama.
+    The full cache is ~0.4 GiB above that; a compressed (MLA latent) cache would be ~1.6 GiB below it."""
+    m = real("deepseek-coder-v2:16b")
+    measured = 10.5 * GIB
+    full = estimate_vram(m, ctx(16384), "q8_0", CFG).need_bytes
+    latent = m.size + 27 * (512 + 64) * 34 * 16384 // 32 + round(0.4 * GIB)
+    assert abs(full - measured) < 0.5 * GIB < abs(latent - measured)
+
+
 def test_newer_mla_gguf_keeps_only_the_latent():
     info = {"general.architecture": "deepseek2", "deepseek2.block_count": 2, "deepseek2.attention.head_count": 16,
             "deepseek2.attention.head_count_kv": 16, "deepseek2.attention.key_length": 192,
@@ -225,6 +236,42 @@ def test_verdict_measured_beats_estimated():
     assert (full.state, full.basis, full.need_bytes) == ("fits", "measured", round(8 * GIB))
     tight = verdict(est, Seen(round(13.5 * GIB), round(13.5 * GIB)), BOX, CFG)
     assert tight.state == "tight"
+
+
+def test_what_ollama_does_not_count_beyond_the_reserve():
+    """Test runs on the AI box, 08.10.: text models 0.2 GiB beyond Ollama's count (the reserve covers it),
+    qwen3.5 with its vision encoder 1.2 GiB."""
+    assert extra_beyond_reserve(None, BOX) == extra_beyond_reserve(0, BOX) == 0
+    assert extra_beyond_reserve(round(0.2 * GIB), BOX) == 0
+    assert extra_beyond_reserve(round(1.2 * GIB), BOX) == round(1.2 * GIB) - round(0.45 * GIB)
+
+
+def test_the_capture_of_07_10_already_showed_the_qwen35_extra():
+    """real-normal (qwen3.5-9b-64k-code loaded) vs. real-idle: card minus empty card minus Ollama's count =
+    1,247 MiB - the "1.2 GiB driver overhead" of 07.10. was right for this model, and the test run of 08.10.
+    measured the same."""
+    loaded = json.loads((SAMPLES_DIR / "real-normal" / "gpu.json").read_text())["vram_used_mib"]
+    idle = json.loads((SAMPLES_DIR / "real-idle" / "gpu.json").read_text())["vram_used_mib"]
+    size = json.loads((SAMPLES_DIR / "real-normal" / "ollama-ps.json").read_text())["models"][0]["size_vram"]
+    overhead = loaded * MIB - idle * MIB - size
+    assert round(overhead / MIB) == 1247
+    assert extra_beyond_reserve(overhead, BOX) > 0.7 * GIB
+
+
+@pytest.mark.parametrize("need_gib, extra_gib, state, words", [
+    (12.0, 0, "fits", "passen"),
+    (12.0, 0.75, "tight", "Knapp"),                    # 12.75 > 90 % of 14.08
+    (13.8, 0.75, "split", "Ollama lädt es komplett"),  # Ollama's count fits, the card does not
+    (14.2, 0.75, "split", "Teil-Offload"),
+])
+def test_verdict_adds_what_ollama_does_not_count(need_gib, extra_gib, state, words):
+    v = verdict(_est(need_gib), None, BOX, CFG, extra_bytes=round(extra_gib * GIB))
+    assert (v.state, v.extra_bytes) == (state, round(extra_gib * GIB)) and words in v.message
+    if extra_gib:
+        assert "außerhalb Ollamas Zählung" in v.message
+    seen = verdict(_est(1), Seen(round(need_gib * GIB), round(need_gib * GIB)), BOX, CFG,
+                   extra_bytes=round(extra_gib * GIB))
+    assert seen.state == ("fits" if state == "fits" else "tight")                # it ran: never "split"
 
 
 def test_verdict_without_numbers_or_gpu():

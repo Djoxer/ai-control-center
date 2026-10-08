@@ -226,6 +226,10 @@ class Estimate:
         return self.weights_bytes + self.kv_bytes + self.graph_bytes
 
 
+VISION_NOTE = ("Bild-Encoder: steckt in der Dateigröße und damit in der Formel – Ollama zählt ihn später nicht "
+               "mit, die Karte belegt ihn trotzdem")
+
+
 def _embedding(rec: ModelRecord) -> bool:
     return "embedding" in rec.capabilities and "completion" not in rec.capabilities
 
@@ -257,8 +261,7 @@ def estimate_vram(rec: ModelRecord, ctx: ContextResult, kv_type: str, cfg: Catal
             est.notes.extend(plan.notes)
             est.confidence = plan.confidence
             if "vision" in rec.capabilities:
-                est.notes.append("Enthält einen Bild-Encoder: Die Dateigröße zählt ihn mit, Ollama vermutlich "
-                                 "nicht – ohne Messung eher zu hoch")
+                est.notes.append(VISION_NOTE)
     est.need_bytes = est.formula_bytes
     _calibrate(est, plan, points or [], ctx.parallel, per_element)
     return est
@@ -336,35 +339,56 @@ class Verdict:
     need_bytes: int | None                  # Ollama's scale (same number as the dashboard)
     available_bytes: int | None             # card minus other programs minus Ollama's reserve
     message: str
+    extra_bytes: int = 0                    # the card holds this beyond Ollama's count and the reserve (test run)
+
+
+def extra_beyond_reserve(overhead_bytes: int | None, budget: Budget) -> int:
+    """What a runner holds beyond Ollama's count (measured by a test run) and beyond the reserve that covers
+    the usual CUDA context. Text models on the AI box: 0.2 GiB -> 0. qwen3.5 (vision): 1.2 GiB -> 0.75 GiB."""
+    if not overhead_bytes:
+        return 0
+    return max(0, overhead_bytes - budget.reserve_bytes)
 
 
 def verdict(est: Estimate | None, seen: Seen | None, budget: Budget, cfg: CatalogSettings,
-            embedding: bool = False) -> Verdict:
+            embedding: bool = False, extra_bytes: int = 0) -> Verdict:
+    """Ollama splits a model when ITS count does not fit (need > available); the card overflows when the
+    count plus what Ollama does not count does not fit. Both end badly on this card, so both are compared:
+    need + extra against the budget."""
     avail = budget.available_bytes
+    extra = max(0, extra_bytes)
+    plus = f" + {gib(extra)} außerhalb Ollamas Zählung" if extra else ""
+
+    def v(state: VerdictState, basis: Basis, need: int | None, message: str) -> Verdict:
+        return Verdict(state, basis, need, avail, message, extra)
+
     if seen is not None:
         where = placement(seen.size_bytes, seen.vram_bytes)
         need = seen.size_bytes                          # the whole model, also the part that went to the CPU
         if where == "split":
             pct = int(seen.vram_bytes / seen.size_bytes * 100)
-            return Verdict("split", "measured", need, avail,
-                           f"Teil-Offload beobachtet: nur {pct} % auf der GPU – Absturzgefahr.")
+            return v("split", "measured", need, f"Teil-Offload beobachtet: nur {pct} % auf der GPU – Absturzgefahr.")
         if where == "cpu":
-            return Verdict("cpu", "measured", need, avail, "Lief komplett auf der CPU (beobachtet).")
-        if avail and need > cfg.tight_ratio * avail and not embedding:
-            return Verdict("tight", "measured", need, avail,
-                           f"Lief komplett auf der GPU, aber knapp: {gib(need)} von {gib(avail)} verfügbar.")
-        return Verdict("fits", "measured", need, avail, "Läuft komplett auf der GPU (beobachtet).")
+            return v("cpu", "measured", need, "Lief komplett auf der CPU (beobachtet).")
+        if avail and need + extra > cfg.tight_ratio * avail and not embedding:
+            return v("tight", "measured", need,
+                     f"Lief komplett auf der GPU, aber knapp: {gib(need)}{plus} von {gib(avail)} verfügbar.")
+        return v("fits", "measured", need, "Läuft komplett auf der GPU (beobachtet).")
     need = est.need_bytes if est is not None else None
     if need is None:
-        return Verdict("unknown", "none", None, avail, "Keine Schätzung möglich – Modelldaten fehlen.")
+        return v("unknown", "none", None, "Keine Schätzung möglich – Modelldaten fehlen.")
     if not avail:
-        return Verdict("unknown", "estimated", need, None, f"≈ {gib(need)} Bedarf – GPU-Größe unbekannt.")
-    if need <= cfg.tight_ratio * avail or embedding:
-        return Verdict("fits", "estimated", need, avail,
-                       f"Sollte komplett auf die GPU passen: ≈ {gib(need)} von {gib(avail)} verfügbar.")
-    if need <= avail:
-        return Verdict("tight", "estimated", need, avail,
-                       f"Knapp: ≈ {gib(need)} von {gib(avail)} verfügbar – mehr Last durch andere Programme kippt es.")
-    return Verdict("split", "estimated", need, avail,
-                   f"≈ {gib(need)} von {gib(avail)} verfügbar – Teil-Offload zu erwarten, Absturzgefahr. "
-                   f"num_ctx verkleinern.")
+        return Verdict("unknown", "estimated", need, None, f"≈ {gib(need)}{plus} Bedarf – GPU-Größe unbekannt.", extra)
+    if need + extra <= cfg.tight_ratio * avail or embedding:
+        return v("fits", "estimated", need,
+                 f"Sollte komplett auf die GPU passen: ≈ {gib(need)}{plus} von {gib(avail)} verfügbar.")
+    if need + extra <= avail:
+        return v("tight", "estimated", need,
+                 f"Knapp: ≈ {gib(need)}{plus} von {gib(avail)} verfügbar – mehr Last durch andere Programme kippt es.")
+    if need <= avail:                                   # Ollama would load it fully - the card cannot hold it
+        return v("split", "estimated", need,
+                 f"≈ {gib(need)}{plus} von {gib(avail)} verfügbar – Ollama lädt es komplett, aber die Karte reicht "
+                 f"nicht: Absturz- oder Bremsgefahr. num_ctx verkleinern.")
+    return v("split", "estimated", need,
+             f"≈ {gib(need)}{plus} von {gib(avail)} verfügbar – Teil-Offload zu erwarten, Absturzgefahr. "
+             f"num_ctx verkleinern.")

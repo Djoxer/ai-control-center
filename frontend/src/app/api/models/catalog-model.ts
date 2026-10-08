@@ -4,6 +4,7 @@
 import { BenchStatus } from '../models/bench-status';
 import { ContextInfo } from '../models/context-info';
 import { Observation } from '../models/observation';
+import { OverheadInfo } from '../models/overhead-info';
 import { ParentInfo } from '../models/parent-info';
 import { Verdict } from '../models/verdict';
 import { VramEstimate } from '../models/vram-estimate';
@@ -24,6 +25,7 @@ export interface CatalogModel {
   name: string;
   observations?: Array<Observation>;
   origin: string;
+  overhead?: (OverheadInfo | null);
   parameterSize?: (string | null);
   parameters?: {
 [key: string]: Array<string>;

@@ -174,6 +174,27 @@ describe('Catalog page', () => {
     expect(el.textContent).toContain('2 Messwerte bleiben');
   });
 
+  it('shows what the runner holds beyond Ollama\'s count, measured by a test run', async () => {
+    const GIB = 1024 ** 3;
+    const vis = catalogModel({
+      verdict: { state: 'fits', basis: 'measured', needBytes: 6.7 * GIB, availableBytes: 14.15 * GIB,
+        extraBytes: 0.75 * GIB, message: 'Läuft komplett auf der GPU (beobachtet).' },
+      overhead: { measuredBytes: 1.2 * GIB, reserveBytes: 0.45 * GIB, extraBytes: 0.75 * GIB,
+        model: 'qwen3.5-9b-64k-code:latest', measuredAt: '2026-10-08T15:24:00Z' },
+    });
+    await open(catalogOverview({ models: [vis], groups: [{ origin: 'qwen3.5:9b', installed: true, members: ['qwen3.5:9b'] }] }));
+    expect(rows()[0].textContent).toContain('6,7 GiB');
+    expect(rows()[0].textContent).toContain('+0,8');
+    rows()[0].querySelector<HTMLButtonElement>('app-menu button')!.click();
+    await render();
+    button('Details', rows()[0]).click();
+    await render();
+    const text = (el.querySelector('dialog[open]')?.textContent ?? '').replace(/\s+/g, ' ');
+    expect(text).toContain('belegt der Runner 1,2 GiB');
+    expect(text).toContain('Testlauf von qwen3.5-9b-64k-code:latest, gleiche Gewichte');
+    expect(text).toContain('Die Reserve deckt 0,45 GiB davon, + 0,8 GiB zählt die Prognose dazu.');
+  });
+
   it('shows the GPU budget the verdicts compare against', async () => {
     await open();
     expect(el.textContent).toContain('GPU-Budget');
@@ -291,6 +312,14 @@ describe('Catalog page', () => {
     expect(dialog.textContent).toContain('Einen kleineren Kontext wählen.');
     expect(dialog.querySelector('input[type=checkbox]')).toBeNull();
     expect(button('Testlauf starten', dialog).disabled).toBe(true);
+  });
+
+  it('counts the measured extra in the test dialog as well', async () => {
+    await open();
+    await openTest();
+    preflightReq().flush(preflight({ verdict: { ...catalogModel().verdict, extraBytes: 0.75 * 1024 ** 3 } }));
+    await render();
+    expect(dialogOpen().textContent).toContain('+0,8');
   });
 
   it('warns which models a test run unloads', async () => {

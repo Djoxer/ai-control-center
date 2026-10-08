@@ -598,6 +598,16 @@
             "title": "Origin",
             "type": "string"
           },
+          "overhead": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OverheadInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "parameterSize": {
             "anyOf": [
               {
@@ -2870,6 +2880,41 @@
         "title": "OllamaState",
         "type": "object"
       },
+      "OverheadInfo": {
+        "description": "What the runner held beyond Ollama's count in the newest test run of the same weights on this GPU.",
+        "properties": {
+          "extraBytes": {
+            "title": "Extrabytes",
+            "type": "integer"
+          },
+          "measuredAt": {
+            "format": "date-time",
+            "title": "Measuredat",
+            "type": "string"
+          },
+          "measuredBytes": {
+            "title": "Measuredbytes",
+            "type": "integer"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "reserveBytes": {
+            "title": "Reservebytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "measuredBytes",
+          "reserveBytes",
+          "extraBytes",
+          "model",
+          "measuredAt"
+        ],
+        "title": "OverheadInfo",
+        "type": "object"
+      },
       "ParentInfo": {
         "properties": {
           "declared": {
@@ -3969,6 +4014,11 @@
             ],
             "title": "Basis",
             "type": "string"
+          },
+          "extraBytes": {
+            "default": 0,
+            "title": "Extrabytes",
+            "type": "integer"
           },
           "message": {
             "title": "Message",

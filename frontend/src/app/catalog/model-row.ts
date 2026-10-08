@@ -8,8 +8,8 @@ import { Icon } from '../layout/icon';
 import { Menu } from '../ui/menu';
 import { ui } from '../ui/tokens';
 import {
-  benchSummary, capabilityChips, contextSource, isBenchRunning, originWord, relationText, verdictOrigin, verdictView,
-  vramHint, vramPercent, vramText, when,
+  benchSummary, capabilityChips, contextSource, extraText, isBenchRunning, originWord, relationText, verdictOrigin,
+  verdictView, vramHint, vramPercent, vramText, when,
 } from './state';
 
 /**
@@ -43,6 +43,7 @@ export class ModelRow {
   readonly pill = computed(() => `${ui.pill} ${ui.pillTone[this.view().tone]}`);
   readonly percent = computed(() => vramPercent(this.model().verdict));
   readonly vram = computed(() => vramText(this.model().verdict));
+  readonly extra = computed(() => extraText(this.model().verdict));
   readonly hint = computed(() => vramHint(this.model().verdict));
   /** Value color by origin; plain gray when there is no number. */
   readonly vramClass = computed(() => {

@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 
 import { benchStatus, catalogModel, catalogOverview } from '../testing/catalog-overview';
 import {
-  PHASE_ORDER, benchStateView, benchSummary, budgetFacts, capabilityChips, contextExplain, contextSource, gib,
+  PHASE_ORDER, benchStateView, benchSummary, budgetFacts, capabilityChips, contextExplain, contextSource, extraText, gib,
   groupViews, isBenchRunning, isNewerBench, isNewerOverview, message, observationText, originWord, parameterList,
   phaseLabel, relationText, serverFacts, serverSourceText, shortDigest, verdictOrigin, verdictView, vramHint,
   vramPercent, vramText,
@@ -28,6 +28,13 @@ describe('catalog state helpers', () => {
     expect(vramHint({ ...v, availableBytes: null })).toBe(v.message);
     expect(vramText({ ...v, needBytes: null })).toBe('—');
     expect(vramPercent({ ...v, availableBytes: null })).toBeNull();
+    // the runner holds 0,8 GiB beyond Ollama's count (vision encoder): the bar and the hint count it
+    const vis = { ...v, extraBytes: 0.8 * GIB };
+    expect(vramPercent(vis)).toBeCloseTo(86.4);
+    expect(vramText(vis)).toBe('≈ 10,0 GiB');                   // the figure stays Ollama's count ...
+    expect(extraText(vis)).toBe('+0,8');                         // ... the rest is shown next to it
+    expect(extraText(v)).toBe('');
+    expect(vramHint(vis)).toBe('10,0 GiB Bedarf + 0,8 GiB außerhalb Ollamas Zählung von 12,5 GiB, die die Karte Ollama lässt');
     expect(verdictOrigin({ ...v, basis: 'none' })).toBeNull();
     expect(gib(null)).toBe('—');
   });

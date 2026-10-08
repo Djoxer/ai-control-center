@@ -4,6 +4,7 @@
 export interface Verdict {
   availableBytes?: (number | null);
   basis: 'measured' | 'estimated' | 'none';
+  extraBytes?: number;
   message: string;
   needBytes?: (number | null);
   state: 'fits' | 'tight' | 'split' | 'cpu' | 'unknown';

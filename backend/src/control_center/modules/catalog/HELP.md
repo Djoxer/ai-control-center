@@ -52,8 +52,9 @@ Modell neu, und der Katalog sieht diesen Kontext als eigene Messung.
 ### VRAM-Bedarf und Prognose
 
 Die Zahl ist der Bedarf in Ollamas Zählung, also dieselbe Größe, die die Übersicht für ein geladenes Modell
-zeigt. Der Balken vergleicht sie mit dem **GPU-Budget**: dem Teil der Karte, der für Ollama übrig bleibt. Die
-Maus über dem Balken zeigt beide Zahlen.
+zeigt. Steht daneben grau **+0,8**, belegt die Karte so viel mehr, als Ollama zählt (gemessen im Testlauf,
+siehe „Was Ollama nicht zählt“). Der Balken vergleicht beides zusammen mit dem **GPU-Budget**: dem Teil der
+Karte, der für Ollama übrig bleibt. Die Maus über dem Balken zeigt die Rechnung.
 
 Die Farbe sagt, woher die Zahl kommt:
 
@@ -92,6 +93,27 @@ gehört alles, was die Karte belegt, jemand anderem. Gezählt wird erst, wenn zw
 in `/api/ps`, und darf nicht stundenlang als „andere Programme“ gelten. Bis zur ersten Messung gilt
 `other_usage_gib` (1,2 GiB) und die Zeile sagt „angenommen“.
 
+### Was Ollama nicht zählt
+
+Ollamas Größe in `/api/ps` ist nicht alles, was der Runner auf der Karte belegt. Jeder Testlauf misst den Rest:
+Karte nachher − Karte vorher − Ollamas Zählung. Am AI-Rechner (08.10.):
+
+| Modell | Ollama zählt | Karte belegt mehr |
+|---|---|---|
+| qwen2.5-coder:14b, deepseek-coder-v2:16b | 11,3 / 10,5 GiB | 0,2 GiB |
+| qwen3.5-9b-64k-code (mit Bild-Encoder) | 6,7 GiB | 1,2 GiB |
+
+Die Reserve (0,45 GiB) deckt die 0,2 GiB der Textmodelle. Was darüber liegt, rechnet der Katalog zum Bedarf
+dazu, für alle Modelle mit denselben Gewichten: bei qwen3.5 1,2 − 0,45 ≈ **+0,8 GiB**. Die Details sagen, aus
+welchem Testlauf die Zahl stammt.
+
+Ohne Testlauf weiß der Katalog das nicht. Für Bildmodelle steht dann in den Details „Bild-Encoder: fehlt in
+dieser Zahl“. Die 90-%-Grenze für „knapp“ lässt bei 14 GiB Budget rund 1,4 GiB Luft. Das deckt den Encoder
+meist ab, aber nur ein Testlauf zeigt es sicher.
+
+Ein Modell, dessen Zählung passt, dessen Zählung plus Rest aber nicht, gilt als „Teil-Offload“: Ollama lädt es
+komplett, die Karte läuft trotzdem über.
+
 ### Kalibrierung
 
 Die Formel kennt nicht jede Architektur: Bei `qwen3.5` (mit Bild-Encoder in der Datei) lag sie am AI-Rechner
@@ -122,7 +144,7 @@ kalibriert“.
 | **Laden** (s) | `load_duration`: Datei lesen, auf die GPU bringen |
 | **Kontext** | was Ollama wirklich geladen hat (`/api/ps`). Weicht er ab, hat Ollama gekürzt. |
 | **Speicher** | Größe und GPU-Anteil laut `/api/ps`. Das ist die Messung, die den Katalog kalibriert. |
-| **Karte** | NVML vorher → nachher, und wie viel der Runner über Ollamas Zählung hinaus belegt |
+| **Karte** | NVML vorher → nachher, und wie viel der Runner über Ollamas Zählung hinaus belegt (geht in die Prognose ein, siehe oben) |
 
 Der Ablauf: Geladene Modelle entladen → leere Karte messen (zählt als „andere Programme“) → laden und
 antworten → Speicher messen → wieder entladen. Danach ist die GPU so frei wie vorher.
