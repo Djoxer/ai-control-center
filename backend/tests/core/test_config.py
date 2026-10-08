@@ -35,6 +35,8 @@ def test_example_toml_matches_the_settings_models(monkeypatch):
     """The documented example must load: a typo there costs the next person an evening."""
     from control_center.modules.dashboard.settings import DashboardSettings
     from control_center.modules.logs.settings import LogsSettings
+    from control_center.modules.mcp.settings import McpSettings
+    from control_center.modules.rag.settings import RagSettings
 
     example = Path(__file__).parents[2] / "control-center.example.toml"
     monkeypatch.setenv("ACC_CONFIG", str(example))
@@ -44,6 +46,8 @@ def test_example_toml_matches_the_settings_models(monkeypatch):
     assert [p.key for p in dash.probes] == ["mcp", "openwebui", "qdrant"]
     assert dash == DashboardSettings()                        # example documents the defaults
     LogsSettings.model_validate(s.modules.section("logs"))
+    McpSettings.model_validate(s.modules.section("mcp"))
+    assert RagSettings.model_validate(s.modules.section("rag")) == RagSettings()   # documents the defaults
 
 
 def test_adapters_from_env(tmp_path, monkeypatch):

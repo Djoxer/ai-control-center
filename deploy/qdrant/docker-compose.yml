@@ -1,0 +1,26 @@
+# Qdrant for the RAG module, with a FIXED version.
+#
+# Why pinned: "qdrant/qdrant:latest" changes with every "docker compose pull", and Qdrant only
+# migrates its storage one minor version at a time (1.17 -> 1.18 -> 1.19). A silent jump could leave
+# the collections unreadable. Upgrade on purpose: raise the tag by one minor version, pull, up -d.
+#
+# Data stays OUTSIDE this repo: the folder comes from ACC_QDRANT_DATA (e.g. the existing
+# %USERPROFILE%\rag-setup\qdrant_data). Never point it into the repo - "git clean" would delete it.
+#
+# Before switching from an older compose file: the version below must be >= the running one
+# (http://localhost:6333 shows it, so does the RAG page). Qdrant cannot read newer storage with an
+# older version. Steps: help page "RAG" -> "Qdrant aus dem Repo starten".
+#
+#   PowerShell:  $env:ACC_QDRANT_DATA = "$env:USERPROFILE\rag-setup\qdrant_data"
+#                docker compose -f deploy\qdrant\docker-compose.yml up -d
+name: acc-qdrant
+services:
+  qdrant:
+    image: qdrant/qdrant:v1.19.2
+    restart: unless-stopped        # back after a reboot as soon as Docker Desktop runs
+    ports:
+      - "6333:6333"                # REST + web UI (/dashboard). No API key yet: reachable in the LAN
+    volumes:
+      - ${ACC_QDRANT_DATA:?set ACC_QDRANT_DATA to the Qdrant data folder outside the repo}:/qdrant/storage
+    environment:
+      QDRANT__TELEMETRY_DISABLED: "true"

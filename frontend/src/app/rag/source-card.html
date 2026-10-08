@@ -1,0 +1,148 @@
+<!-- source-card.html: title and collection size, folder and rules, last run with counters and file lists -->
+@let s = source();
+<article [class]="ui.card" class="overflow-hidden" [attr.aria-labelledby]="'rag-src-' + s.collection">
+  <header class="flex flex-wrap items-start gap-x-4 gap-y-3 p-4">
+    <div class="min-w-56 flex-1">
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+        <h3 [id]="'rag-src-' + s.collection" class="text-base font-semibold text-white">{{ s.title }}</h3>
+        <span [class]="sizePill().cls">{{ sizePill().text }}</span>
+        @if (active()) {
+          <span [class]="ui.pill + ' ' + ui.pillTone.normal" class="flex items-center gap-1.5">
+            <span [class]="ui.dot" class="animate-pulse bg-sky-400"></span>wird indexiert
+          </span>
+        }
+      </div>
+      <p [class]="ui.meta" class="mt-1">
+        Collection <span class="font-mono">{{ s.collection }}</span>
+        @if (s.stats?.vectorSize) { · {{ s.stats?.vectorSize }} Dimensionen · {{ s.stats?.distance }} }
+      </p>
+    </div>
+    <button type="button" [class]="ui.button" class="flex items-center gap-2"
+            [disabled]="blocked() !== null" [title]="blocked() ?? ''" (click)="reindex.emit()">
+      <app-icon name="refresh" class="size-4" /> Neu indexieren
+    </button>
+  </header>
+
+  <!-- where the files come from -->
+  <dl class="grid gap-x-6 gap-y-3 px-4 pb-4 text-sm sm:grid-cols-2">
+    <div class="sm:col-span-2">
+      <dt [class]="ui.fieldLabel">Ordner</dt>
+      <dd class="mt-1 font-mono text-xs break-all" [class.text-gray-200]="s.pathExists" [class.text-red-300]="!s.pathExists">
+        {{ s.path }} @if (!s.pathExists) { <span class="font-sans">– nicht gefunden</span> }
+      </dd>
+    </div>
+    <div>
+      <dt [class]="ui.fieldLabel">Einbezogen</dt>
+      <dd class="mt-1">
+        <ul class="space-y-0.5 font-mono text-xs text-gray-200">
+          @for (i of s.includes; track i.dir) { <li class="break-all">{{ includeText(i) }}</li> }
+        </ul>
+      </dd>
+    </div>
+    <div>
+      <dt [class]="ui.fieldLabel">Ausgeschlossen</dt>
+      <dd class="mt-1 space-y-0.5 text-xs text-gray-400">
+        <p>Namen: <span class="font-mono text-gray-200">{{ s.excludeNames.length ? s.excludeNames.join(', ') : '—' }}</span></p>
+        <p>Ordner: <span class="font-mono text-gray-200">{{ s.excludeDirs.length ? s.excludeDirs.join(', ') : '—' }}</span></p>
+        @if (s.secretAllow.length) {
+          <p>Freigegeben: <span class="font-mono text-gray-200 break-all">{{ s.secretAllow.join(', ') }}</span></p>
+        }
+      </dd>
+    </div>
+  </dl>
+
+  <!-- last run of this source -->
+  <section class="border-t border-white/10 p-4" [attr.aria-label]="'Letzter Lauf von ' + s.title">
+    <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <h4 [class]="ui.sectionTitle">Letzter Lauf</h4>
+      @if (run(); as r) {
+        <span [class]="runPill()">{{ runView().label }}</span>
+        <p [class]="ui.meta">
+          {{ when(r.finishedAt ?? r.startedAt) }}
+          @if (r.durationS !== null && r.durationS !== undefined) { · {{ fmt.duration(r.durationS) }}
+            @if (r.embedS) { (davon Ollama {{ fmt.duration(r.embedS) }}) }
+          }
+          @if (r.created) { · Collection angelegt }
+        </p>
+      }
+    </div>
+
+    @if (run(); as r) {
+      @if (r.error) {
+        <p [class]="ui.errorBox" class="mt-3 px-3 py-2 text-sm" role="alert">{{ r.error }}</p>
+      }
+      @if (r.missingDirs?.length) {
+        <div [class]="missingCallout" class="mt-3" role="status">
+          <app-icon name="warning" class="mt-0.5 size-5" />
+          <p><span class="font-semibold">Hinweis:</span> Include-Ordner nicht gefunden:
+            <span class="font-mono">{{ r.missingDirs!.join(', ') }}</span></p>
+        </div>
+      }
+      <dl class="mt-3 grid grid-cols-2 gap-x-4 gap-y-3 sm:grid-cols-4 xl:grid-cols-7">
+        @for (f of facts(); track f.label) {
+          <div [title]="f.hint">
+            <dt [class]="ui.fieldLabel">{{ f.label }}</dt>
+            <dd class="mt-0.5 text-lg font-semibold" [class]="factTone[f.tone]">{{ f.value }}</dd>
+          </div>
+        }
+      </dl>
+
+      <div class="mt-3 space-y-2">
+        @if (r.secretHits?.length) {
+          <details>
+            <summary class="cursor-pointer text-xs text-gray-400 hover:text-gray-200">
+              Secret-Filter ({{ r.secretHits!.length }} Treffer)
+            </summary>
+            <ul class="mt-2 space-y-1 text-xs">
+              @for (h of r.secretHits!; track $index) {
+                <li class="flex flex-wrap gap-x-2">
+                  <span class="font-mono break-all text-gray-200">{{ h.file }}{{ h.line ? ':' + h.line : '' }}</span>
+                  <span class="text-gray-500">{{ h.rule }}</span>
+                  @if (h.allowed) { <span class="text-emerald-300">freigegeben, indexiert</span> }
+                </li>
+              }
+            </ul>
+          </details>
+        }
+        @if (r.truncatedFiles?.length) {
+          <details>
+            <summary class="cursor-pointer text-xs text-gray-400 hover:text-gray-200">
+              Abgeschnittene Dateien ({{ r.truncatedFiles!.length }}) – nur der Anfang ist durchsuchbar
+            </summary>
+            <ul class="mt-2 max-h-64 space-y-1 overflow-y-auto text-xs" tabindex="0">
+              @for (f of r.truncatedFiles!; track f.file) {
+                <li class="flex flex-wrap gap-x-2">
+                  <span class="font-mono break-all text-gray-200">{{ f.file }}</span>
+                  <span class="text-gray-500">{{ f.detail }}</span>
+                </li>
+              }
+            </ul>
+          </details>
+        }
+        @if (r.skippedFiles?.length) {
+          <details>
+            <summary class="cursor-pointer text-xs text-gray-400 hover:text-gray-200">
+              Übersprungen ({{ r.skippedFiles!.length }}) – alter Punkt bleibt
+            </summary>
+            <ul class="mt-2 space-y-1 text-xs">
+              @for (f of r.skippedFiles!; track f.file) {
+                <li class="flex flex-wrap gap-x-2">
+                  <span class="font-mono break-all text-gray-200">{{ f.file }}</span>
+                  <span class="text-red-300">{{ f.detail }}</span>
+                </li>
+              }
+            </ul>
+          </details>
+        }
+        @if (r.listsCut) {
+          <p [class]="ui.meta">Listen gekürzt – die Zahlen oben sind vollständig, alle Dateien stehen im Protokoll.</p>
+        }
+      </div>
+    } @else {
+      <p class="mt-2 text-sm text-gray-500">
+        Noch nicht über das Control Center indexiert.
+        @if (s.stats) { Die vorhandenen Punkte stammen vermutlich aus den alten Skripten. }
+      </p>
+    }
+  </section>
+</article>

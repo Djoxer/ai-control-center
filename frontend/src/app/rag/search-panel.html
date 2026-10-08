@@ -1,0 +1,75 @@
+<!-- search-panel.html: collection, question, number of hits; results like the MCP tool returns them -->
+<section [class]="ui.card" class="p-4" aria-labelledby="rag-search-title">
+  <h2 id="rag-search-title" [class]="ui.sectionTitle">Testsuche</h2>
+  <p [class]="ui.meta" class="mt-1">
+    Bettet die Frage ein wie das MCP-Tool @if (model()) { ({{ model() }}) } und zeigt, welche Dateien Qdrant liefert.
+    Lädt das Einbettungsmodell in Ollama.
+  </p>
+
+  <form class="mt-4 flex flex-wrap items-end gap-3" (submit)="$event.preventDefault(); run()">
+    <label class="w-full sm:w-52">
+      <span [class]="ui.fieldLabel">Collection</span>
+      <select [class]="ui.field" class="mt-1 w-full" [disabled]="!collections().length"
+              (change)="pick($any($event.target).value)">
+        @for (c of collections(); track c) {
+          <option [value]="c" [selected]="c === collection()">{{ c }}</option>
+        }
+      </select>
+    </label>
+    <label class="min-w-0 flex-1 basis-64">
+      <span [class]="ui.fieldLabel">Frage</span>
+      <input type="search" [class]="ui.field" class="mt-1 w-full" maxlength="4000"
+             placeholder="z. B. Wo wird das JWT geprüft?"
+             [value]="query()" (input)="query.set($any($event.target).value)" />
+    </label>
+    <label class="w-24">
+      <span [class]="ui.fieldLabel">Treffer</span>
+      <input type="number" [class]="ui.field" class="mt-1 w-full" min="1" [max]="limitMax"
+             [value]="limit()" (change)="setLimit($any($event.target).value)" />
+    </label>
+    <button type="submit" [class]="ui.button" class="flex items-center gap-2" [disabled]="!canSearch()">
+      <app-icon name="search" class="size-4" [class.animate-pulse]="busy()" /> {{ busy() ? 'Sucht …' : 'Suchen' }}
+    </button>
+  </form>
+
+  @if (!collections().length) {
+    <p [class]="ui.empty" class="py-4">Noch keine Collection vorhanden – erst indexieren.</p>
+  }
+
+  @if (error(); as err) {
+    <p [class]="ui.errorBox" class="mt-4 px-3 py-2 text-sm" role="alert">{{ err }}</p>
+  }
+
+  @if (result(); as r) {
+    <div class="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2">
+      <p [class]="ui.meta">
+        {{ r.hits.length === 1 ? '1 Treffer' : r.hits.length + ' Treffer' }} in <span class="font-mono">{{ r.collection }}</span>
+        · Einbettung {{ fmt.ms(r.embedMs) }} · Suche {{ fmt.ms(r.searchMs) }}
+      </p>
+      <button type="button" [class]="ui.buttonSmall" class="flex items-center gap-1.5 sm:ml-auto" (click)="copyMcp()"
+              title="Text genau so, wie mcp_server.py ihn an den Client schickt">
+        <app-icon name="copy" class="size-3.5" /> {{ copied() ? 'Kopiert' : 'Als MCP-Antwort kopieren' }}
+      </button>
+    </div>
+    @if (!r.hits.length) {
+      <p [class]="ui.empty" class="py-6">Keine Treffer gefunden.</p>
+    } @else {
+      <ol class="mt-3 space-y-4">
+        @for (h of r.hits; track h.id; let i = $index) {
+          <li>
+            <div class="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+              <span class="text-xs text-gray-500">{{ i + 1 }}.</span>
+              <span class="font-mono text-sm text-sky-300" title="Kosinus-Ähnlichkeit, 1 = identisch">{{ score(h.score) }}</span>
+              <span class="min-w-0 font-mono text-sm break-all text-white">{{ h.filename ?? '(ohne Dateiname)' }}</span>
+              @if (h.truncated) {
+                <span [class]="ui.pill + ' ' + ui.pillTone.warning" title="Datei war länger – nur der Anfang ist gespeichert">abgeschnitten</span>
+              }
+            </div>
+            <pre [class]="ui.codeBlock" class="mt-1.5 max-h-48 overflow-auto px-3 py-2 whitespace-pre-wrap break-all"
+                 tabindex="0">{{ h.text }}</pre>
+          </li>
+        }
+      </ol>
+    }
+  }
+</section>

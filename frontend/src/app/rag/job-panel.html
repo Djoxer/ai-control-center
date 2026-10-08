@@ -1,0 +1,69 @@
+<!-- job-panel.html: state, progress of the running job or summary of the last one, one line per source -->
+@let j = job();
+<section [class]="ui.card" class="overflow-hidden" aria-labelledby="rag-job-title">
+  <header class="flex flex-wrap items-center gap-x-3 gap-y-2 p-4">
+    <h2 id="rag-job-title" [class]="ui.sectionTitle">{{ running() ? 'Indexierung' : 'Letzte Indexierung' }}</h2>
+    <span [class]="pillClass()" class="flex items-center gap-1.5" role="status">
+      <span [class]="dotClass()"></span>{{ view().label }}
+    </span>
+    <p [class]="ui.meta">
+      {{ when(j.startedAt ?? j.createdAt) }} · {{ j.model }}
+      @if (durationS() !== null) { · Dauer {{ fmt.duration(durationS()) }} }
+    </p>
+    @if (running()) {
+      <button type="button" [class]="ui.button" class="ml-auto flex items-center gap-2"
+              [disabled]="cancelBusy() || j.cancelRequested" (click)="cancel.emit()"
+              title="Stoppt nach der aktuellen Datei. Fertiges bleibt, gelöscht wird nichts.">
+        <app-icon name="stop" class="size-4" /> {{ j.cancelRequested ? 'Bricht ab …' : 'Abbrechen' }}
+      </button>
+    }
+  </header>
+
+  @if (j.error) {
+    <p [class]="ui.errorBox" class="mx-4 mb-4 px-3 py-2 text-sm" role="alert">{{ j.error }}</p>
+  }
+
+  @if (running() && j.current; as cur) {
+    <div class="px-4 pb-4">
+      <div class="flex flex-wrap items-baseline justify-between gap-x-3 text-sm">
+        <span class="text-gray-200">{{ currentTitle() }} · {{ phaseLabel(cur) }}</span>
+        @if (cur.total) {
+          <span class="font-mono text-xs text-gray-400">{{ fmt.num(cur.done ?? 0) }} / {{ fmt.num(cur.total) }}</span>
+        }
+      </div>
+      <app-meter class="mt-2" [value]="percent()" label="Fortschritt der Indexierung"
+                 [hint]="cur.total ? (cur.done ?? 0) + ' von ' + cur.total + ' Dateien' : ''" />
+      @if (cur.file && cur.phase === 'embed') {
+        <p [class]="ui.meta" class="mt-2 truncate font-mono" [title]="cur.file">{{ cur.file }}</p>
+      }
+    </div>
+  }
+
+  <ul [class]="ui.divided" class="border-t border-white/10" aria-label="Quellen dieses Laufs">
+    @for (r of j.sources; track r.collection) {
+      <li class="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-2.5 text-sm">
+        <span class="font-medium text-white">{{ r.title }}</span>
+        <span [class]="sourcePill(r.state)">{{ sourceLabel(r.state) }}</span>
+        @if (r.state !== 'pending') {
+          <span class="text-xs text-gray-400 sm:ml-auto">
+            {{ fmt.num(r.indexed ?? 0) }} von {{ fmt.num(r.files ?? 0) }} indexiert
+            @if (r.truncated) { · {{ fmt.num(r.truncated) }} abgeschnitten }
+            @if (r.secret) { · <span class="text-amber-300">{{ r.secret }} Secret-Filter</span> }
+            @if (r.skipped) { · <span class="text-red-300">{{ r.skipped }} übersprungen</span> }
+            @if (r.removed) { · {{ fmt.num(r.removed) }} entfernt }
+          </span>
+        }
+        @if (r.error) {
+          <p class="w-full text-xs text-red-300">{{ r.error }}</p>
+        }
+      </li>
+    }
+  </ul>
+
+  <footer [class]="ui.cardFoot" class="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3">
+    <a routerLink="/logs" [queryParams]="{ source: 'rag' }" class="flex items-center gap-1.5 hover:text-gray-300">
+      <app-icon name="log" class="size-3.5" /> Verlauf im Protokoll
+    </a>
+    <span>Dateilisten pro Quelle in den Karten darunter</span>
+  </footer>
+</section>

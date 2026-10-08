@@ -116,3 +116,42 @@ tools_timeout_s = 10             # MCP tools/list
 # title = "Demo-Server"
 # command = ["{python}", "-m", "control_center.modules.mcp.demo_server", "--port", "8701"]
 # url = "http://127.0.0.1:8701/mcp"
+
+# RAG: sources indexed into Qdrant, test search, collections (help page "RAG"). Replaces the hand-run
+# index scripts. Reindex and delete are locked when Qdrant runs on another machine (allow_remote_writes).
+[modules.rag]
+store = "qdrant"                 # qdrant | memory (second PC without Qdrant: in-memory, lost on restart)
+qdrant_url = "http://{ai_host}:6333"
+qdrant_timeout_s = 30
+allow_remote_writes = false      # true = a second PC may overwrite the collections on the AI box
+embedder = "ollama"              # ollama | fake (second PC without Ollama: word hashing, demo only)
+# ollama_url = "http://{ai_host}:11434"   # default: [adapters] ollama_url
+embedding_model = "nomic-embed-text"      # must match what mcp_server.py uses
+embed_timeout_s = 120            # the first call loads the model
+distance = "Cosine"              # only for collections created here
+max_chars = 6000                 # one file = one point, cut after this many characters (like the scripts)
+batch_size = 50
+max_consecutive_errors = 10      # embedding errors in a row -> the job stops
+search_limit_max = 50
+keep_jobs = 20                   # finished reports in data/rag/jobs.json
+
+# One block per collection. path lives OUTSIDE this repo (customer code never goes to GitHub).
+# [[modules.rag.sources]]
+# collection = "bent_php"        # name in Qdrant = what the MCP tool searches
+# title = "Bent PHP-Backend"
+# path = "%USERPROFILE%/rag-setup/repos/bent/bent-php-api"
+# includes = [
+#   { dir = "src", ext = [".php"] },
+#   { dir = "app", ext = [".php"] },
+#   { dir = "db/migrations", ext = [".sql"] },
+# ]
+# exclude_names = [".env", ".htpasswd"]                  # default
+# exclude_dirs = ["vendor", "node_modules", ".git", "var"] # default; [] = descend everywhere
+# secret_allow = []              # files the secret filter flagged but someone checked, e.g. ["config/demo.php"]
+
+# Second PC: index this repo's own code into the memory store (store = "memory", embedder = "fake")
+# [[modules.rag.sources]]
+# collection = "acc_demo"
+# title = "Control Center (Demo)"
+# path = "src"
+# includes = [{ dir = "control_center", ext = [".py", ".md"] }]

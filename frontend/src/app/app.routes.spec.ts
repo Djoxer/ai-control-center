@@ -6,6 +6,7 @@ import { RouterTestingHarness } from '@angular/router/testing';
 import { routes } from './app.routes';
 import { Help } from './help/help';
 import { Mcp } from './mcp/mcp';
+import { Rag } from './rag/rag';
 
 @Component({ template: '' })
 class Stub {}
@@ -29,6 +30,13 @@ describe('app routes', () => {
     const mcp = routes.find((r) => r.path === 'mcp')!;
     expect(mcp.data).toEqual({ nav: 'main', icon: 'server', module: 'mcp' });
     expect(await mcp.loadComponent!()).toBe(Mcp);
+  });
+
+  it('loads the RAG page lazily, right after the MCP page', async () => {
+    const i = routes.findIndex((r) => r.path === 'rag');
+    expect(routes[i - 1].path).toBe('mcp');
+    expect(routes[i].data).toEqual({ nav: 'main', icon: 'database', module: 'rag' });
+    expect(await routes[i].loadComponent!()).toBe(Rag);
   });
 
   it('loads the help page lazily and keeps it out of the sidebar', async () => {

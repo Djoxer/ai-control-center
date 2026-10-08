@@ -1,0 +1,201 @@
+<!-- rag.html: status line, notices, job, sources, collections, test search, two confirmation dialogs -->
+<div class="space-y-4">
+  <section class="flex flex-wrap items-center gap-x-4 gap-y-2 text-xs text-gray-400">
+    <span class="flex items-center gap-2"
+          [title]="streamState() === 'open' ? 'Fortschritt kommt per Live-Stream' : 'Live-Verbindung getrennt'">
+      <span [class]="ui.dot"
+            [class.bg-emerald-400]="streamState() === 'open'" [class.animate-pulse]="streamState() === 'open'"
+            [class.bg-amber-400]="streamState() !== 'open'"></span>
+      {{ streamState() === 'open' ? 'Live' : 'Verbindung wird aufgebaut …' }}
+    </span>
+    @if (overview(); as ov) {
+      <span class="flex items-center gap-2">
+        <span [class]="ui.dot" [class.bg-emerald-400]="ov.store.reachable" [class.bg-red-400]="!ov.store.reachable"></span>
+        @if (ov.store.mode === 'memory') {
+          Speicher-Store (nur Entwicklung)
+        } @else {
+          Qdrant {{ ov.store.version ?? '' }} <span class="font-mono break-all">{{ ov.store.url }}</span>
+        }
+      </span>
+      <span>Einbettung: <span class="font-mono">{{ ov.embedder.model }}</span>
+        @if (ov.embedder.mode === 'fake') { (Fake) }
+      </span>
+      <span>bis {{ fmt.num(ov.maxChars) }} Zeichen pro Datei</span>
+      @if (dashboardUrl(); as url) {
+        <a [href]="url" target="_blank" rel="noopener" class="flex items-center gap-1 hover:text-gray-200">
+          Qdrant-Weboberfläche <app-icon name="external-link" class="size-3.5" />
+        </a>
+      }
+    }
+  </section>
+
+  @if (error(); as err) {
+    <p [class]="ui.errorBox" class="px-4 py-3 text-sm" role="alert">{{ err }}</p>
+  }
+  @if (actionError(); as err) {
+    <p [class]="ui.errorBox" class="px-4 py-3 text-sm" role="alert">{{ err }}</p>
+  }
+
+  @if (overview(); as ov) {
+    @if (!ov.writes.allowed) {
+      <div [class]="lockCallout" role="status">
+        <app-icon name="lock" class="mt-0.5 size-5" />
+        <p><span class="font-semibold">Nur lesen:</span> {{ ov.writes.reason }}</p>
+      </div>
+    }
+    @if (!ov.store.reachable) {
+      <div [class]="downCallout" role="alert">
+        <app-icon name="error" class="mt-0.5 size-5" />
+        <p><span class="font-semibold">Keine Verbindung:</span> {{ ov.store.error }}
+          – läuft Docker Desktop und der Qdrant-Container?</p>
+      </div>
+    }
+  }
+
+  @if (!loaded()) {
+    <p [class]="ui.empty" class="py-10">Lade …</p>
+  }
+
+  @if (job(); as j) {
+    <app-rag-job-panel [job]="j" [cancelBusy]="cancelBusy()" (cancel)="cancel()" />
+  }
+
+  <!-- sources -->
+  @if (overview(); as ov) {
+    <section class="space-y-3" aria-labelledby="rag-sources-title">
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-2">
+        <h2 id="rag-sources-title" [class]="ui.sectionTitle">
+          Quellen <span [class]="ui.titleDetail">· {{ ov.sources.length }}</span>
+        </h2>
+        @if (ov.sources.length > 1) {
+          <button type="button" [class]="ui.button" class="ml-auto flex items-center gap-2"
+                  [disabled]="blocked() !== null" [title]="blocked() ?? ''" (click)="askReindex(null)">
+            <app-icon name="refresh" class="size-4" /> {{ starting() ? 'Startet …' : 'Alle neu indexieren' }}
+          </button>
+        }
+      </div>
+
+      @if (!ov.sources.length) {
+        <!-- nothing configured yet: say where it goes instead of showing an empty page -->
+        <article [class]="ui.card" class="p-6 text-sm text-gray-300">
+          <p class="flex items-center gap-2 font-semibold text-white">
+            <app-icon name="database" class="size-5 text-gray-400" /> Noch keine Quelle eingetragen
+          </p>
+          <p class="mt-2 text-gray-400">
+            Quellen stehen in <code>backend/control-center.toml</code> unter <code>[[modules.rag.sources]]</code>,
+            ein Block pro Collection. Nach einem Neustart des Control Centers erscheinen sie hier.
+          </p>
+          <pre [class]="ui.codeBlock" class="mt-4 overflow-x-auto px-3 py-2">{{ example }}</pre>
+          <p [class]="ui.meta" class="mt-3">Mehr dazu: ⋮ → Hilfe.</p>
+        </article>
+      }
+
+      @for (s of ov.sources; track s.collection) {
+        <app-rag-source-card [source]="s" [blocked]="blocked()" [active]="isActive(s.collection)"
+                             [reachable]="ov.store.reachable"
+                             (reindex)="askReindex(s.collection)" />
+      }
+    </section>
+
+    <!-- every collection in the store, managed here or not -->
+    <section [class]="ui.card" aria-labelledby="rag-collections-title">
+      <div class="flex flex-wrap items-center gap-x-3 gap-y-1 p-4 pb-2">
+        <h2 id="rag-collections-title" [class]="ui.sectionTitle">
+          Collections <span [class]="ui.titleDetail">· {{ ov.collections.length }}</span>
+        </h2>
+        <p [class]="ui.meta">alles in {{ ov.store.mode === 'memory' ? 'diesem Speicher-Store' : 'Qdrant' }}, auch Fremdes</p>
+      </div>
+      @if (!ov.collections.length) {
+        <p [class]="ui.empty" class="pb-6 pt-2">
+          {{ ov.store.reachable ? 'Keine Collection vorhanden.' : 'Qdrant nicht erreichbar.' }}
+        </p>
+      } @else {
+        <table [class]="ui.table">
+          <thead [class]="ui.thead">
+            <tr [class]="ui.headRow">
+              <th class="px-4 py-2 font-medium">Name</th>
+              <th class="px-4 py-2 text-right font-medium">Punkte</th>
+              <th class="hidden px-4 py-2 font-medium sm:table-cell">Vektor</th>
+              <th class="hidden px-4 py-2 font-medium sm:table-cell">Zustand</th>
+              <th class="w-12 px-2 py-2"><span class="sr-only">Aktionen</span></th>
+            </tr>
+          </thead>
+          <tbody [class]="ui.divided">
+            @for (c of ov.collections; track c.name) {
+              <tr>
+                <td class="px-4 py-2.5">
+                  <p class="font-mono break-all text-white">{{ c.name }}</p>
+                  <p [class]="ui.meta">{{ c.source ?? 'nicht hier verwaltet' }}</p>
+                </td>
+                <td class="px-4 py-2.5 text-right font-mono">{{ fmt.num(c.points) }}</td>
+                <td class="hidden px-4 py-2.5 sm:table-cell">
+                  {{ c.vectorSize ? c.vectorSize + ' · ' + c.distance : '—' }}
+                </td>
+                <td class="hidden px-4 py-2.5 sm:table-cell">
+                  <span class="flex items-center gap-2">
+                    <span [class]="ui.dot + ' ' + collectionStatus(c).dot"></span>{{ collectionStatus(c).label }}
+                  </span>
+                </td>
+                <td class="px-2 py-2.5 text-right">
+                  <app-menu [label]="'Aktionen für ' + c.name">
+                    <app-icon menuTrigger name="more-vertical" class="size-5" />
+                    <button type="button" role="menuitem" [class]="ui.menuItem" [disabled]="blocked() !== null"
+                            [title]="blocked() ?? ''" (click)="askDelete(c)">
+                      <app-icon name="trash" class="size-4 text-red-300" /> Löschen …
+                    </button>
+                  </app-menu>
+                </td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </section>
+
+    <app-rag-search [collections]="collectionNames()" [preferred]="preferredCollection()"
+                    [model]="ov.embedder.model" [available]="ov.store.reachable" />
+  }
+</div>
+
+<app-dialog title="Neu indexieren?" size="sm" [open]="confirmReindex() !== null" (dismiss)="confirmReindex.set(null)">
+  @if (confirmReindex(); as c) {
+    @if (c.titles.length === 1) {
+      <p>„<span class="font-semibold text-white">{{ c.titles[0] }}</span>“ wird komplett neu eingebettet.
+        Das dauert je nach Größe einige Minuten.</p>
+    } @else {
+      <p>Alle {{ c.titles.length }} Quellen werden nacheinander komplett neu eingebettet
+        (<span class="text-white">{{ c.titles.join(', ') }}</span>). Das dauert einige Minuten.</p>
+    }
+    <p class="mt-3">Ollama lädt dafür das Einbettungsmodell und entlädt das Chat-Modell, das gerade geladen ist.
+      Die MCP-Suche funktioniert währenddessen weiter.</p>
+  }
+  <div dialogActions class="flex gap-2">
+    <button type="button" [class]="ui.button" (click)="confirmReindex.set(null)">Abbrechen</button>
+    <button type="button" [class]="ui.button" class="flex items-center gap-2" (click)="startReindex()">
+      <app-icon name="refresh" class="size-4" /> Starten
+    </button>
+  </div>
+</app-dialog>
+
+<app-dialog title="Collection löschen?" size="sm" [open]="confirmDelete() !== null" (dismiss)="confirmDelete.set(null)">
+  @if (confirmDelete(); as c) {
+    <p>„<span class="font-mono text-white">{{ c.name }}</span>“ wird mit allen {{ fmt.num(c.points) }} Punkten gelöscht.
+      Das lässt sich nicht rückgängig machen.</p>
+    @if (c.source) {
+      <p class="mt-3">Die Quelle „{{ c.source }}“ schreibt in diese Collection. Bis zur nächsten Indexierung findet
+        das passende MCP-Tool nichts mehr.</p>
+    }
+    <label class="mt-4 block">
+      <span [class]="ui.fieldLabel">Zur Bestätigung den Namen eintippen</span>
+      <input type="text" [class]="ui.field" class="mt-1 w-full font-mono" autocomplete="off" spellcheck="false"
+             [value]="deleteName()" (input)="deleteName.set($any($event.target).value)" />
+    </label>
+  }
+  <div dialogActions class="flex gap-2">
+    <button type="button" [class]="ui.button" (click)="confirmDelete.set(null)">Abbrechen</button>
+    <button type="button" [class]="ui.buttonDanger" class="flex items-center gap-2"
+            [disabled]="deleteName() !== confirmDelete()?.name || deleteBusy()" (click)="deleteConfirmed()">
+      <app-icon name="trash" class="size-4" /> {{ deleteBusy() ? 'Löscht …' : 'Löschen' }}
+    </button>
+  </div>
+</app-dialog>

@@ -79,6 +79,24 @@ On the second PC, the built-in demo server gives the page something to manage:
 `command = ["{python}", "-m", "control_center.modules.mcp.demo_server", "--port", "8701"]`,
 `url = "http://127.0.0.1:8701/mcp"`. Details: help page "MCP-Server" (`modules/mcp/HELP.md`).
 
+## RAG (Qdrant collections)
+
+The RAG module replaces the hand-run index scripts: sources in `backend/control-center.toml`, one
+collection each, reindex as a background job (progress via SSE), secret filter before embedding,
+stable point IDs with cleanup, collections overview and a test search that embeds like the MCP tools.
+Search quality is deliberately unchanged (one file = one point, cut after 6000 characters).
+
+    [[modules.rag.sources]]
+    collection = "bent_php"                               # what the MCP tool searches
+    title = "Bent PHP-Backend"
+    path = "%USERPROFILE%/rag-setup/repos/bent/bent-php-api"   # outside this repo
+    includes = [{ dir = "src", ext = [".php"] }, { dir = "db/migrations", ext = [".sql"] }]
+
+Reindex and delete are refused when Qdrant runs on another machine (`allow_remote_writes = false`),
+so a second PC can look at the real collections without overwriting them. Without Qdrant and Ollama:
+`store = "memory"`, `embedder = "fake"`. Qdrant itself: `deploy/qdrant/docker-compose.yml` (pinned
+version, data folder from `ACC_QDRANT_DATA`). Details: help page "RAG" (`modules/rag/HELP.md`).
+
 ## Add a module
 
 1. Create `backend/src/control_center/modules/<key>/`

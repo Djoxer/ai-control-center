@@ -28,6 +28,12 @@ export const routes: Routes = [
     data: { nav: 'main', icon: 'server', module: 'mcp' }
   },
   {
+    path: 'rag',
+    loadComponent: () => import('./rag/rag').then((m) => m.Rag),
+    title: 'RAG',
+    data: { nav: 'main', icon: 'database', module: 'rag' }
+  },
+  {
     path: 'logs',
     component: Logs,
     title: 'Protokoll',
