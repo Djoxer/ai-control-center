@@ -167,6 +167,41 @@ def test_real_gpt_oss_sliding_window():
     assert plan.bytes_at(100, 2.0) == 24 * 8 * 128 * 2 * 100       # below the window every layer is "full"
 
 
+# gemma4:latest (E4B) as the registry showed it on 09.10. - pattern: 5 window layers, then one with full attention
+GEMMA4 = {"general.architecture": "gemma4", "gemma4.block_count": 42, "gemma4.context_length": 131072,
+          "gemma4.embedding_length": 2560, "gemma4.attention.head_count": 8, "gemma4.attention.head_count_kv": 2,
+          "gemma4.attention.key_length": 512, "gemma4.attention.value_length": 512,
+          "gemma4.attention.key_length_swa": 256, "gemma4.attention.value_length_swa": 256,
+          "gemma4.attention.sliding_window": 512, "gemma4.attention.shared_kv_layers": 18,
+          "gemma4.attention.sliding_window_pattern": [(i + 1) % 6 != 0 for i in range(42)]}
+
+
+def test_gemma4_window_plan_per_layer_with_shorter_window_keys():
+    """09.10.: without the plan the formula counted 42 layers x 1024 per token -> 12,1 GiB at 64k for a 6 GiB model."""
+    est = estimate_vram(rec("gemma4:latest", info=GEMMA4, caps=["completion", "tools"]), ctx(65536), "q8_0", CFG)
+    full = 7 * 2 * (512 + 512) * 65536                         # 7 layers with full attention
+    window = 35 * 2 * (256 + 256) * 512                        # 35 window layers keep 512 tokens
+    assert est.kv_bytes == round((full + window) * 34 / 32)
+    assert est.kv_bytes < 1.0 * GIB and est.confidence == "normal"
+    assert est.notes[0] == "42 Schichten × 2 KV-Köpfe × 512+512 × q8_0"
+    assert "Sliding Window 512 Token in 35 von 42 Schichten" in est.notes
+    assert "Fenster-Schichten mit Schlüssel/Wert 256+256" in est.notes
+    assert "18 Schichten teilen den KV-Cache früherer Schichten – nicht abgezogen (sichere Seite)" in est.notes
+
+
+def test_window_plans_from_a_number_a_wrong_list_or_ints():
+    base = {**GEMMA4, "gemma4.attention.key_length_swa": None, "gemma4.attention.value_length_swa": None}
+    as_number = {**base, "gemma4.attention.sliding_window_pattern": 6}
+    as_list = {**base, "gemma4.attention.sliding_window_pattern": [1 if (i + 1) % 6 else 0 for i in range(42)]}
+    a, b = (estimate_vram(rec("m", info=i), ctx(8192), "f16", CFG) for i in (as_number, as_list))
+    assert a.kv_bytes == b.kv_bytes == (7 * 2 * 1024 * 8192 + 35 * 2 * 1024 * 512) * 2
+    assert not any("Fenster-Schichten" in n for n in a.notes)     # same lengths in every layer: nothing to say
+    wrong = {**GEMMA4, "gemma4.attention.sliding_window_pattern": [True] * 10}
+    est = estimate_vram(rec("m", info=wrong), ctx(8192), "f16", CFG)
+    assert est.confidence == "low" and est.kv_bytes == 42 * 2 * 1024 * 8192 * 2       # full length, too high
+    assert any("Fensterplan passt nicht zur Schichtzahl" in n for n in est.notes)
+
+
 def test_unknown_sliding_window_layout_and_ssm_without_plan_are_low_confidence():
     swa = {"general.architecture": "newarch", "newarch.block_count": 2, "newarch.attention.head_count": 2,
            "newarch.embedding_length": 128, "newarch.attention.sliding_window": 16}

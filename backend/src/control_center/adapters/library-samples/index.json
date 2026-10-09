@@ -4,5 +4,6 @@
   "qwen3:14b": "qwen3_14b.json",
   "devstral:24b": "devstral_24b.json",
   "gemma3:12b": "gemma3_12b.json",
+  "gemma4:latest": "gemma4_latest.json",
   "qwen3-coder:480b-cloud": "qwen3-coder_480b-cloud.json"
 }

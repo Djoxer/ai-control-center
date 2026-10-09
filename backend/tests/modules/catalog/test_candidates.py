@@ -145,6 +145,11 @@ def test_facts_of_every_sample():
     gemma = facts("gemma3:12b")
     assert gemma.record.capabilities == ["completion", "vision"] and gemma.record.info("attention.sliding_window") == 1024
 
+    gemma4 = facts("gemma4:latest")
+    plan = gemma4.record.info("attention.sliding_window_pattern")
+    assert plan[:6] == [True] * 5 + [False] and len(plan) == 42 and all(isinstance(v, bool) for v in plan)
+    assert gemma4.record.capabilities == ["completion", "tools", "vision"] and gemma4.projector_bytes == 920_000_000
+
     cloud = facts("qwen3-coder:480b-cloud")
     assert cloud.error == "Cloud-Modell: läuft auf https://ollama.com:443, nicht auf dieser Karte."
     assert cloud.weights_bytes == 0 and cloud.header_bytes == 0

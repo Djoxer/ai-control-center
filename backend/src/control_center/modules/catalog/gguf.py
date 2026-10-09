@@ -166,6 +166,8 @@ def _w_value(value: Any) -> tuple[int, bytes]:
     if isinstance(value, str):
         return STRING, _w_string(value)
     if isinstance(value, list):
+        if all(isinstance(v, bool) for v in value) and value:
+            return ARRAY, struct.pack("<IQ", 7, len(value)) + struct.pack(f"<{len(value)}?", *value)
         if all(isinstance(v, str) for v in value) and value:
             return ARRAY, struct.pack("<IQ", STRING, len(value)) + b"".join(_w_string(v) for v in value)
         if all(isinstance(v, float) for v in value) and value:

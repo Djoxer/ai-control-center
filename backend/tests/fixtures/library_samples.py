@@ -121,6 +121,21 @@ MODELS = [
                "gemma3.vision.block_count": 27, "gemma3.vision.embedding_length": 1152,
                "general.architecture": "gemma3", "general.file_type": 15},   # Ollama writes keys sorted
     },
+    {   # gemma4 E4B: window plan per layer (bool list), shorter keys/values in window layers, KV sharing,
+        # vision encoder as its own file - metadata as the real registry showed it on 09.10.
+        "name": "gemma4:latest", "weights": 5_650_000_000, "projector": 920_000_000, "template": "{{ .Prompt }}",
+        "config": {"model_format": "gguf", "model_family": "gemma4", "model_families": ["gemma4"],
+                   "model_type": "7.5B", "file_type": "Q4_K_M", "renderer": "gemma4", "parser": "gemma4"},
+        "params": {"temperature": 1, "top_k": 64, "top_p": 0.95},
+        "kv": {"gemma4.attention.head_count": 8, "gemma4.attention.head_count_kv": 2,
+               "gemma4.attention.key_length": 512, "gemma4.attention.key_length_swa": 256,
+               "gemma4.attention.shared_kv_layers": 18, "gemma4.attention.sliding_window": 512,
+               "gemma4.attention.sliding_window_pattern": [(i + 1) % 6 != 0 for i in range(42)],
+               "gemma4.attention.value_length": 512, "gemma4.attention.value_length_swa": 256,
+               "gemma4.block_count": 42, "gemma4.context_length": 131072, "gemma4.embedding_length": 2560,
+               "gemma4.embedding_length_per_layer_input": 256, "gemma4.feed_forward_length": 10240,
+               "general.architecture": "gemma4", "general.file_type": 15},
+    },
     {   # cloud model: runs at ollama.com, nothing goes onto the card
         "name": "qwen3-coder:480b-cloud", "cloud": True,
         "config": {"model_format": "", "model_family": "", "remote_host": "https://ollama.com:443",

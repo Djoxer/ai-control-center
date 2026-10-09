@@ -107,7 +107,10 @@ Die Farbe sagt, woher die Zahl kommt:
   Katalog hat es in `/api/ps` gesehen, oder ein Testlauf hat es gemessen. Das schlägt jede Schätzung.
 - **gelb mit ≈, „geschätzt“**: aus den Modelldaten berechnet, bevor das Modell je so geladen wurde.
   Gewichte (Dateigröße) + KV-Cache (Schichten × KV-Köpfe × Kopfgröße × Kontext × KV-Typ) + 0,4 GiB
-  Rechenpuffer.
+  Rechenpuffer. Schichten mit Sliding Window speichern nur ihr Fenster; den Plan liefert das GGUF selbst
+  (`sliding_window_pattern`, z. B. gemma4: 5 Fenster-Schichten, dann eine mit voller Länge) oder der Katalog
+  kennt ihn für die Architektur (gemma2/3, gpt-oss, cohere2). Teilen Schichten ihren KV-Cache (gemma4), rechnet
+  der Katalog trotzdem jede Schicht – die sichere Seite.
 - **gelb mit ≈, „kalibriert“**: wie geschätzt, aber an einer Messung derselben Gewichte ausgerichtet (siehe
   unten). Deutlich genauer als die reine Formel.
 

@@ -11,6 +11,7 @@ registry is outside of it, so one set serves every `fake_scenario`.
 | `qwen3:14b` | fits, but trained on 40,960 tokens only: too short for OpenCode |
 | `devstral:24b` | agent model with tools whose weights alone nearly fill the card |
 | `gemma3:12b` | vision encoder inside the weights file, sliding window, template without tools |
+| `gemma4:latest` | window plan per layer (bool list), shorter keys/values in window layers, KV sharing, separate projector |
 | `qwen3-coder:480b-cloud` | cloud model: no weights |
 
 Files: `index.json` (model name -> manifest file), `manifests/` (registry manifests), `blobs/sha256-<hex>`

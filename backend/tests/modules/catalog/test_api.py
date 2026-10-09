@@ -238,6 +238,10 @@ def test_candidate_endpoints(make):
     assert q["installed"] and q["requiresOk"] is False and q["notes"][0].startswith("Braucht Ollama ≥ 0.17.1")
     assert [x["name"] for x in c.get("/api/v1/catalog/overview").json()["candidates"]] == ["qwen3.5:9b",
                                                                                           "qwen3-coder:30b"]
+    g = c.post(url, json={"name": "gemma4"}).json()["overview"]["candidates"][0]          # gemma4:latest
+    assert g["estimate"]["confidence"] == "normal" and g["verdict"]["needBytes"] < 7.6 * 1024 ** 3   # 09.10.: 12,1
+    assert g["fitsUpTo"] == 131072 and {s["state"] for s in g["steps"]} == {"fits"}
+    assert c.delete(url, params={"name": "gemma4:latest"}).status_code == 200
     assert c.post(url, json={"name": "nope:1b"}).status_code == 404
     bad = c.post(url, json={"name": "evil.example/x/y"})
     assert bad.status_code == 400 and "nicht freigegeben" in bad.json()["detail"]

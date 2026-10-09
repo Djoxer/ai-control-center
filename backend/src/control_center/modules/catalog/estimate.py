@@ -10,7 +10,8 @@ Need above budget = Ollama splits the model between GPU and CPU = the Blackwell 
 
 KV cache per token and layer = KV heads x (key length + value length) x bytes per element.
 Architectures that keep KV only in some layers (sliding window, hybrid/recurrent, MLA) are handled
-where the metadata says so; everything unusual lowers the confidence instead of guessing.
+where the metadata says so; everything unusual lowers the confidence instead of guessing. Newer GGUFs
+(gemma4) name the window layers one by one (sliding_window_pattern) and give them shorter keys/values.
 """
 from __future__ import annotations
 
@@ -165,7 +166,17 @@ def kv_plan(rec: ModelRecord) -> KvPlan | None:
         notes.append("Hybrid-/SSM-Architektur ohne Schichtplan – KV für alle Schichten gerechnet (zu hoch)")
         confidence = "low"
 
-    per_token = [h * (key_len + val_len) for h in heads]
+    windows, window_notes, window_ok = _windows(rec, arch, blocks)
+    notes.extend(window_notes)
+    if not window_ok:
+        confidence = "low"
+    # window layers may store shorter keys/values (gemma4: 256+256 in the window, 512+512 with full attention)
+    key_swa_raw = _int(rec.info("attention.key_length_swa"))
+    key_swa = key_swa_raw or key_len
+    val_swa = _int(rec.info("attention.value_length_swa")) or (key_swa if key_swa_raw else val_len)
+    if any(windows) and (key_swa, val_swa) != (key_len, val_len):
+        notes.append(f"Fenster-Schichten mit Schlüssel/Wert {key_swa}+{val_swa}")
+    per_token = [h * ((key_swa + val_swa) if w else (key_len + val_len)) for h, w in zip(heads, windows)]
     summary_heads, summary_k, summary_v = max(heads, default=0), key_len, val_len
     mla_rank = _int(rec.info("attention.kv_lora_rank"))
     if mla_rank is not None:
@@ -180,22 +191,39 @@ def kv_plan(rec: ModelRecord) -> KvPlan | None:
                          "ob Ollama hier komprimiert")
             confidence = "low"
 
-    windows = [0] * blocks
-    window = _int(rec.info("attention.sliding_window"))
-    if window:
-        every = SWA_EVERY.get(arch)
-        if every:
-            for i in range(blocks):
-                if (i + 1) % every:                       # sliding-window layer: only the window is cached
-                    windows[i] = window
-            notes.append(f"Sliding Window {_num(window)} Token in {blocks - blocks // every} von {blocks} Schichten")
-        else:
-            notes.append("Sliding Window mit unbekanntem Schichtplan – volle Länge gerechnet (zu hoch)")
-            confidence = "low"
+    shared = _int(rec.info("attention.shared_kv_layers"))
+    if shared:
+        # the last layers reuse the cache of earlier ones (gemma3n/gemma4); whether Ollama's engine saves it is
+        # not known here - counting them stays on the safe side
+        notes.append(f"{shared} Schichten teilen den KV-Cache früherer Schichten – nicht abgezogen (sichere Seite)")
 
     attn_layers = sum(1 for e in per_token if e)
     summary = f"{attn_layers} Schichten × {summary_heads} KV-Köpfe × {summary_k}+{summary_v}"
     return KvPlan(layers=list(zip(per_token, windows)), summary=summary, notes=notes, confidence=confidence)
+
+
+def _windows(rec: ModelRecord, arch: str, blocks: int) -> tuple[list[int], list[str], bool]:
+    """Sliding window per layer: (window or 0 per layer, notes, plan known).
+
+    Sources, best first: a per-layer list sliding_window_pattern (true = window layer, gemma4), a number n in it
+    (every n-th layer has full attention), the known layout of the architecture (SWA_EVERY). No plan = every
+    layer counted with the full length (too high) and the confidence goes down."""
+    window = _int(rec.info("attention.sliding_window"))
+    if not window:
+        return [0] * blocks, [], True
+    pattern = rec.info("attention.sliding_window_pattern")
+    if isinstance(pattern, list):
+        if len(pattern) != blocks:
+            return [0] * blocks, ["Fensterplan passt nicht zur Schichtzahl – volle Länge gerechnet (zu hoch)"], False
+        windows = [window if bool(p) else 0 for p in pattern]
+    else:
+        every = pattern if isinstance(pattern, int) and not isinstance(pattern, bool) and pattern > 1 \
+            else SWA_EVERY.get(arch)
+        if not every:
+            return [0] * blocks, ["Sliding Window mit unbekanntem Schichtplan – volle Länge gerechnet (zu hoch)"], False
+        windows = [window if (i + 1) % every else 0 for i in range(blocks)]
+    count = sum(1 for w in windows if w)
+    return windows, [f"Sliding Window {_num(window)} Token in {count} von {blocks} Schichten"], True
 
 
 # ---- estimate -------------------------------------------------------------------------------------
