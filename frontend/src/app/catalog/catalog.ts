@@ -3,6 +3,7 @@ import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angula
 import { Api } from '../api/api';
 import { catalogOverview } from '../api/fn/catalog/catalog-overview';
 import { catalogRefresh } from '../api/fn/catalog/catalog-refresh';
+import { catalogSetUsage } from '../api/fn/catalog/catalog-set-usage';
 import { catalogStartBench } from '../api/fn/catalog/catalog-start-bench';
 import { BenchStatus } from '../api/models/bench-status';
 import { CatalogOverview } from '../api/models/catalog-overview';
@@ -15,9 +16,10 @@ import { BenchPanel, BenchStart } from './bench-panel';
 import { ModelDetails } from './model-details';
 import { ModelRow } from './model-row';
 import {
-  BENCH_TOPIC, OVERVIEW_TOPIC, budgetFacts, gib, groupViews, isBenchRunning, isNewerBench, isNewerOverview, message,
-  serverFacts, serverSourceText, when,
+  BENCH_TOPIC, OVERVIEW_TOPIC, UsageFilter, budgetFacts, gib, groupViews, inUse, isBenchRunning, isNewerBench,
+  isNewerOverview, matchesUsage, message, serverFacts, serverSourceText, when,
 } from './state';
+import { UsageChange, UsagePanel } from './usage-panel';
 
 const ALL = '*';                      // busy marker of "refresh everything"
 
@@ -28,7 +30,7 @@ const ALL = '*';                      // busy marker of "refresh everything"
  */
 @Component({
   selector: 'app-catalog',
-  imports: [BenchPanel, Dialog, Icon, ModelDetails, ModelRow],
+  imports: [BenchPanel, Dialog, Icon, ModelDetails, ModelRow, UsagePanel],
   templateUrl: './catalog.html',
 })
 export class Catalog implements OnInit {
@@ -52,11 +54,31 @@ export class Catalog implements OnInit {
   readonly shownRun = signal<string | null>(null);     // id of the run the dialog shows
   readonly benchStarting = signal(false);
   readonly benchError = signal<string | null>(null);
+  // usage tags
+  readonly filter = signal<UsageFilter>('all');
+  readonly usageName = signal<string | null>(null);
+  readonly usageSaving = signal(false);
+  readonly usageError = signal<string | null>(null);
 
+  /** Origin cards with the models the filter lets through; cards that end up empty are left out. */
   readonly groups = computed(() => {
     const ov = this.overview();
-    return ov ? groupViews(ov) : [];
+    const f = this.filter();
+    return (ov ? groupViews(ov) : [])
+      .map((g) => ({ ...g, models: g.models.filter((m) => matchesUsage(m, f)) }))
+      .filter((g) => g.models.length > 0);
   });
+  readonly usedCount = computed(() => this.overview()?.models.filter((m) => inUse(m.usage)).length ?? 0);
+  readonly filters = computed(() => {
+    const all = this.overview()?.models.length ?? 0;
+    const used = this.usedCount();
+    return [
+      { key: 'all' as UsageFilter, label: `Alle (${all})` },
+      { key: 'used' as UsageFilter, label: `Im Einsatz (${used})` },
+      { key: 'unused' as UsageFilter, label: `Ohne Einsatz (${all - used})` },
+    ];
+  });
+  readonly usageModel = computed(() => this.overview()?.models.find((m) => m.name === this.usageName()) ?? null);
   readonly facts = computed(() => {
     const ov = this.overview();
     return ov ? serverFacts(ov.server) : [];
@@ -170,6 +192,28 @@ export class Catalog implements OnInit {
       this.benchError.set(message(e));
     } finally {
       this.benchStarting.set(false);
+    }
+  }
+
+  // ---- usage ------------------------------------------------------------------------------------
+
+  openUsage(name: string): void {
+    this.usageError.set(null);
+    this.usageName.set(name);
+  }
+
+  async saveUsage(change: UsageChange): Promise<void> {
+    const name = this.usageName();
+    if (!name || this.usageSaving()) return;
+    this.usageSaving.set(true);
+    this.usageError.set(null);
+    try {
+      this.accept(await this.api.invoke(catalogSetUsage, { body: { name, tags: change.tags, note: change.note } }));
+      this.usageName.set(null);
+    } catch (e) {
+      this.usageError.set(message(e));
+    } finally {
+      this.usageSaving.set(false);
     }
   }
 

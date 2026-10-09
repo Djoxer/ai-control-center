@@ -7,19 +7,30 @@ import pytest
 
 from control_center.adapters.gpu import GpuReading, GpuUnavailable
 from control_center.adapters.ollama import (
-    GenerateResult, OllamaModelMissing, OllamaRequestFailed, OllamaUnavailable, RunningModel,
+    ChatResult, GenerateResult, OllamaModelMissing, OllamaRequestFailed, OllamaUnavailable, RunningModel, ToolCall,
 )
 from control_center.core.config import AdaptersConfig, Settings
 from control_center.core.context import AppContext
 from control_center.core.db import Database
 from control_center.core.events import EventBus
 from control_center.modules.catalog import bench
+from control_center.modules.catalog.toolcheck import CASES
 from control_center.modules.catalog.service import (
     BENCH_TOPIC, TOPIC, Busy, CatalogService, NeedsConfirm, OllamaDown, Refused, UnknownModel,
 )
 from control_center.modules.catalog.settings import CatalogSettings
 
 from .factories import details, tag
+
+
+def _answer(*calls, content="", done="stop", thinking=0):
+    return ChatResult(content=content, thinking_chars=thinking, tool_calls=tuple(calls), total_s=1.5,
+                      eval_tokens=30, eval_s=0.5, done_reason=done)
+
+
+GOOD = {"read": _answer(ToolCall("read_file", {"path": "./src/app/app.config.ts"})),
+        "choose": _answer(ToolCall("run_command", {"command": "npm test"})),
+        "types": _answer(ToolCall("search", {"pattern": "TODO", "path": "src/", "max_results": 5}))}
 
 
 class StubOllama:
@@ -29,6 +40,10 @@ class StubOllama:
         self.tags_list, self.shows, self.ps, self.down, self.show_calls = [], {}, [], False, []
         self.sizes: dict[str, tuple[int, int]] = {}             # name -> (size, size_vram) once loaded
         self.generated, self.unloaded, self.fail_generate = [], [], None
+        self.chats: list[tuple[str, dict]] = []
+        # request text -> answer; default: every case answered correctly with a structured call
+        self.answers: dict[str, ChatResult] = {c.request: GOOD[c.key] for c in CASES}
+        self.chat_error: str | None = None
 
     def install(self, name, **kw):
         size = kw.pop("size", 8 * GIB)                          # weights file; the factories' qwen2 shape for KV
@@ -67,6 +82,12 @@ class StubOllama:
         self.ps = [running(name, digest=t.digest, ctx=options["num_ctx"], size=size, vram=vram)]
         return GenerateResult(total_s=9.0, load_s=4.5, prompt_tokens=60, prompt_s=0.1, eval_tokens=128,
                               eval_s=2.0, done_reason="length")
+
+    async def chat(self, name, messages, tools, options, keep_alive, timeout):
+        self.chats.append((name, options))
+        if self.chat_error:
+            raise OllamaRequestFailed(self.chat_error)
+        return self.answers[messages[-1]["content"]]
 
     async def unload(self, name, timeout=30):
         self.unloaded.append(name)
@@ -544,7 +565,9 @@ def test_test_run_measures_and_cleans_up(tmp_path):
         assert h.ollama.unloaded == ["chat:1", "coder:14b"] and h.ollama.ps == []
         assert h.ollama.generated[0][1] == {"num_ctx": 8192, "num_predict": 128, "temperature": 0, "seed": 42}
         phases = [d["phase"] for t, d in h.published if t == BENCH_TOPIC]
-        assert phases == [None, "unload", "baseline", "load", "measure", "cleanup", None]
+        assert phases == [None, "unload", "baseline", "load", "measure", "tools", "cleanup", None]
+        assert (r.tools.passed, r.tools.total, r.tools.skipped) == (3, 3, None)
+        assert {o["num_ctx"] for _, o in h.ollama.chats} == {8192}           # same context: nothing reloads
         m = (await svc.overview()).models[0]
         assert m.verdict.basis == "measured" and m.verdict.need_bytes == 9 * GIB      # the run is a measurement
         assert m.benches[0].id == done.id and m.observations[0].loads == 1
@@ -702,5 +725,96 @@ def test_shutdown_cancels_a_running_test_and_keeps_the_report(tmp_path):
         assert svc.bench is None
         stored = (await h.service()).bench_list("coder:14b")[0]
         assert stored.state == "cancelled" and "beendet" in stored.error
+
+    run(go())
+
+
+# ---- tool calls, usage, OpenCode ------------------------------------------------------------------------
+
+def test_tool_check_variants(tmp_path):
+    h = Harness(tmp_path)
+    h.ollama.install("coder:14b", weights="w", num_ctx=8192)                 # factories: tools capability
+    h.ollama.install("plain:7b", weights="p", num_ctx=8192, caps=("completion",))
+
+    async def go():
+        svc = await _ready(h)
+        await svc.start_bench("plain:7b", None, confirm=False)               # Ollama reports no tools
+        await svc.bench.task
+        t = svc.bench_list()[0].result.tools
+        assert t.skipped.startswith("Ollama meldet") and t.passed == 0 and h.ollama.chats == []
+        h.ollama.chat_error = "HTTP 400: registry.ollama.ai/library/coder:14b does not support tools"
+        await svc.start_bench("coder:14b", None, confirm=False)              # template refuses: same answer
+        await svc.bench.task
+        assert "lehnt Tools" in svc.bench_list()[0].result.tools.skipped
+        h.ollama.chat_error = "HTTP 500: llama runner process has terminated"
+        await svc.start_bench("coder:14b", None, confirm=False)              # a crash costs the cases, not the run
+        await svc.bench.task
+        run = svc.bench_list()[0]
+        assert run.state == "done" and run.result.eval_tps == 64.0
+        assert run.result.tools.passed == 0 and all("terminated" in c.detail for c in run.result.tools.cases)
+        h.ollama.chat_error = None
+        h.ollama.answers[CASES[2].request] = _answer(ToolCall("search", {"pattern": "TODO", "path": "src",
+                                                                        "max_results": "5"}))
+        await svc.start_bench("coder:14b", None, confirm=False)
+        await svc.bench.task
+        t = svc.bench_list()[0].result.tools
+        assert (t.passed, [c.ok for c in t.cases]) == (2, [True, True, False]) and "Text statt Zahl" in t.cases[2].detail
+        svc.cfg = svc.cfg.model_copy(update={"test_tools": False})
+        h.ollama.chats.clear()
+        await svc.start_bench("coder:14b", None, confirm=False)
+        await svc.bench.task
+        assert svc.bench_list()[0].result.tools is None and h.ollama.chats == []
+
+    run(go())
+
+
+def test_opencode_fit_follows_the_newest_tool_check_of_the_same_digest(tmp_path):
+    h = Harness(tmp_path, opencode_min_context=8192)
+    h.ollama.install("coder:14b", weights="w", num_ctx=8192)
+    h.ollama.install("small:latest", parent="coder:14b", weights="w", num_ctx=4096)
+    h.ollama.install("embed:1", caps=("embedding",))
+
+    async def go():
+        svc = await _ready(h)
+        m = {x.name: x for x in (await svc.overview()).models}
+        assert m["coder:14b"].opencode.state == "unknown" and m["embed:1"].opencode is None
+        assert '"context": 8192' in m["coder:14b"].opencode.block
+        small = m["small:latest"].opencode                                    # 4096 < 8192: variant needed
+        assert small.at_min is not None and any("Variante mit num_ctx 8192" in r for r in small.reasons)
+        await svc.start_bench("coder:14b", None, confirm=False)
+        await svc.bench.task
+        m = {x.name: x for x in (await svc.overview()).models}
+        assert m["coder:14b"].opencode.state == "fits" and m["coder:14b"].opencode.eval_tps == 64.0
+        assert m["small:latest"].opencode.tools_passed is None               # other digest: its own test
+        h.ollama.answers = {c.request: _answer(content='{"name": "read_file"}') for c in CASES}
+        await svc.start_bench("coder:14b", None, confirm=False)
+        await svc.bench.task
+        assert {x.name: x for x in (await svc.overview()).models}["coder:14b"].opencode.state == "no"
+
+    run(go())
+
+
+def test_usage_tags_by_name_and_what_the_rag_module_says(tmp_path):
+    h = Harness(tmp_path)
+    h.ollama.install("coder:14b", weights="w")
+    h.ollama.install("nomic-embed-text:latest", caps=("embedding",))
+    h.services["rag.service"] = SimpleNamespace(cfg=SimpleNamespace(embedding_model="nomic-embed-text",
+                                                                     embedder="ollama"))
+
+    async def go():
+        svc = await _ready(h)
+        before = len(h.published)
+        ov = await svc.set_usage("coder:14b", ["test", "opencode", "opencode"], "  Standard für OpenCode  ")
+        assert len(h.published) == before + 1                               # every tab sees it
+        m = {x.name: x for x in ov.models}
+        assert (m["coder:14b"].usage.tags, m["coder:14b"].usage.note) == (["opencode", "test"], "Standard für OpenCode")
+        assert [(d.tag, d.source) for d in m["nomic-embed-text:latest"].usage.derived] == [
+            ("rag", "RAG-Modul (embedding_model)")]
+        svc2 = await h.service()                                             # kept in SQLite
+        assert svc2.usage["coder:14b"].tags == ["opencode", "test"]
+        await svc.set_usage("coder:14b", [], " ")                            # empty = forget
+        assert "coder:14b" not in svc.usage and (await h.service()).usage == {}
+        with pytest.raises(UnknownModel):
+            await svc.set_usage("gone:1", ["test"], None)
 
     run(go())

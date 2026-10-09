@@ -1,11 +1,13 @@
-import { Component, computed, input } from '@angular/core';
+import { Component, computed, inject, input, signal } from '@angular/core';
 
 import { CatalogModel } from '../api/models/catalog-model';
+import { ClipboardService } from '../core/clipboard.service';
 import * as fmt from '../dashboard/format';
 import { GIB } from '../dashboard/format';
 import { ui } from '../ui/tokens';
 import {
-  benchSummary, contextExplain, gib, observationText, parameterList, shortDigest, verdictOrigin, verdictView, when,
+  benchSummary, contextExplain, gib, observationText, parameterList, shortDigest, usageChips, verdictOrigin,
+  verdictView, when,
 } from './state';
 
 /**
@@ -29,7 +31,11 @@ export class ModelDetails {
   protected readonly observationText = observationText;
   protected readonly benchSummary = benchSummary;
 
+  private readonly clipboard = inject(ClipboardService);
+  readonly copied = signal(false);
+
   readonly context = computed(() => contextExplain(this.model().context));
+  readonly usage = computed(() => usageChips(this.model().usage));
   readonly benchCount = computed(() => {
     const n = this.model().benches?.length ?? 0;
     return n === 1 ? '1 Lauf' : `${n} Läufe`;
@@ -43,4 +49,9 @@ export class ModelDetails {
   readonly estimated = ui.origin.estimated;
   readonly measured = ui.origin.measured;
   readonly lowCallout = `${ui.calloutFrame} ${ui.callout.info}`;
+
+  async copy(text: string): Promise<void> {
+    this.copied.set(await this.clipboard.copy(text));
+    setTimeout(() => this.copied.set(false), 2000);
+  }
 }

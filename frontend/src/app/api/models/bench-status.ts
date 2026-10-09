@@ -11,7 +11,7 @@ export interface BenchStatus {
   id: string;
   name: string;
   numCtx: number;
-  phase?: ('unload' | 'baseline' | 'load' | 'measure' | 'cleanup' | null);
+  phase?: ('unload' | 'baseline' | 'load' | 'measure' | 'tools' | 'cleanup' | null);
   result?: (BenchResult | null);
   revision?: number;
   startedAt?: (string | null);

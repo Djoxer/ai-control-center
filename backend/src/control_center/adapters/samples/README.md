@@ -15,7 +15,9 @@ Each folder is one situation of the AI box, replayed by the fake adapters
 | `real-catalog`     | capture   | AI box, nothing loaded, all 12 installed models (catalog part b tests: copies, MLA, budget) |
 
 Files: `ollama-ps.json` / `ollama-version.json` / `ollama-tags.json` (raw Ollama API answers),
-`ollama-show.json` (model name -> reduced `/api/show` answer, for the catalog), `gpu.json`, `host.json`,
+`ollama-show.json` (model name -> reduced `/api/show` answer, for the catalog), `ollama-chat.json` (raw
+`/api/chat` answers to the tool-call check of a test run, by request text: `default` plus per-model overrides -
+synthetic in every folder, also in `real-catalog`: the capture tool does not load models), `gpu.json`, `host.json`,
 `disks.json` (adapter readings), `meta.json` (`capturedAt` shifts expiry times to "now", `source`, `note`).
 
 `normal`, `offload` and `idle` share the same installed models (`ollama-tags.json`/`ollama-show.json`,

@@ -8,8 +8,8 @@ import { Icon } from '../layout/icon';
 import { Menu } from '../ui/menu';
 import { ui } from '../ui/tokens';
 import {
-  benchSummary, capabilityChips, contextSource, extraText, isBenchRunning, originWord, relationText, verdictOrigin,
-  verdictView, vramHint, vramPercent, vramText, when,
+  benchSummary, capabilityChips, contextSource, extraText, fitView, isBenchRunning, originWord, relationText,
+  usageChips, verdictOrigin, verdictView, vramHint, vramPercent, vramText, when,
 } from './state';
 
 /**
@@ -32,12 +32,17 @@ export class ModelRow {
   readonly refresh = output<void>();
   readonly details = output<void>();
   readonly test = output<void>();
+  readonly usageEdit = output<void>();
 
   protected readonly ui = ui;
   protected readonly fmt = fmt;
   protected readonly contextSource = contextSource;
 
   readonly chips = computed(() => capabilityChips(this.model().capabilities));
+  readonly usage = computed(() => usageChips(this.model().usage));
+  readonly fit = computed(() => fitView(this.model().opencode));
+  readonly fitTitle = computed(() => this.model().opencode?.reasons?.join(' ') ?? '');
+  readonly taggedOpencode = computed(() => (this.model().usage?.tags ?? []).includes('opencode'));
   readonly relation = computed(() => relationText(this.model()));
   readonly view = computed(() => verdictView(this.model().verdict));
   readonly pill = computed(() => `${ui.pill} ${ui.pillTone[this.view().tone]}`);

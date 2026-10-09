@@ -1,5 +1,6 @@
 """Ollama REST API: what is loaded (/api/ps), which version runs (/api/version), what is installed
-(/api/tags) and what one installed model is made of (/api/show).
+(/api/tags), what one installed model is made of (/api/show), and - for test runs - answers from
+/api/generate and /api/chat (with tools).
 
 HttpOllama talks to a real Ollama (local, or the AI box via its LAN IP).
 FakeOllama replays raw responses recorded with ``python -m control_center.capture_samples``.
@@ -101,6 +102,24 @@ class GenerateResult:
     done_reason: str | None         # "stop", "length", "load", "unload"
 
 
+@dataclass(frozen=True)
+class ToolCall:
+    name: str
+    arguments: dict[str, Any]       # parsed; a JSON string from the model is decoded, garbage -> {"_raw": text}
+
+
+@dataclass(frozen=True)
+class ChatResult:
+    """One /api/chat answer (stream off): text, structured tool calls, timings."""
+    content: str
+    thinking_chars: int             # thinking models: length of the reasoning Ollama returned separately
+    tool_calls: tuple[ToolCall, ...]
+    total_s: float | None
+    eval_tokens: int | None
+    eval_s: float | None
+    done_reason: str | None
+
+
 def _seconds(ns: Any) -> float | None:
     value = _int_or_none(ns)
     return None if value is None else value / 1e9
@@ -113,6 +132,35 @@ def parse_generate(payload: Any) -> GenerateResult:
         total_s=_seconds(payload.get("total_duration")), load_s=_seconds(payload.get("load_duration")),
         prompt_tokens=_int_or_none(payload.get("prompt_eval_count")),
         prompt_s=_seconds(payload.get("prompt_eval_duration")),
+        eval_tokens=_int_or_none(payload.get("eval_count")), eval_s=_seconds(payload.get("eval_duration")),
+        done_reason=payload.get("done_reason") or None,
+    )
+
+
+def _arguments(raw: Any) -> dict[str, Any]:
+    if isinstance(raw, dict):
+        return raw
+    if isinstance(raw, str):
+        try:
+            value = json.loads(raw)
+        except ValueError:
+            return {"_raw": raw}
+        return value if isinstance(value, dict) else {"_raw": raw}
+    return {}
+
+
+def parse_chat(payload: Any) -> ChatResult:
+    if not isinstance(payload, dict):
+        raise OllamaUnavailable("unexpected /api/chat response (not an object)")
+    msg = payload.get("message") if isinstance(payload.get("message"), dict) else {}
+    calls = []
+    for item in msg.get("tool_calls") or []:
+        fn = item.get("function") if isinstance(item, dict) else None
+        if isinstance(fn, dict) and fn.get("name"):
+            calls.append(ToolCall(name=str(fn["name"]), arguments=_arguments(fn.get("arguments"))))
+    return ChatResult(
+        content=str(msg.get("content") or ""), thinking_chars=len(str(msg.get("thinking") or "")),
+        tool_calls=tuple(calls), total_s=_seconds(payload.get("total_duration")),
         eval_tokens=_int_or_none(payload.get("eval_count")), eval_s=_seconds(payload.get("eval_duration")),
         done_reason=payload.get("done_reason") or None,
     )
@@ -131,6 +179,9 @@ class OllamaAdapter(Protocol):
 
     async def generate(self, name: str, prompt: str, options: dict[str, Any], keep_alive: str | int,
                        timeout: float) -> GenerateResult: ...
+
+    async def chat(self, name: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]],
+                   options: dict[str, Any], keep_alive: str | int, timeout: float) -> ChatResult: ...
 
     async def unload(self, name: str, timeout: float = 30) -> None: ...
 
@@ -326,12 +377,12 @@ class HttpOllama:
             raise OllamaUnavailable(f"/api/show {name}: {describe(exc)}") from exc
         return parse_show(name, data)
 
-    async def _post_generate(self, body: dict[str, Any], timeout: float) -> Any:
+    async def _post_generate(self, body: dict[str, Any], timeout: float, path: str = "/api/generate") -> Any:
         """404 -> OllamaModelMissing, other HTTP errors -> OllamaRequestFailed with Ollama's error text."""
         try:
-            r = await self._client.post(self._base + "/api/generate", json=body, timeout=timeout)
+            r = await self._client.post(self._base + path, json=body, timeout=timeout)
         except httpx.HTTPError as exc:
-            raise OllamaUnavailable(f"/api/generate: {describe(exc)}") from exc
+            raise OllamaUnavailable(f"{path}: {describe(exc)}") from exc
         if r.status_code == 404:
             raise OllamaModelMissing(body.get("model", "?"))
         if r.status_code >= 400:
@@ -343,13 +394,21 @@ class HttpOllama:
         try:
             return r.json()
         except ValueError as exc:
-            raise OllamaUnavailable(f"/api/generate: {describe(exc)}") from exc
+            raise OllamaUnavailable(f"{path}: {describe(exc)}") from exc
 
     async def generate(self, name: str, prompt: str, options: dict[str, Any], keep_alive: str | int,
                        timeout: float) -> GenerateResult:
         """Loads the model if needed and answers the prompt; stream off, so the timings come in one piece."""
         body = {"model": name, "prompt": prompt, "options": options, "keep_alive": keep_alive, "stream": False}
         return parse_generate(await self._post_generate(body, timeout))
+
+    async def chat(self, name: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]],
+                   options: dict[str, Any], keep_alive: str | int, timeout: float) -> ChatResult:
+        """One chat turn with tool definitions, as a coding agent sends it. A model without tool support in its
+        template makes Ollama answer HTTP 400 "... does not support tools" (-> OllamaRequestFailed)."""
+        body = {"model": name, "messages": messages, "tools": tools, "options": options, "keep_alive": keep_alive,
+                "stream": False}
+        return parse_chat(await self._post_generate(body, timeout, "/api/chat"))
 
     async def unload(self, name: str, timeout: float = 30) -> None:
         """keep_alive 0 without a prompt = Ollama's documented way to unload a model right away."""
@@ -414,6 +473,22 @@ class FakeOllama:
         predict = int(options.get("num_predict") or 128)
         return GenerateResult(total_s=6.4 + predict / 60, load_s=4.2, prompt_tokens=58, prompt_s=0.12,
                               eval_tokens=predict, eval_s=predict / 60, done_reason="length")
+
+    async def chat(self, name: str, messages: list[dict[str, Any]], tools: list[dict[str, Any]],
+                   options: dict[str, Any], keep_alive: str | int, timeout: float) -> ChatResult:
+        """Simulation: replays raw /api/chat answers from ollama-chat.json, looked up by the text of the last
+        message - first under "models" -> <model name>, then under "default". A model without "tools" in its
+        capabilities gets Ollama's real refusal, as live."""
+        shows = self._load("ollama-show.json")
+        if not isinstance(shows, dict) or name not in shows:
+            raise OllamaModelMissing(name)
+        if "tools" not in parse_show(name, shows[name]).capabilities:
+            raise OllamaRequestFailed(f"HTTP 400: registry.ollama.ai/library/{name} does not support tools")
+        recorded = self._load("ollama-chat.json")
+        request = str(messages[-1].get("content", "")) if messages else ""
+        own = (recorded.get("models") or {}).get(name) or {}
+        raw = own.get(request) or (recorded.get("default") or {}).get(request)
+        return parse_chat(raw or {"message": {"content": "(no recorded answer for this request)"}})
 
     async def unload(self, name: str, timeout: float = 30) -> None:
         return None

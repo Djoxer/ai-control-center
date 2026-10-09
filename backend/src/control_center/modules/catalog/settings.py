@@ -51,6 +51,16 @@ class CatalogSettings(BaseModel):
     test_timeout_s: float = Field(300, gt=0, le=3600)          # loading a big model from disk takes a while
     unload_after_test: bool = True                              # leave the GPU as free as before
     keep_tests: int = Field(200, ge=10, le=10_000)              # test results kept in SQLite (all models)
+    # Tool-call check inside every test run (three agent-like requests via /api/chat). Thinking models reason
+    # before they call a tool - the budget must leave room for that.
+    test_tools: bool = True
+    test_tool_num_predict: int = Field(2048, ge=64, le=16_384)
+
+    # OpenCode suitability: the context an agent session needs, and the output share of it the generated
+    # opencode.json block reserves (limit.output). Without limit.context, OpenCode assumes a huge window and
+    # Ollama silently cuts everything beyond num_ctx.
+    opencode_min_context: int = Field(65536, ge=4096, le=4_194_304)
+    opencode_output_tokens: int = Field(8192, ge=256, le=262_144)
 
     # deleted models stay listed (with their measurements) for this long
     keep_removed_days: int = Field(90, ge=0, le=3650)

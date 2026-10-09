@@ -11,6 +11,8 @@ export type { CatalogPreflight$Params as CatalogPreflight$Params } from './fn/ca
 export { catalogPreflight as catalogPreflight } from './fn/catalog/catalog-preflight';
 export type { CatalogRefresh$Params as CatalogRefresh$Params } from './fn/catalog/catalog-refresh';
 export { catalogRefresh as catalogRefresh } from './fn/catalog/catalog-refresh';
+export type { CatalogSetUsage$Params as CatalogSetUsage$Params } from './fn/catalog/catalog-set-usage';
+export { catalogSetUsage as catalogSetUsage } from './fn/catalog/catalog-set-usage';
 export type { DashboardEvents$Params as DashboardEvents$Params } from './fn/dashboard/dashboard-events';
 export { dashboardEvents as dashboardEvents } from './fn/dashboard/dashboard-events';
 export type { DashboardExport$Params as DashboardExport$Params } from './fn/dashboard/dashboard-export';

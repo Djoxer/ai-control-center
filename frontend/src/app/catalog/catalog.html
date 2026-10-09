@@ -87,8 +87,19 @@
     </section>
   }
 
+  @if (overview()?.models?.length) {
+    <div [class]="ui.segmented" class="w-fit" role="group" aria-label="Nach Einsatz filtern">
+      @for (f of filters(); track f.key) {
+        <button type="button" [class]="ui.segment" [attr.aria-pressed]="filter() === f.key" (click)="filter.set(f.key)">
+          {{ f.label }}</button>
+      }
+    </div>
+  }
+
   @if (!loaded()) {
     <p [class]="ui.empty" class="py-10">Lade …</p>
+  } @else if (overview()?.models?.length && !groups().length) {
+    <p [class]="ui.empty" class="py-10">Kein Modell passt zu diesem Filter.</p>
   } @else if (overview()?.models?.length === 0) {
     <p [class]="ui.empty" class="py-10">
       {{ overview()?.ollama?.online ? 'In Ollama ist kein Modell installiert.' : 'Noch kein Modell bekannt.' }}
@@ -117,7 +128,8 @@
           <app-catalog-model-row [model]="m" [indent]="indent(m.depth, g.group.installed)" [busy]="isBusy(m.name)"
                                  [locked]="locked()" [testLocked]="testLocked()"
                                  [live]="liveBench()?.name === m.name ? liveBench() : null" (refresh)="refresh(m.name)"
-                                 (details)="detailName.set(m.name)" (test)="openBench(m.name)" />
+                                 (details)="detailName.set(m.name)" (test)="openBench(m.name)"
+                                 (usageEdit)="openUsage(m.name)" />
         }
       </div>
     </article>
@@ -147,6 +159,13 @@
     <app-catalog-bench-panel [model]="m" [bench]="panelRun()" [locked]="panelRun() ? null : testLocked()"
                              [starting]="benchStarting()" [error]="benchError()" (start)="startBench($event)"
                              (again)="shownRun.set(null); bench.set(null)" />
+  }
+</app-dialog>
+
+<app-dialog [title]="'Einsatz: ' + (usageModel()?.name ?? '')" size="sm" [open]="usageModel() !== null"
+            (dismiss)="usageName.set(null)">
+  @if (usageModel(); as m) {
+    <app-catalog-usage-panel [model]="m" [saving]="usageSaving()" [error]="usageError()" (changed)="saveUsage($event)" />
   }
 </app-dialog>
 

@@ -16,6 +16,11 @@
             "title": "Graphreservebytes",
             "type": "integer"
           },
+          "opencodeMinContext": {
+            "default": 65536,
+            "title": "Opencodemincontext",
+            "type": "integer"
+          },
           "tightRatio": {
             "title": "Tightratio",
             "type": "number"
@@ -259,6 +264,16 @@
             ],
             "title": "Sizebytes"
           },
+          "tools": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ToolCheck"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "totalS": {
             "anyOf": [
               {
@@ -347,6 +362,7 @@
                   "baseline",
                   "load",
                   "measure",
+                  "tools",
                   "cleanup"
                 ],
                 "type": "string"
@@ -594,6 +610,16 @@
             "title": "Observations",
             "type": "array"
           },
+          "opencode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpencodeFit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
           "origin": {
             "title": "Origin",
             "type": "string"
@@ -667,6 +693,9 @@
             "default": true,
             "title": "Testable",
             "type": "boolean"
+          },
+          "usage": {
+            "$ref": "#/components/schemas/UsageInfo"
           },
           "verdict": {
             "$ref": "#/components/schemas/Verdict"
@@ -1311,6 +1340,31 @@
           "subject"
         ],
         "title": "DashboardWarning",
+        "type": "object"
+      },
+      "DerivedTag": {
+        "properties": {
+          "source": {
+            "title": "Source",
+            "type": "string"
+          },
+          "tag": {
+            "enum": [
+              "opencode",
+              "openwebui",
+              "rag",
+              "test",
+              "remove"
+            ],
+            "title": "Tag",
+            "type": "string"
+          }
+        },
+        "required": [
+          "tag",
+          "source"
+        ],
+        "title": "DerivedTag",
         "type": "object"
       },
       "DiskUsage": {
@@ -2880,6 +2934,114 @@
         "title": "OllamaState",
         "type": "object"
       },
+      "OpencodeFit": {
+        "description": "Can OpenCode work with this model on this card? Tools measured, context and VRAM computed.",
+        "properties": {
+          "atMin": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Verdict"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "block": {
+            "title": "Block",
+            "type": "string"
+          },
+          "configKey": {
+            "title": "Configkey",
+            "type": "string"
+          },
+          "context": {
+            "title": "Context",
+            "type": "integer"
+          },
+          "evalTps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Evaltps"
+          },
+          "minContext": {
+            "title": "Mincontext",
+            "type": "integer"
+          },
+          "reasons": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Reasons",
+            "type": "array"
+          },
+          "state": {
+            "enum": [
+              "fits",
+              "maybe",
+              "no",
+              "unknown"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "toolsAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Toolsat"
+          },
+          "toolsPassed": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Toolspassed"
+          },
+          "toolsSimulated": {
+            "default": false,
+            "title": "Toolssimulated",
+            "type": "boolean"
+          },
+          "toolsTotal": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Toolstotal"
+          }
+        },
+        "required": [
+          "state",
+          "reasons",
+          "context",
+          "minContext",
+          "configKey",
+          "block"
+        ],
+        "title": "OpencodeFit",
+        "type": "object"
+      },
       "OverheadInfo": {
         "description": "What the runner held beyond Ollama's count in the newest test run of the same weights on this GPU.",
         "properties": {
@@ -3953,6 +4115,183 @@
         "title": "StoreInfo",
         "type": "object"
       },
+      "ToolCase": {
+        "properties": {
+          "detail": {
+            "title": "Detail",
+            "type": "string"
+          },
+          "key": {
+            "title": "Key",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seconds"
+          },
+          "thinking": {
+            "default": false,
+            "title": "Thinking",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "key",
+          "label",
+          "ok",
+          "detail"
+        ],
+        "title": "ToolCase",
+        "type": "object"
+      },
+      "ToolCheck": {
+        "description": "Did the model answer with structured tool calls? Three agent-like requests via /api/chat.",
+        "properties": {
+          "cases": {
+            "items": {
+              "$ref": "#/components/schemas/ToolCase"
+            },
+            "title": "Cases",
+            "type": "array"
+          },
+          "passed": {
+            "title": "Passed",
+            "type": "integer"
+          },
+          "simulated": {
+            "default": false,
+            "title": "Simulated",
+            "type": "boolean"
+          },
+          "skipped": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Skipped"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "passed",
+          "total"
+        ],
+        "title": "ToolCheck",
+        "type": "object"
+      },
+      "UsageInfo": {
+        "description": "What the team uses a model for - set on the page, kept by name (survives re-pulls).",
+        "properties": {
+          "derived": {
+            "items": {
+              "$ref": "#/components/schemas/DerivedTag"
+            },
+            "title": "Derived",
+            "type": "array"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "tags": {
+            "items": {
+              "enum": [
+                "opencode",
+                "openwebui",
+                "rag",
+                "test",
+                "remove"
+              ],
+              "type": "string"
+            },
+            "title": "Tags",
+            "type": "array"
+          },
+          "updatedAt": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updatedat"
+          }
+        },
+        "title": "UsageInfo",
+        "type": "object"
+      },
+      "UsageRequest": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "tags": {
+            "items": {
+              "enum": [
+                "opencode",
+                "openwebui",
+                "rag",
+                "test",
+                "remove"
+              ],
+              "type": "string"
+            },
+            "maxItems": 5,
+            "title": "Tags",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "UsageRequest",
+        "type": "object"
+      },
       "ValidationError": {
         "properties": {
           "ctx": {
@@ -4410,6 +4749,51 @@
           }
         },
         "summary": "Refresh",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/api/v1/catalog/usage": {
+      "post": {
+        "description": "What the team uses a model for (tags + short note). Empty tags and note = remove the entry.",
+        "operationId": "catalog_set_usage",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UsageRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogOverview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "model not installed"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Set Usage",
         "tags": [
           "catalog"
         ]

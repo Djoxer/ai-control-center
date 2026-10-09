@@ -4,8 +4,10 @@
 import { BenchStatus } from '../models/bench-status';
 import { ContextInfo } from '../models/context-info';
 import { Observation } from '../models/observation';
+import { OpencodeFit } from '../models/opencode-fit';
 import { OverheadInfo } from '../models/overhead-info';
 import { ParentInfo } from '../models/parent-info';
+import { UsageInfo } from '../models/usage-info';
 import { Verdict } from '../models/verdict';
 import { VramEstimate } from '../models/vram-estimate';
 export interface CatalogModel {
@@ -24,6 +26,7 @@ export interface CatalogModel {
   modifiedAt?: (string | null);
   name: string;
   observations?: Array<Observation>;
+  opencode?: (OpencodeFit | null);
   origin: string;
   overhead?: (OverheadInfo | null);
   parameterSize?: (string | null);
@@ -36,6 +39,7 @@ export interface CatalogModel {
   sizeBytes: number;
   systemChars?: number;
   testable?: boolean;
+  usage?: UsageInfo;
   verdict: Verdict;
   weightsDigest?: (string | null);
 }

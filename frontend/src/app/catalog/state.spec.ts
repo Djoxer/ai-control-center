@@ -1,8 +1,9 @@
 import { HttpErrorResponse } from '@angular/common/http';
 
-import { benchStatus, catalogModel, catalogOverview } from '../testing/catalog-overview';
+import { benchStatus, catalogModel, catalogOverview, opencodeFit } from '../testing/catalog-overview';
 import {
-  PHASE_ORDER, benchStateView, benchSummary, budgetFacts, capabilityChips, contextExplain, contextSource, extraText, gib,
+  PHASE_ORDER, USAGE, benchStateView, benchSummary, budgetFacts, capabilityChips, contextExplain, contextSource,
+  extraText, fitView, gib, inUse, matchesUsage, toolsSummary, usageChips, usageLabel,
   groupViews, isBenchRunning, isNewerBench, isNewerOverview, message, observationText, originWord, parameterList,
   phaseLabel, relationText, serverFacts, serverSourceText, shortDigest, verdictOrigin, verdictView, vramHint,
   vramPercent, vramText,
@@ -103,8 +104,38 @@ describe('catalog state helpers', () => {
       .toBe('4.096 Token');
     expect(benchStateView(benchStatus({ state: 'cancelled' })).tone).toBe('warning');
     expect(benchStateView(benchStatus({ state: 'failed' })).tone).toBe('critical');
-    expect(PHASE_ORDER).toEqual(['unload', 'baseline', 'load', 'measure', 'cleanup']);
+    expect(PHASE_ORDER).toEqual(['unload', 'baseline', 'load', 'measure', 'tools', 'cleanup']);
     expect(phaseLabel(null)).toBe('');
+  });
+
+  it('turns usage tags into chips, hand-set first, without doubles', () => {
+    const u = { tags: ['opencode' as const, 'remove' as const], note: 'x',
+      derived: [{ tag: 'rag' as const, source: 'RAG-Modul (embedding_model)' }, { tag: 'opencode' as const, source: 'y' }] };
+    expect(usageChips(u)).toEqual([
+      { key: 'opencode', label: 'OpenCode', title: 'vom Team gesetzt' },
+      { key: 'remove', label: 'Löschkandidat', title: 'vom Team gesetzt' },
+      { key: 'rag', label: 'RAG', title: 'laut RAG-Modul (embedding_model)' }]);
+    expect(usageChips(null)).toEqual([]);
+    expect(inUse({ tags: ['remove'] })).toBe(false);                 // a deletion candidate is not "in use"
+    expect(inUse({ tags: [], derived: [{ tag: 'rag', source: 'x' }] })).toBe(true);
+    const m = catalogModel({ usage: { tags: ['openwebui'] } });
+    expect([matchesUsage(m, 'all'), matchesUsage(m, 'used'), matchesUsage(m, 'unused')]).toEqual([true, true, false]);
+    expect(usageLabel('test')).toBe('Test');
+    expect(USAGE.map((x) => x.key)).toEqual(['opencode', 'openwebui', 'rag', 'test', 'remove']);
+  });
+
+  it('summarizes tool calls and the OpenCode fit', () => {
+    expect(toolsSummary(null)).toBe('');
+    expect(toolsSummary({ passed: 2, total: 3 })).toBe('2/3 Tool-Calls');
+    expect(toolsSummary({ passed: 3, total: 3, simulated: true })).toBe('3/3 Tool-Calls (Simulation)');
+    expect(toolsSummary({ passed: 0, total: 3, skipped: 'Ollama lehnt ab' })).toBe('keine Tools');
+    expect(benchSummary(benchStatus({ result: { ...benchStatus().result!, tools: { passed: 3, total: 3 } } })))
+      .toBe('64,0 tok/s · Laden 4,5 s · 8.192 Token · 3/3 Tool-Calls');
+    expect(fitView(null)).toBeNull();
+    expect(fitView(opencodeFit({ state: 'unknown' }))).toBeNull();      // nothing to say yet
+    expect(fitView(opencodeFit())!.label).toBe('OpenCode ✓');
+    expect(fitView(opencodeFit({ state: 'maybe' }))!.classes).toContain('amber');
+    expect(fitView(opencodeFit({ state: 'no' }))!.label).toBe('OpenCode ✗');
   });
 
   it('lets the newest test run status win', () => {

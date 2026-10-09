@@ -1,12 +1,14 @@
 """SQLite storage of the catalog: installed models, what was observed while they ran, test runs.
 
-Four tables, deliberately plain:
+Five tables, deliberately plain:
 - catalog_models: one row per model name. Key columns for queries, the rest as JSON in `data`
   (ModelRecord). New fields in the record need no migration - older rows just lack them.
 - catalog_observations: one row per model digest x context length x GPU. "Measured" in the catalog
   means: Ollama reported this size and VRAM share in /api/ps while the model was loaded.
 - catalog_benches: one row per test run, the full report as JSON (like the models).
 - catalog_state: small key/value facts that must survive a restart (VRAM of other programs).
+- catalog_usage: what the team uses a model for (tags + note), by NAME - clients address models by name,
+  and a re-pulled model (new digest) keeps its job.
 
 Removed models keep their row (removed_at set) for keep_removed_days - their measurements stay
 visible and come back if the model is pulled again.
@@ -67,6 +69,23 @@ state = Table(
     Column("value", Text, nullable=False),              # JSON
     Column("updated", Float, nullable=False),
 )
+
+
+usage = Table(
+    "catalog_usage", metadata,
+    Column("name", String, primary_key=True),
+    Column("tags", Text, nullable=False),              # JSON list of tag keys
+    Column("note", Text),
+    Column("updated", Float, nullable=False),
+)
+
+
+@dataclass(frozen=True)
+class UsageRow:
+    name: str
+    tags: list[str]
+    note: str | None
+    updated: float
 
 
 @dataclass(frozen=True)
@@ -198,6 +217,31 @@ class CatalogRepository:
         async with self._engine.begin() as conn:
             newest = select(benches.c.id).order_by(benches.c.created.desc()).limit(keep)
             await conn.execute(delete(benches).where(benches.c.id.not_in(newest)))
+
+    # ---- usage -------------------------------------------------------------------------------
+
+    async def load_usage(self) -> dict[str, UsageRow]:
+        async with self._engine.connect() as conn:
+            rows = (await conn.execute(select(usage))).mappings().all()
+        out = {}
+        for r in rows:
+            try:
+                tags = [t for t in json.loads(r["tags"]) if isinstance(t, str)]
+            except (ValueError, TypeError):
+                tags = []
+            out[r["name"]] = UsageRow(r["name"], tags, r["note"], r["updated"])
+        return out
+
+    async def save_usage(self, name: str, tags: list[str], note: str | None, now: float) -> None:
+        """No tags and no note = forget the row."""
+        async with self._engine.begin() as conn:
+            if not tags and not note:
+                await conn.execute(delete(usage).where(usage.c.name == name))
+                return
+            stmt = insert(usage).values(name=name, tags=json.dumps(tags), note=note, updated=now)
+            stmt = stmt.on_conflict_do_update(index_elements=[usage.c.name], set_={
+                "tags": stmt.excluded.tags, "note": stmt.excluded.note, "updated": stmt.excluded.updated})
+            await conn.execute(stmt)
 
     # ---- small facts --------------------------------------------------------------------------
 

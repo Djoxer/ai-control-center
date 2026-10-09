@@ -5,7 +5,9 @@ Like a test drive with a measuring wheel:
                       empty card can be read: that is what other programs occupy),
 2. drive            - /api/generate with the chosen num_ctx; Ollama reports load time and token speeds,
 3. measure          - /api/ps: size, GPU share and the context Ollama really used; NVML: the card's view,
-4. park             - unload again, so the GPU is as free as before.
+4. tools            - three agent-like requests via /api/chat with tool definitions (toolcheck.py): does the
+                      model answer with structured tool calls? Same num_ctx, so nothing reloads,
+5. park             - unload again, so the GPU is as free as before.
 One run at a time. The preflight (service) refuses runs whose estimate says "Teil-Offload" - that is the
 crash case on this card - and wants a confirmation for "knapp".
 """
@@ -26,7 +28,8 @@ from control_center.adapters.ollama import (
     RunningModel,
 )
 from control_center.modules.catalog.estimate import placement
-from control_center.modules.catalog.schemas import BenchPhase, BenchResult, BenchStatus
+from control_center.modules.catalog.schemas import BenchPhase, BenchResult, BenchStatus, ToolCase, ToolCheck
+from control_center.modules.catalog.toolcheck import CASES, NO_TOOLS, evaluate, messages
 
 if TYPE_CHECKING:
     from control_center.modules.catalog.service import CatalogService
@@ -84,6 +87,38 @@ async def _settled_gpu(svc: CatalogService) -> int | None:
             return now
         last = now
     return last
+
+
+async def _check_tools(svc: CatalogService, st: BenchStatus) -> ToolCheck:
+    """The three requests of toolcheck.CASES. A failing request costs that case, not the whole run - the speed
+    and memory figures are measured already."""
+    ollama = svc.ctx.adapters.ollama
+    cfg = svc.cfg
+    total = len(CASES)
+    caps = svc.rows[st.name].record.capabilities if st.name in svc.rows else []
+    if "tools" not in caps:
+        return ToolCheck(passed=0, total=total, simulated=ollama.simulated,
+                         skipped="Ollama meldet für dieses Modell keine Tool-Unterstützung.")
+    options = {"num_ctx": st.num_ctx, "num_predict": cfg.test_tool_num_predict, "seed": SEED}
+    cases: list[ToolCase] = []
+    for case in CASES:
+        try:
+            answer = await ollama.chat(st.name, messages(case), list(case.tools), options, keep_alive="5m",
+                                       timeout=cfg.test_timeout_s)
+        except OllamaRequestFailed as exc:
+            if NO_TOOLS in str(exc):
+                return ToolCheck(passed=0, total=total, simulated=ollama.simulated,
+                                 skipped="Ollama lehnt Tools für dieses Modell ab (Template ohne Tool-Format).")
+            cases.append(ToolCase(key=case.key, label=case.label, ok=False, detail=f"Ollama meldet einen Fehler: {exc}"))
+            continue
+        except OllamaUnavailable as exc:
+            cases.append(ToolCase(key=case.key, label=case.label, ok=False, detail=f"Ollama nicht erreichbar: {exc}"))
+            continue
+        ok, detail = evaluate(case, answer)
+        cases.append(ToolCase(key=case.key, label=case.label, ok=ok, detail=detail,
+                              seconds=round(answer.total_s, 1) if answer.total_s is not None else None,
+                              thinking=answer.thinking_chars > 0))
+    return ToolCheck(passed=sum(c.ok for c in cases), total=total, simulated=ollama.simulated, cases=cases)
 
 
 async def run_bench(svc: CatalogService, job: BenchJob) -> None:
@@ -148,7 +183,12 @@ async def run_bench(svc: CatalogService, job: BenchJob) -> None:
                 result.note = (f"Angefragt {st.num_ctx:,} Token, geladen mit {result.actual_ctx:,} – "
                                f"Ollama hat den Kontext angepasst.").replace(",", ".")
 
-        # 5) park
+        # 5) tool calls, as an agent sends them
+        if cfg.test_tools:
+            await phase("tools")
+            result.tools = await _check_tools(svc, st)
+
+        # 6) park
         if cfg.unload_after_test:
             await phase("cleanup")
             await ollama.unload(st.name)

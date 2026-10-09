@@ -76,7 +76,11 @@ weights blob. A test run (menu of a model) unloads what is loaded, loads the mod
 answers a fixed prompt and stores load time, tok/s and VRAM. What the runner holds beyond Ollama's count
 (1.2 GiB for qwen3.5 with its vision encoder) is added to the need of the same weights. Runs that would end
 in a partial offload are refused, "tight" ones need a confirmation, and test runs are locked when Ollama
-runs on another machine (`allow_remote_tests`). Details: help page "Katalog" (`modules/catalog/HELP.md`).
+runs on another machine (`allow_remote_tests`). Every test run also sends three agent-like requests with tool
+definitions to `/api/chat` and checks for structured tool calls; together with the context (>= 64k) and the
+verdict this gives the OpenCode suitability per model, plus a ready `opencode.json` entry with the real
+`limit.context`. Usage tags (OpenCode, OpenWebUI, RAG, Test, Löschkandidat) and a note per model are set on the
+page and kept by name. Details: help page "Katalog" (`modules/catalog/HELP.md`).
 
 ## MCP servers
 

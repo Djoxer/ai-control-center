@@ -4,6 +4,7 @@ Reading is free; a refresh only reads from Ollama (no model is loaded), but it i
 the cross-site guard: it costs Ollama a few /api/show calls and changes what the page shows.
 A test run loads a model and unloads the current one - POST with the guard, refused by the preflight
 when the estimate says "Teil-Offload", and only with confirm=true when it says "knapp".
+Usage tags are team notes about a model (OpenCode, OpenWebUI, ...) - POST with the guard as well.
 """
 from __future__ import annotations
 
@@ -11,7 +12,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
 from control_center.core.guards import same_origin
 from control_center.modules.catalog.schemas import (
-    BenchRequest, BenchStatus, CatalogOverview, Preflight, RefreshRequest,
+    BenchRequest, BenchStatus, CatalogOverview, Preflight, RefreshRequest, UsageRequest,
 )
 from control_center.modules.catalog.service import (
     Busy, CatalogService, NeedsConfirm, OllamaDown, Refused, UnknownModel,
@@ -77,3 +78,13 @@ async def start_bench(request: Request, body: BenchRequest) -> BenchStatus:
         raise HTTPException(404, f"Modell {body.name} ist nicht installiert") from None
     except (Busy, Refused, NeedsConfirm) as exc:
         raise HTTPException(409, str(exc)) from None
+
+
+@router.post("/usage", response_model=CatalogOverview, dependencies=write,
+             responses={404: {"description": "model not installed"}})
+async def set_usage(request: Request, body: UsageRequest) -> CatalogOverview:
+    """What the team uses a model for (tags + short note). Empty tags and note = remove the entry."""
+    try:
+        return await service(request).set_usage(body.name, list(body.tags), body.note)
+    except UnknownModel as exc:
+        raise HTTPException(404, f"Modell nicht installiert: {body.name}") from exc

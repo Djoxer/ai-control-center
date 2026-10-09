@@ -9,5 +9,6 @@ export interface Assumptions {
   clampToTrained: boolean;
   fallbackContextLength: number;
   graphReserveBytes: number;
+  opencodeMinContext?: number;
   tightRatio: number;
 }

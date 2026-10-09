@@ -33,14 +33,15 @@ from control_center.modules.catalog.estimate import (
     estimate_vram, extra_beyond_reserve, placement, verdict,
 )
 from control_center.modules.catalog.estimate import Verdict as Judgement
-from control_center.modules.catalog.lineage import build_lineage, changes
-from control_center.modules.catalog.repository import CatalogRepository, ModelRow, ObservationRow
+from control_center.modules.catalog.lineage import build_lineage, changes, norm
+from control_center.modules.catalog.repository import CatalogRepository, ModelRow, ObservationRow, UsageRow
 from control_center.modules.catalog.schemas import (
     Assumptions, BenchAccess, BenchStatus, BudgetInfo, CatalogModel, CatalogOverview, ContextInfo, HardwareInfo,
-    ModelGroup, Observation, OllamaState, OverheadInfo, ParentInfo, Preflight, RemovedModel, ServerConfig, Verdict,
-    VramEstimate,
+    DerivedTag, ModelGroup, Observation, OllamaState, OpencodeFit, OverheadInfo, ParentInfo, Preflight,
+    RemovedModel, ServerConfig, UsageInfo, Verdict, VramEstimate,
 )
 from control_center.modules.catalog.settings import CatalogSettings
+from control_center.modules.catalog.suitability import opencode_fit
 
 log = logging.getLogger("control_center.modules.catalog")
 
@@ -129,6 +130,7 @@ class CatalogService:
         self._idle_used: int | None = None
         self.bench: BenchJob | None = None                # the running test run
         self.benches: list[BenchStatus] = []              # finished ones, newest first
+        self.usage: dict[str, UsageRow] = {}              # what the team uses a model for, by name
 
     # ---- lifecycle --------------------------------------------------------------------------------
 
@@ -147,6 +149,7 @@ class CatalogService:
             stored = await self.repo.get_state(OTHER_KEY)
             if stored is not None and isinstance(stored[0], int):
                 self.other = (stored[0], stored[1])
+            self.usage = await self.repo.load_usage()
             for raw in await self.repo.load_benches(self.cfg.keep_tests):
                 try:
                     self.benches.append(BenchStatus.model_validate(raw))
@@ -517,6 +520,55 @@ class CatalogService:
         await self.publish_bench(job)
         await self._publish()
 
+    # ---- usage ---------------------------------------------------------------------------------------
+
+    async def set_usage(self, name: str, tags: list[str], note: str | None) -> CatalogOverview:
+        """Tags in a fixed order, no doubles; empty tags and note = forget. Kept by name, also when the
+        model is pulled again."""
+        self._model(name)
+        order = ["opencode", "openwebui", "rag", "test", "remove"]
+        clean = [t for t in order if t in set(tags)]
+        text = (note or "").strip() or None
+        now = time.time()
+        await self.repo.save_usage(name, clean, text, now)
+        if clean or text:
+            self.usage[name] = UsageRow(name, clean, text, now)
+        else:
+            self.usage.pop(name, None)
+        await self._publish()
+        return await self.overview()
+
+    def _usage_info(self, rec: ModelRecord) -> UsageInfo:
+        row = self.usage.get(rec.name)
+        derived = []
+        rag = self.ctx.service("rag.service")
+        rag_cfg = getattr(rag, "cfg", None)
+        model = getattr(rag_cfg, "embedding_model", None)
+        if model and getattr(rag_cfg, "embedder", "ollama") == "ollama" and norm(model) == norm(rec.name):
+            derived.append(DerivedTag(tag="rag", source="RAG-Modul (embedding_model)"))
+        return UsageInfo(tags=row.tags if row else [], note=row.note if row else None,
+                         updated_at=_utc(row.updated) if row else None, derived=derived)
+
+    def _opencode(self, rec: ModelRecord, ctx: ContextResult, v: Judgement, kv_type: str, kv_note: str | None,
+                  observed: list[ObservationRow], overheads: dict[str, BenchStatus]) -> OpencodeFit | None:
+        if "embedding" in rec.capabilities and "completion" not in rec.capabilities:
+            return None
+        tools_run = next((b for b in self.bench_list() if b.digest == rec.digest and b.state == "done"
+                          and b.result is not None and b.result.tools is not None), None)
+        speed_run = next((b for b in self.bench_list() if b.digest == rec.digest and b.state == "done"
+                          and b.result is not None and b.result.eval_tps is not None), None)
+        at_min = None
+        if ctx.effective < self.cfg.opencode_min_context:
+            eff = self.effective()
+            min_ctx = effective_context(rec, eff.context_length, eff.num_parallel, self.cfg,
+                                        requested=self.cfg.opencode_min_context)
+            at_min = (min_ctx, self._estimate(rec, min_ctx, kv_type, kv_note, observed, overheads)[1])
+        return opencode_fit(
+            rec.name, ctx, v, at_min, tools_run.result.tools if tools_run else None,
+            (tools_run.finished_at or tools_run.created_at) if tools_run else None,
+            speed_run.result.eval_tps if speed_run else None, self.cfg, self._verdict,
+            tool_capability="tools" in rec.capabilities)
+
     def bench_list(self, name: str | None = None) -> list[BenchStatus]:
         running = [self.bench.status] if self.bench else []
         out = running + self.benches
@@ -650,6 +702,8 @@ class CatalogService:
                 changes=changes(rec, parent_rec) if parent_rec else [],
                 context=self._context_info(ctx), estimate=self._estimate_info(est), observations=obs,
                 verdict=self._verdict(v), overhead=self._overhead_info(overheads.get(rec.weights_digest or rec.digest)),
+                usage=self._usage_info(rec),
+                opencode=self._opencode(rec, ctx, v, kv_type, kv_note, observed, overheads),
                 benches=benches_by_name.get(rec.name, []), testable=not embedding,
                 loaded=rec.name in self.loaded, first_seen=_utc(row.first_seen), show_error=rec.show_error,
             ))
@@ -669,7 +723,8 @@ class CatalogService:
                               reserve_bytes=b.reserve_bytes, available_bytes=b.available_bytes),
             assumptions=Assumptions(graph_reserve_bytes=round(cfg.graph_reserve_gib * GIB),
                                     tight_ratio=cfg.tight_ratio, fallback_context_length=cfg.fallback_context_length,
-                                    clamp_to_trained=cfg.clamp_to_trained),
+                                    clamp_to_trained=cfg.clamp_to_trained,
+                                    opencode_min_context=cfg.opencode_min_context),
             tests=self.bench_access(), bench=self.bench.status if self.bench else None,
             models=models,
             groups=[ModelGroup(origin=g.origin, installed=g.installed, members=g.members) for g in groups],

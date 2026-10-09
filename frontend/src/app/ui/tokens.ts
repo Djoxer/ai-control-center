@@ -153,6 +153,8 @@ export const ui = {
     warning: 'border-amber-400/40 text-amber-200',
     critical: 'border-red-500/40 text-red-200',
   } satisfies Record<Tone, string>,
+  /** Team label on an item ("OpenCode", "OpenWebUI" in the catalog): set by people, not measured. */
+  tag: 'rounded-md bg-sky-400/10 px-1.5 py-0.5 text-[11px] font-medium text-sky-200',
   /** Status dot; color via [class.bg-…] next to it, meaning always also in text. */
   dot: 'size-2 shrink-0 rounded-full',
 
@@ -225,6 +227,7 @@ export const UI_DOCS: Record<UiToken, UiDoc> = {
   calloutFrame: { group: 'Hinweise', label: 'Hinweis-Rahmen' },
   pill: { group: 'Hinweise', label: 'Pille' },
   pillTone: { group: 'Hinweise', label: 'Pillen-Farbe' },
+  tag: { group: 'Hinweise', label: 'Team-Markierung' },
   dot: { group: 'Hinweise', label: 'Statuspunkt' },
   fill: { group: 'Farben', label: 'Balkenfarbe nach Ton' },
   iconTone: { group: 'Farben', label: 'Iconfarbe nach Stufe' },

@@ -54,6 +54,11 @@ test_num_predict = 128           # tokens to generate
 test_timeout_s = 300
 unload_after_test = true
 keep_tests = 200
+test_tools = true                # every test run also checks structured tool calls (3 requests, /api/chat)
+test_tool_num_predict = 2048     # room for thinking models before they call the tool
+# OpenCode: context an agent session needs, output tokens the generated opencode.json block reserves
+opencode_min_context = 65536
+opencode_output_tokens = 8192
 
 [modules.logs]
 tail_interval_s = 1.0            # live tail: seconds between checks for new lines

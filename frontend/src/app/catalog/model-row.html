@@ -13,7 +13,15 @@
       @for (c of chips(); track c) {
         <span [class]="ui.pill + ' ' + ui.pillTone.normal">{{ c }}</span>
       }
+      <!-- used in OpenCode AND checked: one chip, the verdict as a mark inside it -->
+      @for (u of usage(); track u.label) {
+        <span [class]="ui.tag" [title]="u.key === 'opencode' && fit() ? fitTitle() : u.title">{{ u.label }}@if (u.key === 'opencode' && fit(); as f) {<span [class]="f.markClass" class="ml-1">{{ f.mark }}</span>}</span>
+      }
+      @if (fit(); as f) {
+        @if (!taggedOpencode()) { <span [class]="f.classes" [title]="fitTitle()">{{ f.label }}</span> }
+      }
     </p>
+    @if (m.usage?.note) { <p class="mt-1 text-xs text-sky-200/80">{{ m.usage!.note }}</p> }
     @if (relation(); as r) { <p [class]="ui.meta" class="mt-1">{{ r }}</p> }
     @if (m.changes?.length) {
       <p class="mt-1 text-xs text-gray-400"><span class="text-gray-500">ändert:</span> {{ m.changes!.join(' · ') }}</p>
@@ -56,6 +64,9 @@
       <app-icon menuTrigger name="more-vertical" class="size-5" />
       <button type="button" role="menuitem" [class]="ui.menuItem" (click)="details.emit()">
         <app-icon name="info" class="size-4" /> Details …
+      </button>
+      <button type="button" role="menuitem" [class]="ui.menuItem" (click)="usageEdit.emit()">
+        <app-icon name="tag" class="size-4" /> Einsatz …
       </button>
       <button type="button" role="menuitem" [class]="ui.menuItem" [disabled]="testBlock() !== null"
               [title]="testBlock() ?? ''" (click)="test.emit()">

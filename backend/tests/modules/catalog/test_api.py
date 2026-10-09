@@ -186,3 +186,37 @@ def test_disabled_module_has_no_routes(settings):
         assert c.get("/api/v1/catalog/overview").status_code == 404
         mods = {m["key"]: m["state"] for m in c.get("/api/v1/health").json()["modules"]}
         assert mods["catalog"] == "disabled"
+
+
+def test_usage_endpoint(make):
+    c = make()
+    ready(c)
+    r = c.post("/api/v1/catalog/usage", json={"name": "qwen3.5-9b-64k-code:latest", "tags": ["opencode"],
+                                              "note": "Standard in OpenCode"})
+    assert r.status_code == 200
+    m = by_name(r.json())["qwen3.5-9b-64k-code:latest"]
+    assert m["usage"]["tags"] == ["opencode"] and m["usage"]["note"] == "Standard in OpenCode"
+    assert by_name(c.get("/api/v1/catalog/overview").json())["qwen3.5-9b-64k-code:latest"]["usage"]["tags"] == ["opencode"]
+    assert c.post("/api/v1/catalog/usage", json={"name": "nope:1", "tags": []}).status_code == 404
+    assert c.post("/api/v1/catalog/usage", json={"name": "qwen3.5:9b", "tags": ["chef"]}).status_code == 422
+    assert c.post("/api/v1/catalog/usage", json={"name": "qwen3.5:9b", "note": "x" * 201}).status_code == 422
+    r = c.post("/api/v1/catalog/usage", json={"name": "qwen3.5:9b", "tags": ["test"]}, headers=CROSS_SITE)
+    assert r.status_code == 403
+
+
+def test_tool_check_in_the_simulation_of_the_ai_box(make):
+    """real-catalog: coder14 writes its tool calls as text (as seen with Continue), qwen3.5 calls them properly."""
+    c = make("real-catalog")
+    ready(c)
+    assert c.post("/api/v1/catalog/bench", json={"name": "coder14:latest"}).status_code == 202
+    coder = wait_bench(c)["result"]["tools"]
+    assert (coder["passed"], coder["simulated"]) == (0, True) and "nur als Text" in coder["cases"][0]["detail"]
+    assert c.post("/api/v1/catalog/bench", json={"name": "qwen3.5-9b-64k-code:latest"}).status_code == 202
+    assert wait_bench(c)["result"]["tools"]["passed"] == 3
+    m = by_name(c.get("/api/v1/catalog/overview").json())
+    code = m["qwen3.5-9b-64k-code:latest"]["opencode"]
+    assert code["state"] == "fits" and code["toolsSimulated"] and code["configKey"] == "qwen3.5-9b-64k-code"
+    assert m["coder14:latest"]["opencode"]["state"] == "no"
+    assert m["qwen2.5-coder:14b-instruct-q4_K_M"]["opencode"]["state"] == "no"      # same digest as coder14
+    assert any("Trainiert auf 32.768" in r for r in m["qwen2.5-coder:14b-instruct-q4_K_M"]["opencode"]["reasons"])
+    assert m["nomic-embed-text:latest"]["opencode"] is None

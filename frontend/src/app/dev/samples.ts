@@ -166,6 +166,7 @@ export const SAMPLES: Record<UiToken, Sample> = {
   },
   calloutFrame: { html: CALLOUT('warning', 'warning', 'Warnung', 'Qdrant ist nicht erreichbar.') },
   pill: { html: '<span class="{pill} {pillTone.normal}">Leistungslimit</span>' },
+  tag: { html: '<div class="flex gap-2"><span class="{tag}">OpenCode</span><span class="{tag}">OpenWebUI</span></div>' },
   pillTone: {
     html: '<div class="flex gap-2"><span class="{pill} {pillTone.normal}">running</span>' +
       '<span class="{pill} {pillTone.warning}">Temperatur</span><span class="{pill} {pillTone.critical}">failed</span></div>',

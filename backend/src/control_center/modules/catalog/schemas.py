@@ -25,7 +25,9 @@ VerdictState = Literal["fits", "tight", "split", "cpu", "unknown"]
 Basis = Literal["measured", "estimated", "none"]
 OtherSource = Literal["measured", "assumed"]
 BenchState = Literal["queued", "running", "done", "failed", "cancelled"]
-BenchPhase = Literal["unload", "baseline", "load", "measure", "cleanup"]
+BenchPhase = Literal["unload", "baseline", "load", "measure", "tools", "cleanup"]
+UsageTag = Literal["opencode", "openwebui", "rag", "test", "remove"]
+FitState = Literal["fits", "maybe", "no", "unknown"]
 
 
 class OllamaState(CamelModel):
@@ -72,6 +74,7 @@ class Assumptions(CamelModel):
     tight_ratio: float
     fallback_context_length: int
     clamp_to_trained: bool
+    opencode_min_context: int = 65536
 
 
 class ParentInfo(CamelModel):
@@ -135,6 +138,24 @@ class OverheadInfo(CamelModel):
     measured_at: datetime
 
 
+class ToolCase(CamelModel):
+    key: str                                # read | choose | types
+    label: str                              # German
+    ok: bool
+    detail: str                             # German: the call as made, or what went wrong
+    seconds: float | None = None
+    thinking: bool = False                  # the model reasoned before answering
+
+
+class ToolCheck(CamelModel):
+    """Did the model answer with structured tool calls? Three agent-like requests via /api/chat."""
+    passed: int
+    total: int
+    skipped: str | None = None              # German: why no request was sent (no tool support, switched off)
+    simulated: bool = False                 # answers replayed from the fake adapter
+    cases: list[ToolCase] = Field(default_factory=list)
+
+
 class BenchResult(CamelModel):
     """What one test run measured. Speeds from Ollama's own clocks, memory from /api/ps and NVML."""
     requested_ctx: int
@@ -154,6 +175,7 @@ class BenchResult(CamelModel):
     gpu_before_bytes: int | None = None     # NVML, after the other models were unloaded
     gpu_after_bytes: int | None = None
     runner_overhead_bytes: int | None = None  # NVML growth beyond Ollama's own count
+    tools: ToolCheck | None = None          # None = run made before the check existed, or it was switched off
     note: str | None = None
 
 
@@ -172,6 +194,35 @@ class BenchStatus(CamelModel):
     unloaded: list[str] = Field(default_factory=list)   # models the run unloaded first
     error: str | None = None
     result: BenchResult | None = None
+
+
+class DerivedTag(CamelModel):
+    tag: UsageTag
+    source: str                             # German: who says so ("RAG-Modul")
+
+
+class UsageInfo(CamelModel):
+    """What the team uses a model for - set on the page, kept by name (survives re-pulls)."""
+    tags: list[UsageTag] = Field(default_factory=list)
+    note: str | None = None
+    updated_at: datetime | None = None
+    derived: list[DerivedTag] = Field(default_factory=list)   # known from the configuration, not set by hand
+
+
+class OpencodeFit(CamelModel):
+    """Can OpenCode work with this model on this card? Tools measured, context and VRAM computed."""
+    state: FitState
+    reasons: list[str]                      # German, one line each; the first one is the summary
+    tools_passed: int | None = None
+    tools_total: int | None = None
+    tools_at: datetime | None = None
+    tools_simulated: bool = False
+    context: int                            # what OpenCode would get (the effective context)
+    min_context: int
+    at_min: Verdict | None = None           # when the context is too small: would min_context fit?
+    eval_tps: float | None = None
+    config_key: str                         # model key in opencode.json (Ollama accepts it without :latest)
+    block: str                              # ready-to-paste entry for provider.ollama.models in opencode.json
 
 
 class CatalogModel(CamelModel):
@@ -197,6 +248,8 @@ class CatalogModel(CamelModel):
     observations: list[Observation] = Field(default_factory=list)
     verdict: Verdict
     overhead: OverheadInfo | None = None    # measured by a test run of the same weights
+    usage: UsageInfo = Field(default_factory=UsageInfo)
+    opencode: OpencodeFit | None = None     # chat models only
     benches: list[BenchStatus] = Field(default_factory=list)   # latest test runs of this model, newest first
     testable: bool = True                   # embedding models have no test run (yet)
     loaded: bool = False                    # in /api/ps right now
@@ -240,6 +293,12 @@ class CatalogOverview(CamelModel):
 
 class RefreshRequest(CamelModel):
     name: str | None = Field(None, description="one model; null = all installed models")
+
+
+class UsageRequest(CamelModel):
+    name: str
+    tags: list[UsageTag] = Field(default_factory=list, max_length=5)
+    note: str | None = Field(None, max_length=200)
 
 
 class Preflight(CamelModel):

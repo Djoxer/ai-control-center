@@ -7,7 +7,8 @@ import { BenchStatus } from '../api/models/bench-status';
 import { CatalogOverview } from '../api/models/catalog-overview';
 import { StreamService } from '../core/stream.service';
 import '../testing/dialog-polyfill';
-import { benchStatus, catalogModel, catalogOverview, preflight } from '../testing/catalog-overview';
+import { ClipboardService } from '../core/clipboard.service';
+import { benchStatus, catalogModel, catalogOverview, opencodeFit, preflight } from '../testing/catalog-overview';
 import { FakeEventSource, fakeEventSourceProvider } from '../testing/fake-event-source';
 import { Catalog } from './catalog';
 import { BENCH_TOPIC, OVERVIEW_TOPIC } from './state';
@@ -17,6 +18,7 @@ const OVERVIEW = '/api/v1/catalog/overview';
 const REFRESH = '/api/v1/catalog/refresh';
 const PREFLIGHT = '/api/v1/catalog/preflight';
 const BENCH = '/api/v1/catalog/bench';
+const USAGE = '/api/v1/catalog/usage';
 
 describe('Catalog page', () => {
   let http: HttpTestingController;
@@ -199,7 +201,7 @@ describe('Catalog page', () => {
     await open();
     expect(el.textContent).toContain('GPU-Budget');
     expect(el.textContent).toContain('andere Programme');
-    expect(el.textContent).toMatch(/1,4 GiB \(gemessen \d\d:\d\d\)/);
+    expect(el.textContent).toMatch(/1,4 GiB \(gemessen (\d\d\.\d\d\. )?\d\d:\d\d\)/);   // date only when not today
     expect(el.textContent).toContain('verfügbar');
     expect(el.textContent).toContain('14,2 GiB');
   });
@@ -364,6 +366,132 @@ describe('Catalog page', () => {
     await render();
     expect(dialogOpen().textContent).toContain('Testläufe');
     expect(dialogOpen().textContent).toContain('64,0 tok/s · Laden 4,5 s · 8.192 Token');
+  });
+
+  // ---- usage and OpenCode ------------------------------------------------------------------------
+
+  const tagged = () => catalogOverview({
+    models: [
+      catalogModel({ usage: { tags: ['opencode'], note: 'Standard für OpenCode', derived: [] }, opencode: opencodeFit() }),
+      catalogModel({ name: 'old:1', origin: 'old:1', usage: { tags: ['remove'], derived: [] },
+        opencode: opencodeFit({ state: 'no', reasons: ['Nicht geeignet für OpenCode', 'Tool-Calls: 0/3 – nur als Text.'] }) }),
+      catalogModel({ name: 'nomic-embed-text:latest', origin: 'nomic-embed-text:latest', testable: false,
+        usage: { tags: [], derived: [{ tag: 'rag', source: 'RAG-Modul (embedding_model)' }] } }),
+    ],
+    groups: [{ origin: 'qwen3.5:9b', installed: true, members: ['qwen3.5:9b'] },
+      { origin: 'old:1', installed: true, members: ['old:1'] },
+      { origin: 'nomic-embed-text:latest', installed: true, members: ['nomic-embed-text:latest'] }],
+  });
+
+  it('shows what each model is used for and filters by it', async () => {
+    await open(tagged());
+    const [code, old, embed] = rows();
+    const tag = code.querySelector('.bg-sky-400\\/10') as HTMLElement;      // used in OpenCode and checked: one chip
+    expect(tag.textContent).toBe('OpenCode✓');                           // mark spaced by margin, not text
+    expect(tag.title).toContain('Geeignet für OpenCode');
+    expect(code.textContent).not.toContain('OpenCode ✓OpenCode');
+    expect(code.textContent).toContain('Standard für OpenCode');
+    expect(old.textContent).toContain('Löschkandidat');
+    expect(old.textContent).toContain('OpenCode ✗');
+    expect(embed.querySelector('[title="laut RAG-Modul (embedding_model)"]')?.textContent).toBe('RAG');
+    expect(button('Im Einsatz (2)')).toBeTruthy();                       // the deletion candidate does not count
+    button('Ohne Einsatz (1)').click();
+    await render();
+    expect(rows().map((r) => r.querySelector('.font-mono')?.textContent)).toEqual(['old:1']);
+    expect(button('Ohne Einsatz (1)').getAttribute('aria-pressed')).toBe('true');
+    button('Im Einsatz (2)').click();
+    await render();
+    expect(rows().length).toBe(2);
+    button('Alle (3)').click();
+    await render();
+    expect(rows().length).toBe(3);
+  });
+
+  it('sets the usage of a model from its menu', async () => {
+    await open();
+    rows()[0].querySelector<HTMLButtonElement>('app-menu button')!.click();
+    await render();
+    button('Einsatz', rows()[0]).click();
+    await render();
+    const dialog = el.querySelector('dialog[open]') as HTMLDialogElement;
+    expect(dialog.textContent).toContain('Einsatz: qwen3.5:9b');
+    const boxes = [...dialog.querySelectorAll<HTMLInputElement>('input[type=checkbox]')];
+    expect(boxes.length).toBe(5);
+    boxes[1].checked = true;                                             // OpenWebUI
+    boxes[1].dispatchEvent(new Event('change'));
+    boxes[0].checked = true;                                             // OpenCode - order is fixed anyway
+    boxes[0].dispatchEvent(new Event('change'));
+    const note = dialog.querySelector<HTMLInputElement>('input[type=text]')!;
+    note.value = '  für das Team  ';
+    note.dispatchEvent(new Event('input'));
+    button('Speichern', dialog).click();
+    await render();
+    const req = http.expectOne(USAGE);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ name: 'qwen3.5:9b', tags: ['opencode', 'openwebui'], note: 'für das Team' });
+    req.flush(catalogOverview({ asOf: '2026-10-09T09:00:00Z' }));
+    await render();
+    expect(el.querySelector('dialog[open]')).toBeNull();
+  });
+
+  it('keeps the usage dialog open with the error when saving fails', async () => {
+    await open();
+    rows()[0].querySelector<HTMLButtonElement>('app-menu button')!.click();
+    await render();
+    button('Einsatz', rows()[0]).click();
+    await render();
+    button('Speichern', el.querySelector('dialog[open]')!).click();
+    http.expectOne(USAGE).flush({ detail: 'Modell nicht installiert: qwen3.5:9b' }, { status: 404, statusText: 'x' });
+    await render();
+    expect(el.querySelector('dialog[open] [role=alert]')?.textContent).toContain('Modell nicht installiert');
+  });
+
+  it('explains the OpenCode fit in the details and copies the opencode.json entry', async () => {
+    await open(tagged());
+    const copied: string[] = [];
+    TestBed.inject(ClipboardService).copy = async (t: string) => { copied.push(t); return true; };
+    rows()[0].querySelector<HTMLButtonElement>('app-menu button')!.click();
+    await render();
+    button('Details', rows()[0]).click();
+    await render();
+    const dialog = el.querySelector('dialog[open]') as HTMLDialogElement;
+    expect(dialog.textContent).toContain('Geeignet für OpenCode');
+    expect(dialog.textContent).toContain('Tool-Calls: 3/3 strukturiert.');
+    expect(dialog.textContent).toContain('125,1 tok/s');
+    expect(dialog.querySelector('pre')?.textContent).toContain('"limit": { "context": 65536, "output": 8192 }');
+    button('Kopieren', dialog).click();
+    await render();
+    expect(copied[0]).toContain('"name": "qwen3.5:9b"');
+    expect(button('Kopiert', dialog)).toBeTruthy();
+  });
+
+  it('lists the tool calls of a finished test run', async () => {
+    await open();
+    await openTest();
+    preflightReq().flush(preflight());
+    await render();
+    const dialog = dialogOpen();
+    button('Testlauf starten', dialog).click();
+    http.expectOne(BENCH).flush(benchStatus({ state: 'queued', revision: 1, result: null, finishedAt: null }));
+    await render();
+    pushBench(benchStatus({ revision: 9, result: { ...benchStatus().result!,
+      tools: { passed: 2, total: 3, cases: [
+        { key: 'read', label: 'Datei lesen', ok: true, detail: "read_file(path='src/app/app.config.ts')", seconds: 1.4 },
+        { key: 'choose', label: 'Werkzeug wählen', ok: true, detail: "run_command(command='npm test')", seconds: 1.1 },
+        { key: 'types', label: 'Argumente mit Typen', ok: false, detail: "Argumente falsch: max_results = '5' (Text statt Zahl)",
+          seconds: 1.2, thinking: true }] } } }));
+    await render();
+    const text = dialog.textContent ?? '';
+    expect(text).toContain('Tool-Calls · 2/3 strukturiert');
+    expect(text).toContain("read_file(path='src/app/app.config.ts')");
+    expect(text).toContain('(Text statt Zahl)');
+    expect(text).toContain('1,2 s · denkt vorher');
+    expect(dialog.querySelectorAll('li app-icon.text-red-400').length).toBe(1);
+    pushBench(benchStatus({ revision: 10, result: { ...benchStatus().result!,
+      tools: { passed: 0, total: 3, skipped: 'Ollama lehnt Tools für dieses Modell ab (Template ohne Tool-Format).', cases: [] } } }));
+    await render();
+    expect(dialog.textContent).toContain('Tool-Calls · nicht geprüft');
+    expect(dialog.textContent).toContain('Template ohne Tool-Format');
   });
 
   it('shows the load error instead of an empty page', async () => {

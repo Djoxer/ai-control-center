@@ -10,10 +10,13 @@ import { CatalogOverview } from '../api/models/catalog-overview';
 import { ContextInfo } from '../api/models/context-info';
 import { ModelGroup } from '../api/models/model-group';
 import { Observation } from '../api/models/observation';
+import { OpencodeFit } from '../api/models/opencode-fit';
+import { ToolCheck } from '../api/models/tool-check';
+import { UsageInfo } from '../api/models/usage-info';
 import { ServerConfig } from '../api/models/server-config';
 import { Verdict } from '../api/models/verdict';
 import { GIB, num } from '../dashboard/format';
-import { Origin, Tone } from '../ui/tokens';
+import { Origin, Tone, ui } from '../ui/tokens';
 
 export const OVERVIEW_TOPIC = 'catalog.overview';
 export const BENCH_TOPIC = 'catalog.bench';
@@ -256,6 +259,7 @@ const PHASES: Record<NonNullable<BenchStatus['phase']>, string> = {
   baseline: 'Leere Karte messen',
   load: 'Laden und antworten',
   measure: 'Speicher messen',
+  tools: 'Tool-Calls prüfen',
   cleanup: 'Wieder entladen',
 };
 export const PHASE_ORDER = Object.keys(PHASES) as NonNullable<BenchStatus['phase']>[];
@@ -287,5 +291,79 @@ export function benchSummary(b: BenchStatus): string {
   if (r.evalTps !== null && r.evalTps !== undefined) parts.push(`${num(r.evalTps, 1)} tok/s`);
   if (r.loadS !== null && r.loadS !== undefined) parts.push(`Laden ${num(r.loadS, 1)} s`);
   parts.push(`${num(r.actualCtx ?? r.requestedCtx)} Token`);
+  const tools = toolsSummary(r.tools);
+  if (tools) parts.push(tools);
   return parts.join(' · ');
+}
+
+// ---- usage (what the team uses a model for) ----------------------------------------------------------
+
+export type UsageTag = NonNullable<UsageInfo['tags']>[number];
+
+/** Fixed order and German words; the backend accepts exactly these keys. */
+export const USAGE: { key: UsageTag; label: string; hint: string }[] = [
+  { key: 'opencode', label: 'OpenCode', hint: 'Coding-Agent im Editor/Terminal' },
+  { key: 'openwebui', label: 'OpenWebUI', hint: 'Chat im Browser, für das Team freigegeben' },
+  { key: 'rag', label: 'RAG', hint: 'Einbettungen für die Codesuche' },
+  { key: 'test', label: 'Test', hint: 'wird gerade ausprobiert' },
+  { key: 'remove', label: 'Löschkandidat', hint: 'wird nicht mehr gebraucht' },
+];
+
+export function usageLabel(tag: string): string {
+  return USAGE.find((u) => u.key === tag)?.label ?? tag;
+}
+
+export interface UsageChip {
+  key: UsageTag;
+  label: string;
+  title: string;
+}
+
+/** Tags set by hand first, then what the configuration says (RAG module), without doubles. */
+export function usageChips(u: UsageInfo | null | undefined): UsageChip[] {
+  const out: UsageChip[] = (u?.tags ?? []).map((t) => ({ key: t, label: usageLabel(t), title: 'vom Team gesetzt' }));
+  for (const d of u?.derived ?? []) {
+    if (!(u?.tags ?? []).includes(d.tag)) out.push({ key: d.tag, label: usageLabel(d.tag), title: `laut ${d.source}` });
+  }
+  return out;
+}
+
+export function inUse(u: UsageInfo | null | undefined): boolean {
+  return (u?.tags ?? []).some((t) => t !== 'remove') || (u?.derived?.length ?? 0) > 0;
+}
+
+export type UsageFilter = 'all' | 'used' | 'unused';
+
+export function matchesUsage(m: CatalogModel, filter: UsageFilter): boolean {
+  if (filter === 'all') return true;
+  return filter === 'used' ? inUse(m.usage) : !inUse(m.usage);
+}
+
+// ---- tool calls and OpenCode ------------------------------------------------------------------------
+
+/** "3/3 Tool-Calls", "keine Tools", or '' when the run had no check. */
+export function toolsSummary(t: ToolCheck | null | undefined): string {
+  if (!t) return '';
+  if (t.skipped) return 'keine Tools';
+  return `${t.passed}/${t.total} Tool-Calls${t.simulated ? ' (Simulation)' : ''}`;
+}
+
+export interface FitView {
+  label: string;
+  mark: string;                  // ✓ ? ✗ - also shown inside the team's "OpenCode" tag
+  markClass: string;             // color of the mark
+  classes: string;               // complete class string for the stand-alone pill (one [class] binding)
+}
+
+/** OpenCode verdict for the row; null when there is nothing to say yet (tools untested) or for embedding models. */
+export function fitView(f: OpencodeFit | null | undefined): FitView | null {
+  if (!f || f.state === 'unknown') return null;
+  if (f.state === 'fits') {
+    return { label: 'OpenCode ✓', mark: '✓', markClass: ui.origin.measured,
+      classes: `${ui.pill} border-emerald-400/40 ${ui.origin.measured}` };
+  }
+  if (f.state === 'maybe') {
+    return { label: 'OpenCode ?', mark: '?', markClass: 'text-amber-200', classes: `${ui.pill} ${ui.pillTone.warning}` };
+  }
+  return { label: 'OpenCode ✗', mark: '✗', markClass: 'text-gray-400', classes: `${ui.pill} ${ui.pillTone.normal}` };
 }

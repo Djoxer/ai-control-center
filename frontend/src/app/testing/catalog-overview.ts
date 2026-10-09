@@ -1,6 +1,7 @@
 import { BenchStatus } from '../api/models/bench-status';
 import { CatalogModel } from '../api/models/catalog-model';
 import { CatalogOverview } from '../api/models/catalog-overview';
+import { OpencodeFit } from '../api/models/opencode-fit';
 import { Preflight } from '../api/models/preflight';
 
 const GIB = 1024 ** 3;
@@ -20,7 +21,7 @@ export const catalogModel = (over: Partial<CatalogModel> = {}): CatalogModel => 
   observations: [],
   verdict: { state: 'fits', basis: 'estimated', needBytes: 11.4 * GIB, availableBytes: 14 * GIB,
     message: 'Sollte komplett auf die GPU passen: ≈ 11,4 GiB von 14,0 GiB.' },
-  benches: [], testable: true,
+  benches: [], testable: true, usage: { tags: [], note: null, derived: [] }, opencode: null,
   loaded: false, firstSeen: '2026-10-08T09:00:00Z', modifiedAt: '2026-09-12T07:14:03Z', showError: null,
   ...over,
 });
@@ -36,6 +37,15 @@ export const benchStatus = (over: Partial<BenchStatus> = {}): BenchStatus => ({
     sizeBytes: 7.1 * GIB, vramBytes: 7.1 * GIB, placement: 'gpu', gpuBeforeBytes: 1.4 * GIB,
     gpuAfterBytes: 8.8 * GIB, runnerOverheadBytes: 0.3 * GIB, note: null,
   },
+  ...over,
+});
+
+/** OpenCode suitability of a model whose three tool calls passed. */
+export const opencodeFit = (over: Partial<OpencodeFit> = {}): OpencodeFit => ({
+  state: 'fits', reasons: ['Geeignet für OpenCode', 'Tool-Calls: 3/3 strukturiert.', 'Kontext 65.536 Token – reicht für OpenCode.'],
+  toolsPassed: 3, toolsTotal: 3, toolsAt: '2026-10-09T08:00:00Z', toolsSimulated: false, context: 65536, minContext: 65536,
+  atMin: null, evalTps: 125.1, configKey: 'qwen3.5:9b',
+  block: '"qwen3.5:9b": {\n  "name": "qwen3.5:9b",\n  "limit": { "context": 65536, "output": 8192 }\n}',
   ...over,
 });
 

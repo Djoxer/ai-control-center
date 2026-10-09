@@ -5,6 +5,7 @@ import { catalogPreflight } from '../api/fn/catalog/catalog-preflight';
 import { BenchStatus } from '../api/models/bench-status';
 import { CatalogModel } from '../api/models/catalog-model';
 import { Preflight } from '../api/models/preflight';
+import { ToolCheck } from '../api/models/tool-check';
 import * as fmt from '../dashboard/format';
 import { Meter } from '../dashboard/meter';
 import { Icon } from '../layout/icon';
@@ -124,6 +125,11 @@ export class BenchPanel {
   readonly critCallout = `${ui.calloutFrame} ${ui.callout.critical}`;
   readonly measured = ui.origin.measured;
   readonly estimated = ui.origin.estimated;
+
+  toolsTitle(t: ToolCheck): string {
+    const sim = t.simulated ? ' (Simulation)' : '';
+    return t.skipped ? `nicht geprüft${sim}` : `${t.passed}/${t.total} strukturiert${sim}`;
+  }
 
   phaseState(p: string): 'done' | 'now' | 'todo' {
     const b = this.bench();
