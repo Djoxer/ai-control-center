@@ -6,6 +6,7 @@ from types import SimpleNamespace
 import pytest
 
 from control_center.adapters.gpu import GpuReading, GpuUnavailable
+from control_center.adapters.library import FakeLibrary
 from control_center.adapters.ollama import (
     ChatResult, GenerateResult, OllamaModelMissing, OllamaRequestFailed, OllamaUnavailable, RunningModel, ToolCall,
 )
@@ -128,12 +129,14 @@ class Harness:
         self.cfg = CatalogSettings(**cfg)
         self.ollama = StubOllama()
         self.gpu = StubGpu(ollama=self.ollama)
+        self.library = FakeLibrary()
         self.published = []
         self.services: dict = {}
 
     async def service(self, read_log=False) -> CatalogService:
         ctx = AppContext(settings=self.settings, db=Database(self.settings.db_path), events=EventBus())
-        ctx.adapters = SimpleNamespace(ollama=self.ollama, gpu=self.gpu, simulated=[], cfg=self.settings.adapters)
+        ctx.adapters = SimpleNamespace(ollama=self.ollama, gpu=self.gpu, library=self.library, simulated=[],
+                                       cfg=self.settings.adapters)
         ctx.services = self.services
         await ctx.db.open()
         OPEN_DBS.append(ctx.db)

@@ -5,14 +5,18 @@ the cross-site guard: it costs Ollama a few /api/show calls and changes what the
 A test run loads a model and unloads the current one - POST with the guard, refused by the preflight
 when the estimate says "Teil-Offload", and only with confirm=true when it says "knapp".
 Usage tags are team notes about a model (OpenCode, OpenWebUI, ...) - POST with the guard as well.
+A candidate check makes the SERVER ask Ollama's registry (only the hosts of [adapters] library_hosts) -
+POST with the guard; the result stays in the overview until it is removed (DELETE with the guard).
 """
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 
+from control_center.adapters.library import BadReference, LibraryNotFound, LibraryUnavailable
 from control_center.core.guards import same_origin
 from control_center.modules.catalog.schemas import (
-    BenchRequest, BenchStatus, CatalogOverview, Preflight, RefreshRequest, UsageRequest,
+    BenchRequest, BenchStatus, CandidateRequest, CandidateResult, CatalogOverview, Preflight, RefreshRequest,
+    UsageRequest,
 )
 from control_center.modules.catalog.service import (
     Busy, CatalogService, NeedsConfirm, OllamaDown, Refused, UnknownModel,
@@ -88,3 +92,33 @@ async def set_usage(request: Request, body: UsageRequest) -> CatalogOverview:
         return await service(request).set_usage(body.name, list(body.tags), body.note)
     except UnknownModel as exc:
         raise HTTPException(404, f"Modell nicht installiert: {body.name}") from exc
+
+
+@router.post("/candidates", response_model=CandidateResult, dependencies=write,
+             responses={400: {"description": "not a model name, or a registry that is not allowed"},
+                        404: {"description": "the registry does not know the model or tag"},
+                        502: {"description": "registry not reachable or unreadable answer"}})
+async def check_candidate(request: Request, body: CandidateRequest) -> CandidateResult:
+    """Reads manifest, small files and the GGUF header of a model in Ollama's library (nothing is pulled) and
+    keeps the facts. The overview then shows it with estimate, verdict, max. context and OpenCode prognosis."""
+    svc = service(request)
+    try:
+        name = await svc.check_candidate(body.name)
+    except BadReference as exc:
+        raise HTTPException(400, str(exc)) from None
+    except LibraryNotFound as exc:
+        raise HTTPException(404, str(exc)) from None
+    except LibraryUnavailable as exc:
+        raise HTTPException(502, f"Registry nicht lesbar: {exc}") from None
+    return CandidateResult(name=name, overview=await svc.overview())
+
+
+@router.delete("/candidates", response_model=CatalogOverview, dependencies=write,
+               responses={404: {"description": "no such candidate"}})
+async def forget_candidate(request: Request, name: str = Query(description="candidate name")) -> CatalogOverview:
+    svc = service(request)
+    try:
+        await svc.forget_candidate(name)
+    except UnknownModel:
+        raise HTTPException(404, f"Kein Kandidat {name}") from None
+    return await svc.overview()

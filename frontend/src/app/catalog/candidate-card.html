@@ -1,0 +1,109 @@
+<!-- candidate-card.html: name + facts + verdict | notes | download, context, need | context steps | OpenCode | pull -->
+@let c = candidate();
+<article [class]="ui.card" class="overflow-hidden" [attr.aria-label]="'Kandidat ' + c.name">
+  <header class="flex flex-wrap items-center gap-x-3 gap-y-1 border-b border-white/10 px-4 py-3">
+    <h3 class="font-mono text-base font-semibold break-all text-white">{{ c.name }}</h3>
+    @if (facts()) { <p [class]="ui.meta">{{ facts() }}</p> }
+    @for (chip of chips(); track chip) { <span [class]="ui.pill + ' ' + ui.pillTone.normal">{{ chip }}</span> }
+    <span class="ml-auto flex items-center gap-2">
+      @if (c.simulated) { <span [class]="ui.pill + ' ' + ui.pillTone.warning">Simulation</span> }
+      @if (view(); as v) {
+        <span [class]="pill()" [title]="c.verdict?.message ?? ''">{{ v.label }}</span>
+      } @else {
+        <span [class]="pill()">{{ c.weightsBytes ? 'unklar' : 'Cloud' }}</span>
+      }
+      <app-menu [label]="'Aktionen für ' + c.name">
+        <app-icon menuTrigger name="more-vertical" class="size-5" />
+        <button type="button" role="menuitem" [class]="ui.menuItem" [disabled]="busy()" (click)="recheck.emit()">
+          <app-icon name="refresh" class="size-4" /> {{ busy() ? 'Prüft …' : 'Neu prüfen' }}
+        </button>
+        @if (c.page) {
+          <a role="menuitem" [class]="ui.menuItem" [href]="c.page" target="_blank" rel="noopener noreferrer">
+            <app-icon name="external-link" class="size-4" /> Modellseite
+          </a>
+        }
+        <button type="button" role="menuitem" [class]="ui.menuItem" (click)="forget.emit()">
+          <app-icon name="trash" class="size-4" /> Aus der Liste nehmen
+        </button>
+      </app-menu>
+    </span>
+  </header>
+
+  <div class="space-y-3 px-4 py-3 text-sm">
+    @for (w of warnings(); track w) {
+      <div [class]="warnCallout" role="note">
+        <app-icon name="warning" class="mt-0.5 size-5" />
+        <p><span class="font-semibold">Version:</span> {{ w }}</p>
+      </div>
+    }
+    @for (n of notes(); track n) { <p class="text-sky-200/80">{{ n }}</p> }
+
+    @if (c.verdict && c.context) {
+      <dl class="grid gap-x-6 gap-y-2 sm:grid-cols-3">
+        <div>
+          <dt [class]="ui.meta">Download</dt>
+          <dd class="font-mono text-white">{{ download() }}</dd>
+        </div>
+        <div>
+          <dt [class]="ui.meta">Kontext</dt>
+          <dd class="font-mono text-white">{{ fmt.num(c.context.effective) }}
+            <span [class]="ui.meta" class="font-sans">{{ contextSource(c.context) }}
+              @if (c.context.trained) { · trainiert {{ fmt.num(c.context.trained) }} }</span></dd>
+        </div>
+        <div>
+          <dt [class]="ui.meta">VRAM-Bedarf</dt>
+          <!-- &ngsp;: a real space between the spans (also when the text is copied), Angular drops plain ones -->
+          <dd class="font-mono"><span [class]="estimated">{{ need() }}</span>&ngsp;@if (extra()) {<span
+            class="text-gray-400" title="belegt der Runner zusätzlich, außerhalb Ollamas Zählung (Testlauf derselben Gewichte)">{{
+            extra() }}</span>&ngsp;}<span [class]="ui.meta" class="font-sans">von {{ gib(c.verdict.availableBytes) }}
+              @if (c.estimate?.calibrated) { · kalibriert }</span></dd>
+        </div>
+      </dl>
+      @if (view()?.tone !== 'normal') {
+        <p class="text-xs" [class.text-red-300]="view()?.tone === 'critical'"
+           [class.text-amber-200]="view()?.tone === 'warning'">{{ c.verdict.message }}</p>
+      }
+      <div>
+        <p [class]="ui.meta">Bedarf nach Kontextlänge</p>
+        <ul class="mt-1.5 flex flex-wrap gap-1.5" aria-label="Prognose je Kontextlänge">
+          @for (s of steps(); track s.tokens) { <li [class]="s.classes" [title]="s.title">{{ s.label }}</li> }
+        </ul>
+        <p class="mt-2 text-white">{{ fit() }}</p>
+      </div>
+    } @else {
+      <p class="text-gray-400">{{ c.error ?? 'Keine Prognose.' }}</p>
+    }
+
+    @if (c.opencode; as o) {
+      <div>
+        <p class="flex flex-wrap items-center gap-2">
+          @if (opencode(); as f) {
+            <span [class]="f.classes">{{ f.label }}</span>
+          } @else {
+            <span [class]="ui.pill + ' ' + ui.pillTone.normal">OpenCode ?</span>
+          }
+          <span class="text-gray-300">{{ o.reasons[0] }}</span>
+        </p>
+        <ul class="mt-1 list-disc space-y-0.5 pl-5 text-xs text-gray-400">
+          @for (r of o.reasons.slice(1); track $index) { <li>{{ r }}</li> }
+        </ul>
+      </div>
+    }
+    @if (c.capabilityNotes?.length) {
+      <p [class]="ui.meta">Fähigkeiten laut Registry (endgültig nach dem Download): {{ c.capabilityNotes!.join(' ') }}</p>
+    }
+  </div>
+
+  <footer [class]="ui.cardFoot" class="flex flex-wrap items-center gap-x-4 gap-y-2 px-4 py-2.5">
+    @if (c.weightsBytes) {
+      <span class="flex items-center gap-2">
+        <code class="font-mono text-gray-300">{{ c.pull }}</code>
+        <button type="button" [class]="ui.buttonSmall" (click)="copy(c.pull)">{{ copied() ? 'Kopiert' : 'Kopieren' }}</button>
+      </span>
+    }
+    <span>geprüft {{ when(c.checkedAt) }} · {{ c.host }}
+      @if (c.weightsBytes) {
+        · Metadaten {{ readText(c.headerBytes) }} gelesen{{ c.headerComplete ? '' : ' (unvollständig)' }}
+      }</span>
+  </footer>
+</article>

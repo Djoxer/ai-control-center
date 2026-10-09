@@ -1,0 +1,1 @@
+{{- if .Tools }}[AVAILABLE_TOOLS]{{ json .Tools }}[/AVAILABLE_TOOLS]{{ end }}{{- range .Messages }}[INST]{{ .Content }}[/INST]{{ end }}

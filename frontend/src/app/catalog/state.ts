@@ -5,9 +5,11 @@ import { HttpErrorResponse } from '@angular/common/http';
 
 import { BenchStatus } from '../api/models/bench-status';
 import { BudgetInfo } from '../api/models/budget-info';
+import { Candidate } from '../api/models/candidate';
 import { CatalogModel } from '../api/models/catalog-model';
 import { CatalogOverview } from '../api/models/catalog-overview';
 import { ContextInfo } from '../api/models/context-info';
+import { ContextStep } from '../api/models/context-step';
 import { ModelGroup } from '../api/models/model-group';
 import { Observation } from '../api/models/observation';
 import { OpencodeFit } from '../api/models/opencode-fit';
@@ -366,4 +368,74 @@ export function fitView(f: OpencodeFit | null | undefined): FitView | null {
     return { label: 'OpenCode ?', mark: '?', markClass: 'text-amber-200', classes: `${ui.pill} ${ui.pillTone.warning}` };
   }
   return { label: 'OpenCode ✗', mark: '✗', markClass: 'text-gray-400', classes: `${ui.pill} ${ui.pillTone.normal}` };
+}
+
+// ---- candidates: models of Ollama's library, checked before a pull -----------------------------------------
+
+/** 2048 -> "2k", 40960 -> "40k", 262144 -> "256k"; anything else as a plain number. */
+export function tokensShort(tokens: number): string {
+  return tokens >= 1024 && tokens % 1024 === 0 ? `${tokens / 1024}k` : num(tokens);
+}
+
+const STEP_MARK: Record<ContextStep['state'], string> = { fits: '✓', tight: '!', split: '✗', cpu: '✗', unknown: '?' };
+
+export interface StepView {
+  tokens: number;
+  label: string;                 // "32k ✓" - the mark carries the meaning, the color repeats it
+  title: string;                 // "32.768 Token: ≈ 11,7 GiB – passt"
+  classes: string;               // one [class] binding: pill + tone
+}
+
+/** One pill per context length: what the card would have to hold there and the verdict in a word. */
+export function stepViews(steps: ContextStep[] | null | undefined): StepView[] {
+  return (steps ?? []).map((s) => {
+    const v = VERDICTS[s.state] ?? VERDICTS.unknown;
+    const need = s.needBytes ? `≈ ${gib(s.needBytes + (s.extraBytes ?? 0))}` : 'Bedarf unbekannt';
+    return {
+      tokens: s.tokens,
+      label: `${tokensShort(s.tokens)} ${STEP_MARK[s.state] ?? '?'}`,
+      title: `${num(s.tokens)} Token: ${need} – ${v.label}`,
+      classes: `${ui.pill} ${ui.pillTone[v.tone]}`,
+    };
+  });
+}
+
+/** One sentence: up to which context the candidate fits on this card. */
+export function candidateFit(c: Candidate, available: number | null | undefined): string {
+  if (c.error) return c.error;
+  const steps = c.steps ?? [];
+  if (!steps.length || steps.every((s) => s.state === 'unknown')) {
+    return 'Keine Prognose möglich – GPU-Größe oder Modelldaten unbekannt.';
+  }
+  const top = steps[steps.length - 1].tokens;
+  const fits = c.fitsUpTo, loads = c.loadsUpTo;
+  if (fits && fits === top) return `Passt bei jedem Kontext bis ${num(top)} Token.`;
+  if (fits) {
+    const tight = loads && loads > fits ? `, knapp bis ${num(loads)}` : '';
+    return `Passt bis ${num(fits)} Token${tight} – darüber kippt es in den Teil-Offload.`;
+  }
+  if (loads) return `Nur knapp, bis ${num(loads)} Token – andere Last auf der Karte kippt es.`;
+  if (available && c.weightsBytes > available) {
+    return `Passt bei keinem Kontext: schon die Gewichte (${gib(c.weightsBytes)}) sind größer als das Budget ` +
+      `(${gib(available)}).`;
+  }
+  return 'Passt bei keinem Kontext komplett auf die Karte.';
+}
+
+/** "17,3 GiB" or "6,1 GiB · davon Bild-Encoder 0,9 GiB"; a cloud model has nothing to download. */
+export function downloadText(c: Candidate): string {
+  if (!c.weightsBytes) return '—';
+  const projector = c.projectorBytes ? ` · davon Bild-Encoder ${gib(c.projectorBytes)}` : '';
+  return `${gib(c.downloadBytes)}${projector}`;
+}
+
+/** "qwen3moe · 30.5B · Q4_K_M" - whatever the registry said. */
+export function candidateFacts(c: Candidate): string {
+  return [c.architecture ?? c.family, c.parameterSize, c.quantization].filter((x) => !!x).join(' · ');
+}
+
+/** "78 KB", "1,0 MiB" - how much of the weights file the check read. */
+export function readText(bytes: number | null | undefined): string {
+  if (!bytes) return '0 KB';
+  return bytes < 1024 ** 2 ? `${num(Math.ceil(bytes / 1024))} KB` : `${num(bytes / 1024 ** 2, 1)} MiB`;
 }

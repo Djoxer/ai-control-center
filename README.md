@@ -80,7 +80,11 @@ runs on another machine (`allow_remote_tests`). Every test run also sends three 
 definitions to `/api/chat` and checks for structured tool calls; together with the context (>= 64k) and the
 verdict this gives the OpenCode suitability per model, plus a ready `opencode.json` entry with the real
 `limit.context`. Usage tags (OpenCode, OpenWebUI, RAG, Test, Löschkandidat) and a note per model are set on the
-page and kept by name. Details: help page "Katalog" (`modules/catalog/HELP.md`).
+page and kept by name. The second view checks candidates BEFORE a pull: manifest, small files and the GGUF header
+(a Range request on the weights file) from the Ollama registry or `hf.co` give the same record as an installed
+model, so the same estimate, budget, calibration and OpenCode check apply, plus the largest context that fits.
+Only hosts in `[adapters] library_hosts` are contacted; `library = "fake"` answers from synthetic samples.
+Details: help page "Katalog" (`modules/catalog/HELP.md`).
 
 ## MCP servers
 

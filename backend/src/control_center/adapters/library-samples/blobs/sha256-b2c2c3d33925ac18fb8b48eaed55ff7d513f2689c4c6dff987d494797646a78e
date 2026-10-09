@@ -1,0 +1,1 @@
+{"model_format":"gguf","model_family":"gemma3","model_families":["gemma3"],"model_type":"12.2B","file_type":"Q4_K_M","architecture":"amd64","os":"linux","rootfs":{"type":"layers","diff_ids":[]}}

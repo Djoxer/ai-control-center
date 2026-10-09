@@ -76,7 +76,7 @@ def _iso(value: datetime | None) -> str | None:
     return value.isoformat() if value else None
 
 
-def _keep_info(info: dict[str, Any]) -> dict[str, Any]:
+def keep_info(info: dict[str, Any]) -> dict[str, Any]:
     out: dict[str, Any] = {}
     for key, value in info.items():
         if value is None:
@@ -107,7 +107,7 @@ def record_from(tag: InstalledModel, details: ModelDetails | None, now: datetime
     rec.system_hash = details.system_hash
     rec.template_hash = details.template_hash
     rec.capabilities = list(details.capabilities)
-    rec.model_info = _keep_info(details.model_info)
+    rec.model_info = keep_info(details.model_info)
     rec.collected_at = now.isoformat()
     return rec
 

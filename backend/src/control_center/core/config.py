@@ -52,6 +52,11 @@ class AdaptersConfig(BaseModel):
     # built-in scenario folder in control_center/adapters/samples/ that the fake adapters replay
     fake_scenario: str = Field("normal", pattern=SCENARIO_NAME_PATTERN)
     timeout_s: float = Field(2.0, gt=0, le=30)          # per call; a hanging source must not stall the others
+    # Ollama's model library for the candidate check of the catalog (manifest + GGUF header before a pull).
+    # fake = synthetic answers from adapters/library-samples (tests, a PC without internet).
+    library: Literal["http", "fake"] = "http"
+    # the only registries the server contacts - the model name comes from a text field of the page
+    library_hosts: list[str] = Field(default_factory=lambda: ["registry.ollama.ai", "hf.co"])
 
     @field_validator("ai_host")
     @classmethod

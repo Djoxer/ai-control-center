@@ -1,0 +1,2 @@
+# byte-exact: digests and the up-to-date test compare bytes; no CRLF conversion on Windows checkouts
+* -text

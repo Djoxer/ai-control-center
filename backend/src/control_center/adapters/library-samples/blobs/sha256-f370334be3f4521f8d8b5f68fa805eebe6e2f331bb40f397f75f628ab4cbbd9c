@@ -1,0 +1,1 @@
+{"model_format":"","model_family":"","remote_host":"https://ollama.com:443","remote_model":"qwen3-coder:480b","capabilities":["completion","tools"],"context_length":262144,"architecture":"amd64","os":"linux","rootfs":{"type":"layers","diff_ids":[]}}

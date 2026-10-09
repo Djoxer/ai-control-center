@@ -2,9 +2,10 @@
 
 Zeigt die Modelle, die in Ollama installiert sind: woraus sie gemacht wurden, mit welchem Kontext sie
 laufen, ob sie komplett auf die GPU passen, wie schnell sie im eigenen Testlauf antworten, ob sie für OpenCode
-taugen und wofür das Team sie einsetzt. Der alte Katalog (`katalog_server.py`, Port 8766) war eine
-Marktübersicht aus BenchLM-Daten. Dieser hier fängt bei dem an, was auf dem AI-Rechner wirklich liegt. Die
-BenchLM-Daten und die Prüfung von Kandidaten vor dem Download kommen im nächsten Schritt dazu.
+taugen und wofür das Team sie einsetzt. Die zweite Ansicht, **Kandidaten**, prüft Modelle aus der Ollama-Bibliothek,
+bevor sie jemand herunterlädt. Der alte Katalog (`katalog_server.py`, Port 8766) war eine Marktübersicht aus
+BenchLM-Daten. Dieser hier fängt bei dem an, was auf dem AI-Rechner wirklich liegt. Die BenchLM-Daten kommen im
+nächsten Schritt dazu.
 
 ## Bedienung
 
@@ -222,6 +223,51 @@ Der Dialog warnt außerdem vorab, welche geladenen Modelle der Test entlädt.
 
 Die letzten fünf Testläufe stehen in den Details, der neueste auch in der Zeile.
 
+### Kandidaten: vor dem Download prüfen
+
+Ein Pull von `qwen3-coder:30b` lädt 17 GB, nur um dann festzustellen, dass das Modell nicht auf die Karte
+passt. Die Ansicht **Kandidaten** stellt diese Frage vorher. Man tippt den Namen ein wie bei `ollama pull`
+(`qwen3-coder:30b`, `gemma3:12b`, `nutzer/modell:tag`, `hf.co/organisation/repo:Q4_K_M`). Ein ganzer Befehl
+(`ollama pull …`) oder die Adresse der Modellseite auf ollama.com oder huggingface.co geht auch.
+
+Der Katalog fragt die Registry dasselbe wie Ollama beim Pull, hört aber früh auf:
+
+1. **Manifest**: welche Dateien, wie groß. Gewichte, Bild-Encoder (`projector`), Template, Parameter.
+2. **Kleine Dateien**: Konfiguration (Familie, Größe, Quantisierung, Ollamas Parser, Mindestversion),
+   Parameter (`num_ctx`, `stop` …), Template.
+3. **Anfang der Gewichtsdatei**: die GGUF-Metadaten mit Schichten, KV-Köpfen, Kopfgröße und
+   Trainingslänge. Sie stehen ganz vorne in der Datei, meist in den ersten 1–8 MiB (die Tokenizer-Tabellen
+   davor sind der größte Teil). Gelesen wird per Range-Anfrage, Stück für Stück, höchstens
+   `registry_header_max_mib`.
+
+Daraus baut der Katalog denselben Datensatz wie für ein installiertes Modell. Deshalb gelten dieselbe Formel,
+dasselbe GPU-Budget, dieselbe Kalibrierung und dieselbe OpenCode-Prüfung. Liegt dieselbe Gewichtsdatei schon auf
+der Platte (gleicher Blob, etwa weil eine Variante installiert ist), rechnet der Kandidat mit deren Messungen.
+
+Die Karte eines Kandidaten zeigt:
+
+- **Download**: alle Dateien zusammen, so groß wie später in der Modellliste. Bei Bildmodellen steht der
+  Bild-Encoder extra dabei.
+- **Kontext und VRAM-Bedarf** beim wirksamen Kontext, also mit den Ollama-Standards oder dem `num_ctx` des
+  Modells.
+- **Bedarf nach Kontextlänge**: eine Pille je Stufe von 2k bis zur Trainingslänge. ✓ heißt passt, ! heißt knapp,
+  ✗ heißt Teil-Offload. Die Maus über einer Pille zeigt den Bedarf. Darunter steht der Satz, bis zu welchem
+  Kontext das Modell passt. Das ist der Wert für ein `num_ctx` in einer eigenen Variante.
+- **OpenCode**: Kontext und Karte wie bei installierten Modellen. Ob ein Modell Tool-Calls sauber strukturiert,
+  zeigt erst ein Testlauf nach dem Download. Vorher sagt die Registry nur, ob das Template Werkzeuge kennt
+  (`.Tools`) oder ob Ollama einen eingebauten Parser dafür hat. Kennt das Template keine, lehnt Ollama
+  Tool-Anfragen später ab. Dann steht der Kandidat schon jetzt auf ✗.
+- **Hinweise**: „Schon installiert“ (gleiche Gewichte), „Installiert ist ein anderer Stand“ (gleicher Name,
+  andere Gewichte), „Die Gewichte liegen schon auf der Platte“ (ein Pull lädt nur den Rest). „Braucht Ollama ≥ …“
+  erscheint gelb, wenn die Konfiguration des Modells eine neuere Ollama-Version verlangt als installiert ist.
+- **`ollama pull …`** zum Kopieren.
+
+Die Fähigkeiten (Tools, Bild, Denkt) leitet der Katalog so ab, wie Ollama es tut. Endgültig sind sie erst nach
+dem Download. Cloud-Modelle (`…-cloud`) laufen bei ollama.com und haben keine Gewichte, die Karte sagt das.
+Geprüfte Kandidaten bleiben gespeichert, die Prognose rechnet bei jedem Aufruf neu (neue Messungen, anderes
+Budget). ⋮ → **Neu prüfen** fragt die Registry noch einmal, ⋮ → **Aus der Liste nehmen** löscht den Eintrag.
+Heruntergeladen wird nichts. Den Pull macht man selbst.
+
 ### Details
 
 ⋮ → **Details …** zeigt alles zu einem Modell: Einsatz, OpenCode-Eignung mit `opencode.json`-Eintrag,
@@ -260,11 +306,19 @@ wieder da, mit seinem alten „im Katalog seit“.
 | NVML | wenn `/api/ps` leer ist | belegter Speicher = andere Programme |
 | `POST /api/generate` | nur im Testlauf | Laden, Antworten, Zeiten; mit `keep_alive: 0` zum Entladen |
 | `POST /api/chat` | nur im Testlauf (3×) | Tool-Calls mit Werkzeugbeschreibungen |
+| Registry (`registry.ollama.ai`, `hf.co`) | nur beim Prüfen eines Kandidaten | Manifest, Konfiguration, Parameter, Template, Anfang der Gewichtsdatei |
 
 Messwerte werden pro Modell-Digest × Kontext × GPU gespeichert. Ein neu gezogenes Modell (neuer Digest)
 fängt also bei null an. Gespeichert wird alles in `data/control-center.db`: `catalog_models`,
 `catalog_observations`, `catalog_benches` (Testläufe samt Tool-Calls, die letzten 200), `catalog_state`
-(andere Programme) und `catalog_usage` (Einsatz und Notiz, nach Modellname). Ist Ollama nicht erreichbar, zeigt die Seite den letzten bekannten Stand.
+(andere Programme), `catalog_usage` (Einsatz und Notiz, nach Modellname) und `catalog_candidates` (was die
+Registry über geprüfte Kandidaten sagte). Ist Ollama nicht erreichbar, zeigt die Seite den letzten bekannten Stand.
+
+Der Server spricht nur mit den Registries aus `[adapters] library_hosts`. Der Name kommt aus einem Textfeld
+der Seite, und das Control Center soll keine beliebigen Adressen im LAN abrufen. Eine Registry braucht
+Internetzugang vom AI-Rechner (Ollama selbst braucht ihn für jeden Pull ohnehin). Ein Proxy aus den
+Umgebungsvariablen `HTTPS_PROXY`/`HTTP_PROXY` wird benutzt. `[adapters] library = "fake"` antwortet stattdessen
+aus `adapters/library-samples` (synthetische Kandidaten für Tests und den Zweitrechner ohne Internet).
 
 ### Einstellungen
 
@@ -294,7 +348,17 @@ test_tools = true                # Tool-Calls im Testlauf prüfen
 test_tool_num_predict = 2048     # Spielraum für denkende Modelle
 opencode_min_context = 65536     # Kontext, den OpenCode mindestens braucht
 opencode_output_tokens = 8192    # limit.output im opencode.json-Eintrag (höchstens ein Viertel des Kontexts)
+registry_timeout_s = 20          # Kandidaten: pro Anfrage an die Registry
+registry_header_max_mib = 32     # höchstens so viel der Gewichtsdatei lesen
+keep_candidates = 30             # gespeicherte Kandidaten, die ältesten fallen heraus
 keep_removed_days = 90
+```
+
+Und in `[adapters]`, für die Kandidaten:
+
+```toml
+library = "http"                 # http | fake
+library_hosts = ["registry.ollama.ai", "hf.co"]
 ```
 
 Auf dem **Zweitrechner** kann das Control Center das Log des AI-Rechners nicht lesen und dessen GPU nicht
@@ -319,3 +383,8 @@ Das Szenario `real-catalog` ist der Modellbestand des AI-Rechners vom 08.10. (12
 | Menüpunkt „Testlauf“ grau | Maus darüber zeigt den Grund: anderer Rechner, Einbettungsmodell, Ollama aus, schon ein Lauf aktiv. |
 | Tool-Calls „Abgebrochen nach 2048 Token … (denkt zu lange)“ | Das Modell überlegt länger als erlaubt. `test_tool_num_predict` erhöhen – oder es ist für einen Agenten zu langsam. |
 | Tool-Calls „Ollama meldet einen Fehler …“ in allen drei Fällen | Der Runner ist während der Prüfung abgestürzt. Tempo und Speicher davor sind trotzdem gemessen. |
+| Kandidat „… gibt es in registry.ollama.ai nicht“ | Name oder Tag falsch (Tags stehen auf der Modellseite unter „Tags“), oder das Modell ist privat. |
+| Kandidat „Registry nicht lesbar: … nicht erreichbar“ | Kein Internet am AI-Rechner, Proxy fehlt, oder die Registry hängt. `registry_timeout_s` erhöhen hilft nur bei langsamen Leitungen. |
+| Kandidat „Registry „…“ ist nicht freigegeben“ | Der Host steht nicht in `[adapters] library_hosts`. Eintragen, wenn man ihm traut. |
+| Kandidat „Metadaten nur zum Teil gelesen“ | Der GGUF-Kopf ist größer als `registry_header_max_mib`. Grenze erhöhen, wenn Angaben fehlen. |
+| Kandidat „Keine GGUF-Datei“ / „Format … liest nur GGUF“ | Das Modell liegt in einem anderen Format vor (z. B. safetensors). Ohne GGUF-Metadaten keine Formel. |

@@ -220,3 +220,55 @@ def test_tool_check_in_the_simulation_of_the_ai_box(make):
     assert m["qwen2.5-coder:14b-instruct-q4_K_M"]["opencode"]["state"] == "no"      # same digest as coder14
     assert any("Trainiert auf 32.768" in r for r in m["qwen2.5-coder:14b-instruct-q4_K_M"]["opencode"]["reasons"])
     assert m["nomic-embed-text:latest"]["opencode"] is None
+
+
+def test_candidate_endpoints(make):
+    c = make()
+    ready(c)
+    url = "/api/v1/catalog/candidates"
+    r = c.post(url, json={"name": "https://ollama.com/library/qwen3-coder:30b"})
+    assert r.status_code == 200 and r.json()["name"] == "qwen3-coder:30b"
+    cand = r.json()["overview"]["candidates"][0]
+    assert (cand["name"], cand["simulated"], cand["pull"]) == ("qwen3-coder:30b", True, "ollama pull qwen3-coder:30b")
+    assert cand["verdict"]["state"] == "split" and cand["fitsUpTo"] is None and cand["architecture"] == "qwen3moe"
+    assert cand["weightsBytes"] == 18_556_688_736 and cand["capabilities"] == ["completion", "tools"]
+    assert r.json()["overview"]["library"] == {"simulated": True, "hosts": ["registry.ollama.ai", "hf.co"]}
+    # normal scenario: qwen3.5:9b is installed with other weights and Ollama 0.12.6 is too old for the sample
+    q = c.post(url, json={"name": "qwen3.5:9b"}).json()["overview"]["candidates"][0]
+    assert q["installed"] and q["requiresOk"] is False and q["notes"][0].startswith("Braucht Ollama ≥ 0.17.1")
+    assert [x["name"] for x in c.get("/api/v1/catalog/overview").json()["candidates"]] == ["qwen3.5:9b",
+                                                                                          "qwen3-coder:30b"]
+    assert c.post(url, json={"name": "nope:1b"}).status_code == 404
+    bad = c.post(url, json={"name": "evil.example/x/y"})
+    assert bad.status_code == 400 and "nicht freigegeben" in bad.json()["detail"]
+    assert c.post(url, json={"name": ""}).status_code == 422
+    assert c.post(url, json={"name": "gemma3:12b"}, headers=CROSS_SITE).status_code == 403
+    assert c.delete(url, params={"name": "qwen3.5:9b"}, headers=CROSS_SITE).status_code == 403
+    gone = c.delete(url, params={"name": "qwen3.5:9b"})
+    assert gone.status_code == 200 and [x["name"] for x in gone.json()["candidates"]] == ["qwen3-coder:30b"]
+    assert c.delete(url, params={"name": "qwen3.5:9b"}).status_code == 404
+
+
+def test_candidate_check_when_the_registry_is_down(make, monkeypatch):
+    from control_center.adapters.library import FakeLibrary, LibraryUnavailable
+
+    async def down(self, ref, timeout):
+        raise LibraryUnavailable("registry.ollama.ai nicht erreichbar: ConnectError")
+
+    monkeypatch.setattr(FakeLibrary, "manifest", down)
+    c = make()
+    ready(c)
+    r = c.post("/api/v1/catalog/candidates", json={"name": "gemma3:12b"})
+    assert r.status_code == 502 and r.json()["detail"] == (
+        "Registry nicht lesbar: registry.ollama.ai nicht erreichbar: ConnectError")
+
+
+def test_candidate_of_the_ai_box_with_the_same_weights(make):
+    """real-catalog: the sample qwen3.5:9b carries the weights digest of the installed one."""
+    c = make("real-catalog")
+    ready(c)
+    q = c.post("/api/v1/catalog/candidates", json={"name": "qwen3.5:9b"}).json()["overview"]["candidates"][0]
+    assert q["installed"] and q["sameWeights"] == ["qwen3.5-9b-64k-code:latest", "qwen3.5-9b-64k:latest",
+                                                   "qwen3.5:9b", "qwen35-24k:latest"]
+    assert q["notes"][0] == "Schon installiert – mit genau diesen Gewichten."
+    assert q["downloadBytes"] == 6_594_474_711 and q["projectorBytes"] == 921_704_832

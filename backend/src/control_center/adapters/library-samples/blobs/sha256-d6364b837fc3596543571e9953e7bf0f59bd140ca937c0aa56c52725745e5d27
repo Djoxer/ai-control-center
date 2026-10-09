@@ -1,0 +1,1 @@
+{"model_format":"gguf","model_family":"qwen3moe","model_families":["qwen3moe"],"model_type":"30.5B","file_type":"Q4_K_M","renderer":"qwen3-coder","parser":"qwen3-coder","architecture":"amd64","os":"linux","rootfs":{"type":"layers","diff_ids":[]}}

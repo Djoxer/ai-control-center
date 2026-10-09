@@ -62,6 +62,13 @@ class CatalogSettings(BaseModel):
     opencode_min_context: int = Field(65536, ge=4096, le=4_194_304)
     opencode_output_tokens: int = Field(8192, ge=256, le=262_144)
 
+    # Candidate check: manifest, small files and the GGUF header of a model in Ollama's library, BEFORE the pull.
+    # Where to ask is [adapters] library / library_hosts. The header usually ends after 1-8 MiB (the tokenizer
+    # tables come first in many files); the limit stops a broken file from streaming gigabytes.
+    registry_timeout_s: float = Field(20, gt=0, le=300)        # per request to the registry
+    registry_header_max_mib: int = Field(32, ge=1, le=512)
+    keep_candidates: int = Field(30, ge=1, le=500)              # checked candidates kept (oldest dropped)
+
     # deleted models stay listed (with their measurements) for this long
     keep_removed_days: int = Field(90, ge=0, le=3650)
 

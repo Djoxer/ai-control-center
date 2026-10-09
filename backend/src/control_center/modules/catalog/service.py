@@ -7,6 +7,7 @@ One background loop, two clocks:
 - every refresh_interval_s (60 s): /api/tags, and /api/show for every model that is new or changed.
 
 Test runs (bench.py) load one model on request; the preflight here refuses what would split.
+Candidates (candidates.py) are models of Ollama's library checked before a pull - same estimate and verdict.
 
 The page gets the whole overview via GET and, after every meaningful change, via SSE (topic
 catalog.overview, with a revision against overtaking). Ollama down = last known inventory from SQLite
@@ -22,11 +23,13 @@ from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 
 from control_center.adapters.gpu import GpuUnavailable
+from control_center.adapters.library import parse_ref
 from control_center.adapters.ollama import (
     InstalledModel, ModelDetails, OllamaModelMissing, OllamaUnavailable, RunningModel,
 )
 from control_center.core.context import AppContext
 from control_center.modules.catalog.bench import BenchJob, new_job, run_bench
+from control_center.modules.catalog.candidates import CandidateFacts, fetch_candidate, version_ok
 from control_center.modules.catalog.collector import ModelRecord, ServerDefaults, read_server_config, record_from
 from control_center.modules.catalog.estimate import (
     GIB, VISION_NOTE, Budget, ContextResult, Estimate, Point, Seen, effective_context, effective_kv_type,
@@ -36,12 +39,12 @@ from control_center.modules.catalog.estimate import Verdict as Judgement
 from control_center.modules.catalog.lineage import build_lineage, changes, norm
 from control_center.modules.catalog.repository import CatalogRepository, ModelRow, ObservationRow, UsageRow
 from control_center.modules.catalog.schemas import (
-    Assumptions, BenchAccess, BenchStatus, BudgetInfo, CatalogModel, CatalogOverview, ContextInfo, HardwareInfo,
-    DerivedTag, ModelGroup, Observation, OllamaState, OpencodeFit, OverheadInfo, ParentInfo, Preflight,
-    RemovedModel, ServerConfig, UsageInfo, Verdict, VramEstimate,
+    Assumptions, BenchAccess, BenchStatus, BudgetInfo, Candidate, CatalogModel, CatalogOverview, ContextInfo,
+    ContextStep, DerivedTag, HardwareInfo, LibraryInfo, ModelGroup, Observation, OllamaState, OpencodeFit,
+    OverheadInfo, ParentInfo, Preflight, RemovedModel, ServerConfig, UsageInfo, Verdict, VramEstimate,
 )
 from control_center.modules.catalog.settings import CatalogSettings
-from control_center.modules.catalog.suitability import opencode_fit
+from control_center.modules.catalog.suitability import CANDIDATE_NO_TOOLS, CANDIDATE_UNTESTED, opencode_fit
 
 log = logging.getLogger("control_center.modules.catalog")
 
@@ -131,6 +134,8 @@ class CatalogService:
         self.bench: BenchJob | None = None                # the running test run
         self.benches: list[BenchStatus] = []              # finished ones, newest first
         self.usage: dict[str, UsageRow] = {}              # what the team uses a model for, by name
+        self.candidates: dict[str, CandidateFacts] = {}   # checked before a pull, by name
+        self._candidate_lock = asyncio.Lock()             # one registry check at a time
 
     # ---- lifecycle --------------------------------------------------------------------------------
 
@@ -150,6 +155,12 @@ class CatalogService:
             if stored is not None and isinstance(stored[0], int):
                 self.other = (stored[0], stored[1])
             self.usage = await self.repo.load_usage()
+            for raw in await self.repo.load_candidates():
+                try:
+                    facts = CandidateFacts.from_json(raw)
+                except (KeyError, TypeError, ValueError):
+                    continue                                  # written by another version: skip it
+                self.candidates[facts.name] = facts
             for raw in await self.repo.load_benches(self.cfg.keep_tests):
                 try:
                     self.benches.append(BenchStatus.model_validate(raw))
@@ -550,12 +561,15 @@ class CatalogService:
                          updated_at=_utc(row.updated) if row else None, derived=derived)
 
     def _opencode(self, rec: ModelRecord, ctx: ContextResult, v: Judgement, kv_type: str, kv_note: str | None,
-                  observed: list[ObservationRow], overheads: dict[str, BenchStatus]) -> OpencodeFit | None:
+                  observed: list[ObservationRow], overheads: dict[str, BenchStatus],
+                  candidate: bool = False) -> OpencodeFit | None:
+        """candidate = not installed yet: no test runs of its own, the template decides about tools."""
         if "embedding" in rec.capabilities and "completion" not in rec.capabilities:
             return None
-        tools_run = next((b for b in self.bench_list() if b.digest == rec.digest and b.state == "done"
+        runs = [] if candidate else self.bench_list()
+        tools_run = next((b for b in runs if b.digest == rec.digest and b.state == "done"
                           and b.result is not None and b.result.tools is not None), None)
-        speed_run = next((b for b in self.bench_list() if b.digest == rec.digest and b.state == "done"
+        speed_run = next((b for b in runs if b.digest == rec.digest and b.state == "done"
                           and b.result is not None and b.result.eval_tps is not None), None)
         at_min = None
         if ctx.effective < self.cfg.opencode_min_context:
@@ -567,12 +581,84 @@ class CatalogService:
             rec.name, ctx, v, at_min, tools_run.result.tools if tools_run else None,
             (tools_run.finished_at or tools_run.created_at) if tools_run else None,
             speed_run.result.eval_tps if speed_run else None, self.cfg, self._verdict,
-            tool_capability="tools" in rec.capabilities)
+            tool_capability="tools" in rec.capabilities or (candidate and not rec.template_hash),
+            **({"untested": CANDIDATE_UNTESTED, "no_tools": CANDIDATE_NO_TOOLS} if candidate else {}))
 
     def bench_list(self, name: str | None = None) -> list[BenchStatus]:
         running = [self.bench.status] if self.bench else []
         out = running + self.benches
         return [b for b in out if name is None or b.name == name]
+
+    # ---- candidates ----------------------------------------------------------------------------------
+
+    async def check_candidate(self, text: str) -> str:
+        """Read a model from the library (manifest, small files, GGUF header) and keep the facts.
+        Returns the normalized name. Raises BadReference, LibraryNotFound, LibraryUnavailable (German)."""
+        ref = parse_ref(text, self.ctx.settings.adapters.library_hosts)
+        async with self._candidate_lock:
+            facts = await fetch_candidate(self.ctx.adapters.library, ref, self.cfg, time.time())
+            self.candidates[facts.name] = facts
+            for old in sorted(self.candidates.values(), key=lambda f: f.checked_at,
+                              reverse=True)[self.cfg.keep_candidates:]:
+                del self.candidates[old.name]
+            try:
+                await self.repo.save_candidate(facts.name, facts.checked_at, facts.to_json(), self.cfg.keep_candidates)
+            except Exception:
+                log.exception("catalog: cannot store candidate %s", facts.name)
+        await self._publish()
+        return facts.name
+
+    async def forget_candidate(self, name: str) -> None:
+        if name not in self.candidates:
+            raise UnknownModel(name)
+        del self.candidates[name]
+        try:
+            await self.repo.delete_candidate(name)
+        except Exception:
+            log.exception("catalog: cannot delete candidate %s", name)
+        await self._publish()
+
+    def _candidate(self, facts: CandidateFacts, installed: list[ModelRecord], observed: list[ObservationRow],
+                   overheads: dict[str, BenchStatus], kv_type: str, kv_note: str | None) -> Candidate:
+        rec = facts.record
+        notes = list(facts.notes)
+        same = sorted(r.name for r in installed if rec.weights_digest and r.weights_digest == rec.weights_digest)
+        mine = next((r for r in installed if norm(r.name) == norm(rec.name)), None)
+        if mine is not None and mine.name in same:
+            notes.insert(0, "Schon installiert – mit genau diesen Gewichten.")
+        elif mine is not None:
+            notes.insert(0, "Installiert ist ein anderer Stand (andere Gewichte) – ein Pull würde ihn ersetzen.")
+        elif same:
+            notes.insert(0, f"Die Gewichte liegen schon auf der Platte ({', '.join(same)}) – ein Pull lädt nur den "
+                            f"Rest.")
+        ok = version_ok(self.ollama.version, facts.requires)
+        if ok is False:
+            notes.insert(0, f"Braucht Ollama ≥ {facts.requires}, installiert ist {self.ollama.version} – erst "
+                            f"Ollama aktualisieren.")
+        out = Candidate(
+            name=facts.name, host=facts.host, page=facts.page, checked_at=_utc(facts.checked_at),
+            simulated=facts.simulated, pull=f"ollama pull {facts.name}", download_bytes=facts.download_bytes,
+            weights_bytes=facts.weights_bytes, projector_bytes=facts.projector_bytes, family=rec.family,
+            parameter_size=rec.parameter_size, quantization=rec.quantization, architecture=rec.architecture,
+            capabilities=rec.capabilities, capability_notes=facts.capability_notes, parameters=rec.parameters,
+            requires=facts.requires, requires_ok=ok, installed=mine is not None, same_weights=same,
+            header_bytes=facts.header_bytes, header_complete=facts.header_complete, notes=notes, error=facts.error)
+        if not facts.weights_bytes:
+            return out                                    # cloud model: nothing goes onto the card
+        eff = self.effective()
+        ctx = effective_context(rec, eff.context_length, eff.num_parallel, self.cfg)
+        est, v = self._estimate(rec, ctx, kv_type, kv_note, observed, overheads)
+        out.context, out.estimate, out.verdict = self._context_info(ctx), self._estimate_info(est), self._verdict(v)
+        upper = ctx.trained or max(CTX_STEPS)
+        for tokens in sorted({c for c in CTX_STEPS if c <= upper} | ({ctx.trained} if ctx.trained else set())):
+            step_ctx = effective_context(rec, eff.context_length, eff.num_parallel, self.cfg, requested=tokens)
+            step = self._estimate(rec, step_ctx, kv_type, kv_note, observed, overheads)[1]
+            out.steps.append(ContextStep(tokens=tokens, need_bytes=step.need_bytes, extra_bytes=step.extra_bytes,
+                                         state=step.state))
+        out.fits_up_to = max((s.tokens for s in out.steps if s.state == "fits"), default=None)
+        out.loads_up_to = max((s.tokens for s in out.steps if s.state in ("fits", "tight")), default=None)
+        out.opencode = self._opencode(rec, ctx, v, kv_type, kv_note, observed, overheads, candidate=True)
+        return out
 
     # ---- overview ---------------------------------------------------------------------------------
 
@@ -730,6 +816,10 @@ class CatalogService:
             groups=[ModelGroup(origin=g.origin, installed=g.installed, members=g.members) for g in groups],
             removed=[RemovedModel(name=r.record.name, digest=r.record.digest, removed_at=_utc(r.removed_at or 0),
                                   measurements=measured.get(r.record.digest, 0)) for r in removed],
+            candidates=[self._candidate(f, records, observed, overheads, kv_type, kv_note)
+                        for f in sorted(self.candidates.values(), key=lambda f: f.checked_at, reverse=True)],
+            library=LibraryInfo(simulated=self.ctx.adapters.library.simulated,
+                                hosts=list(self.ctx.settings.adapters.library_hosts)),
         )
 
     async def _publish(self) -> None:

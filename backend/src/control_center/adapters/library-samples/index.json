@@ -1,0 +1,8 @@
+{
+  "qwen3-coder:30b": "qwen3-coder_30b.json",
+  "qwen3.5:9b": "qwen3.5_9b.json",
+  "qwen3:14b": "qwen3_14b.json",
+  "devstral:24b": "devstral_24b.json",
+  "gemma3:12b": "gemma3_12b.json",
+  "qwen3-coder:480b-cloud": "qwen3-coder_480b-cloud.json"
+}

@@ -493,6 +493,299 @@
         "title": "BudgetInfo",
         "type": "object"
       },
+      "Candidate": {
+        "description": "A model from Ollama's library, checked BEFORE the pull: the same estimate and verdict as an installed\none, from the manifest and the GGUF header. Facts are from the time of the check, the verdict is fresh.",
+        "properties": {
+          "architecture": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Architecture"
+          },
+          "capabilities": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Capabilities",
+            "type": "array"
+          },
+          "capabilityNotes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Capabilitynotes",
+            "type": "array"
+          },
+          "checkedAt": {
+            "format": "date-time",
+            "title": "Checkedat",
+            "type": "string"
+          },
+          "context": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ContextInfo"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "downloadBytes": {
+            "title": "Downloadbytes",
+            "type": "integer"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "estimate": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/VramEstimate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "family": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Family"
+          },
+          "fitsUpTo": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fitsupto"
+          },
+          "headerBytes": {
+            "default": 0,
+            "title": "Headerbytes",
+            "type": "integer"
+          },
+          "headerComplete": {
+            "default": false,
+            "title": "Headercomplete",
+            "type": "boolean"
+          },
+          "host": {
+            "title": "Host",
+            "type": "string"
+          },
+          "installed": {
+            "default": false,
+            "title": "Installed",
+            "type": "boolean"
+          },
+          "loadsUpTo": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Loadsupto"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "notes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Notes",
+            "type": "array"
+          },
+          "opencode": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OpencodeFit"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "page": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Page"
+          },
+          "parameterSize": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parametersize"
+          },
+          "parameters": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Parameters",
+            "type": "object"
+          },
+          "projectorBytes": {
+            "default": 0,
+            "title": "Projectorbytes",
+            "type": "integer"
+          },
+          "pull": {
+            "title": "Pull",
+            "type": "string"
+          },
+          "quantization": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quantization"
+          },
+          "requires": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requires"
+          },
+          "requiresOk": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Requiresok"
+          },
+          "sameWeights": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Sameweights",
+            "type": "array"
+          },
+          "simulated": {
+            "default": false,
+            "title": "Simulated",
+            "type": "boolean"
+          },
+          "steps": {
+            "items": {
+              "$ref": "#/components/schemas/ContextStep"
+            },
+            "title": "Steps",
+            "type": "array"
+          },
+          "verdict": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Verdict"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "weightsBytes": {
+            "title": "Weightsbytes",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name",
+          "host",
+          "checkedAt",
+          "pull",
+          "downloadBytes",
+          "weightsBytes"
+        ],
+        "title": "Candidate",
+        "type": "object"
+      },
+      "CandidateRequest": {
+        "properties": {
+          "name": {
+            "description": "as for ollama pull: qwen3-coder:30b, user/model:tag, hf.co/org/repo:tag",
+            "maxLength": 300,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "CandidateRequest",
+        "type": "object"
+      },
+      "CandidateResult": {
+        "properties": {
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "overview": {
+            "$ref": "#/components/schemas/CatalogOverview"
+          }
+        },
+        "required": [
+          "name",
+          "overview"
+        ],
+        "title": "CandidateResult",
+        "type": "object"
+      },
       "CatalogModel": {
         "properties": {
           "architecture": {
@@ -748,6 +1041,13 @@
           "budget": {
             "$ref": "#/components/schemas/BudgetInfo"
           },
+          "candidates": {
+            "items": {
+              "$ref": "#/components/schemas/Candidate"
+            },
+            "title": "Candidates",
+            "type": "array"
+          },
           "groups": {
             "items": {
               "$ref": "#/components/schemas/ModelGroup"
@@ -757,6 +1057,9 @@
           },
           "hardware": {
             "$ref": "#/components/schemas/HardwareInfo"
+          },
+          "library": {
+            "$ref": "#/components/schemas/LibraryInfo"
           },
           "models": {
             "items": {
@@ -1005,6 +1308,48 @@
           "source"
         ],
         "title": "ContextInfo",
+        "type": "object"
+      },
+      "ContextStep": {
+        "description": "One context length of a candidate: what the card would have to hold, and the verdict.",
+        "properties": {
+          "extraBytes": {
+            "default": 0,
+            "title": "Extrabytes",
+            "type": "integer"
+          },
+          "needBytes": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Needbytes"
+          },
+          "state": {
+            "enum": [
+              "fits",
+              "tight",
+              "split",
+              "cpu",
+              "unknown"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "tokens": {
+            "title": "Tokens",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "tokens",
+          "state"
+        ],
+        "title": "ContextStep",
         "type": "object"
       },
       "CrashWatch": {
@@ -2125,6 +2470,24 @@
           "maxChars"
         ],
         "title": "JobStatus",
+        "type": "object"
+      },
+      "LibraryInfo": {
+        "properties": {
+          "hosts": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Hosts",
+            "type": "array"
+          },
+          "simulated": {
+            "default": false,
+            "title": "Simulated",
+            "type": "boolean"
+          }
+        },
+        "title": "LibraryInfo",
         "type": "object"
       },
       "LoadedModel": {
@@ -4611,6 +4974,102 @@
           }
         },
         "summary": "Start Bench",
+        "tags": [
+          "catalog"
+        ]
+      }
+    },
+    "/api/v1/catalog/candidates": {
+      "delete": {
+        "operationId": "catalog_forget_candidate",
+        "parameters": [
+          {
+            "description": "candidate name",
+            "in": "query",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "description": "candidate name",
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CatalogOverview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "404": {
+            "description": "no such candidate"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Forget Candidate",
+        "tags": [
+          "catalog"
+        ]
+      },
+      "post": {
+        "description": "Reads manifest, small files and the GGUF header of a model in Ollama's library (nothing is pulled) and\nkeeps the facts. The overview then shows it with estimate, verdict, max. context and OpenCode prognosis.",
+        "operationId": "catalog_check_candidate",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CandidateRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CandidateResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "not a model name, or a registry that is not allowed"
+          },
+          "404": {
+            "description": "the registry does not know the model or tag"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "502": {
+            "description": "registry not reachable or unreadable answer"
+          }
+        },
+        "summary": "Check Candidate",
         "tags": [
           "catalog"
         ]

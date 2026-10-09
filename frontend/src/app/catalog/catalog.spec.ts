@@ -8,7 +8,7 @@ import { CatalogOverview } from '../api/models/catalog-overview';
 import { StreamService } from '../core/stream.service';
 import '../testing/dialog-polyfill';
 import { ClipboardService } from '../core/clipboard.service';
-import { benchStatus, catalogModel, catalogOverview, opencodeFit, preflight } from '../testing/catalog-overview';
+import { benchStatus, candidate, catalogModel, catalogOverview, opencodeFit, preflight } from '../testing/catalog-overview';
 import { FakeEventSource, fakeEventSourceProvider } from '../testing/fake-event-source';
 import { Catalog } from './catalog';
 import { BENCH_TOPIC, OVERVIEW_TOPIC } from './state';
@@ -19,6 +19,7 @@ const REFRESH = '/api/v1/catalog/refresh';
 const PREFLIGHT = '/api/v1/catalog/preflight';
 const BENCH = '/api/v1/catalog/bench';
 const USAGE = '/api/v1/catalog/usage';
+const CANDIDATES = '/api/v1/catalog/candidates';
 
 describe('Catalog page', () => {
   let http: HttpTestingController;
@@ -492,6 +493,120 @@ describe('Catalog page', () => {
     await render();
     expect(dialog.textContent).toContain('Tool-Calls · nicht geprüft');
     expect(dialog.textContent).toContain('Template ohne Tool-Format');
+  });
+
+  // ---- candidates ---------------------------------------------------------------------------------
+
+  const later = (over: Partial<CatalogOverview> = {}) => catalogOverview({ asOf: '2026-10-08T09:10:00Z', ...over });
+  const cards = () => [...el.querySelectorAll('app-catalog-candidate-card')] as HTMLElement[];
+
+  async function candidatesView(ov: CatalogOverview = catalogOverview()) {
+    await open(ov);
+    button('Kandidaten').click();
+    await render();
+  }
+
+  function type(text: string) {
+    const input = el.querySelector('app-catalog-candidates input') as HTMLInputElement;
+    input.value = text;
+    input.dispatchEvent(new Event('input'));
+  }
+
+  it('checks a candidate before the download and shows up to which context it fits', async () => {
+    await candidatesView();
+    expect(button('Kandidaten').getAttribute('aria-pressed')).toBe('true');
+    expect(el.querySelector('app-catalog-model-row')).toBeNull();
+    expect(el.textContent).toContain('Noch kein Kandidat geprüft.');
+    expect(el.textContent).toContain('Erlaubte Registries: registry.ollama.ai, hf.co.');
+    expect(button('Prüfen').disabled).toBe(true);                      // nothing typed yet
+    type('ollama pull qwen3:14b');
+    await render();
+    button('Prüfen').click();
+    await render();
+    const req = http.expectOne(CANDIDATES);
+    expect(req.request.method).toBe('POST');
+    expect(req.request.body).toEqual({ name: 'ollama pull qwen3:14b' });
+    expect(button('Prüft').disabled).toBe(true);
+    req.flush({ name: 'qwen3:14b', overview: later({ candidates: [candidate()] }) });
+    await render();
+    const card = cards()[0];
+    const text = card.textContent ?? '';
+    expect(card.querySelector('h3')?.textContent?.trim()).toBe('qwen3:14b');
+    expect(text).toContain('qwen3 · 14.8B · Q4_K_M');
+    expect(text).toContain('Tools');
+    expect(text).toContain('Teil-Offload');
+    expect(text).toContain('8,6 GiB');                                   // download
+    expect(text).toContain('trainiert 131.072');
+    expect(text).toContain('≈ 15,2 GiB');
+    expect([...card.querySelectorAll('ul[aria-label] li')].map((li) => li.textContent?.trim())).toEqual(
+      ['8k ✓', '32k ✓', '48k !', '64k ✗', '128k ✗']);
+    expect(card.querySelector('ul[aria-label] li')?.getAttribute('title')).toBe('8.192 Token: ≈ 9,7 GiB – passt');
+    expect(text).toContain('Passt bis 32.768 Token, knapp bis 49.152 – darüber kippt es in den Teil-Offload.');
+    expect(text).toContain('OpenCode ✗');
+    expect(text).toContain('Tool-Calls erst nach dem Download messbar');
+    expect(text).toContain('ollama pull qwen3:14b');
+    expect(text).toContain('Metadaten 78 KB gelesen');
+    expect((el.querySelector('app-catalog-candidates input') as HTMLInputElement).value).toBe('');   // ready for the next
+    expect(button('Kandidaten').textContent).toContain('· 1');
+  });
+
+  it('keeps the name and shows why a check failed', async () => {
+    await candidatesView();
+    type('evil.example/x/y');
+    await render();
+    button('Prüfen').click();
+    http.expectOne(CANDIDATES).flush({ detail: 'Registry „evil.example“ ist nicht freigegeben.' },
+      { status: 400, statusText: 'Bad Request' });
+    await render();
+    expect(el.querySelector('app-catalog-candidates [role=alert]')?.textContent).toContain('nicht freigegeben');
+    expect((el.querySelector('app-catalog-candidates input') as HTMLInputElement).value).toBe('evil.example/x/y');
+  });
+
+  it('warns about the Ollama version, says what is installed, checks again and removes', async () => {
+    const old = candidate({ name: 'qwen3.5:9b', pull: 'ollama pull qwen3.5:9b', requires: '0.17.1', requiresOk: false,
+      verdict: { ...candidate().verdict!, state: 'fits', needBytes: 6.7 * 1024 ** 3, extraBytes: 0.75 * 1024 ** 3 },
+      notes: ['Braucht Ollama ≥ 0.17.1, installiert ist 0.12.6 – erst Ollama aktualisieren.',
+        'Schon installiert – mit genau diesen Gewichten.'], installed: true, simulated: true });
+    await candidatesView(catalogOverview({ candidates: [old] }));
+    const card = cards()[0];
+    expect(card.querySelector('[role=note]')?.textContent).toContain('Version: Braucht Ollama ≥ 0.17.1');
+    expect(card.textContent).toContain('Schon installiert – mit genau diesen Gewichten.');
+    expect(card.querySelector('dl')?.textContent?.replace(/\s+/g, ' ')).toContain('≈ 6,7 GiB +0,8 von');   // extra of a test run
+    expect(card.textContent).toContain('Simulation');
+    card.querySelector<HTMLButtonElement>('app-menu button')!.click();
+    await render();
+    expect(card.querySelector('a[role=menuitem]')?.getAttribute('href')).toBe('https://ollama.com/library/qwen3:14b');
+    button('Neu prüfen', card).click();
+    await render();
+    const again = http.expectOne(CANDIDATES);
+    expect(again.request.body).toEqual({ name: 'qwen3.5:9b' });
+    again.flush({ name: 'qwen3.5:9b', overview: later({ candidates: [old] }) });
+    await render();
+    cards()[0].querySelector<HTMLButtonElement>('app-menu button')!.click();
+    await render();
+    button('Aus der Liste nehmen', cards()[0]).click();
+    const del = http.expectOne((r) => r.url === CANDIDATES && r.method === 'DELETE');
+    expect(del.request.params.get('name')).toBe('qwen3.5:9b');
+    del.flush(catalogOverview({ asOf: '2026-10-08T09:20:00Z', candidates: [] }));
+    await render();
+    expect(cards().length).toBe(0);
+  });
+
+  it('shows a cloud model as nothing for the card, and copies the pull command of the others', async () => {
+    const cloud = candidate({ name: 'qwen3-coder:480b-cloud', weightsBytes: 0, downloadBytes: 268, verdict: null,
+      context: null, estimate: null, steps: [], opencode: null, fitsUpTo: null, loadsUpTo: null,
+      error: 'Cloud-Modell: läuft auf https://ollama.com:443, nicht auf dieser Karte.' });
+    await candidatesView(catalogOverview({ candidates: [cloud, candidate()] }));
+    const copied: string[] = [];
+    TestBed.inject(ClipboardService).copy = async (t: string) => { copied.push(t); return true; };
+    const [c, q] = cards();
+    expect(c.textContent).toContain('Cloud-Modell: läuft auf https://ollama.com:443');
+    expect(c.textContent).toContain('Cloud');
+    expect(c.textContent).not.toContain('ollama pull');
+    button('Kopieren', q).click();
+    await render();
+    expect(copied).toEqual(['ollama pull qwen3:14b']);
+    expect(button('Kopiert', q)).toBeTruthy();
   });
 
   it('shows the load error instead of an empty page', async () => {

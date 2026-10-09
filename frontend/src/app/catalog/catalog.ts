@@ -1,6 +1,8 @@
 import { Component, DestroyRef, OnInit, computed, inject, signal } from '@angular/core';
 
 import { Api } from '../api/api';
+import { catalogCheckCandidate } from '../api/fn/catalog/catalog-check-candidate';
+import { catalogForgetCandidate } from '../api/fn/catalog/catalog-forget-candidate';
 import { catalogOverview } from '../api/fn/catalog/catalog-overview';
 import { catalogRefresh } from '../api/fn/catalog/catalog-refresh';
 import { catalogSetUsage } from '../api/fn/catalog/catalog-set-usage';
@@ -13,6 +15,7 @@ import { Icon } from '../layout/icon';
 import { Dialog } from '../ui/dialog';
 import { ui } from '../ui/tokens';
 import { BenchPanel, BenchStart } from './bench-panel';
+import { Candidates } from './candidates';
 import { ModelDetails } from './model-details';
 import { ModelRow } from './model-row';
 import {
@@ -23,14 +26,17 @@ import { UsageChange, UsagePanel } from './usage-panel';
 
 const ALL = '*';                      // busy marker of "refresh everything"
 
+export type CatalogView = 'installed' | 'candidates';
+
 /**
  * Catalog page: installed models grouped by origin, effective context, VRAM need against the card's budget,
  * verdict, test runs. The overview comes via GET and, after every change on the server, complete via SSE
- * (catalog.overview); a running test run reports each phase via SSE (catalog.bench).
+ * (catalog.overview); a running test run reports each phase via SSE (catalog.bench). Second view: candidates,
+ * models of Ollama's library checked before a pull (part of the same overview).
  */
 @Component({
   selector: 'app-catalog',
-  imports: [BenchPanel, Dialog, Icon, ModelDetails, ModelRow, UsagePanel],
+  imports: [BenchPanel, Candidates, Dialog, Icon, ModelDetails, ModelRow, UsagePanel],
   templateUrl: './catalog.html',
 })
 export class Catalog implements OnInit {
@@ -59,6 +65,14 @@ export class Catalog implements OnInit {
   readonly usageName = signal<string | null>(null);
   readonly usageSaving = signal(false);
   readonly usageError = signal<string | null>(null);
+  // installed models or candidates
+  readonly view = signal<CatalogView>('installed');
+  readonly checking = signal<string | null>(null);     // candidate name being checked (as typed / of the card)
+  readonly candidateError = signal<string | null>(null);
+  readonly views = computed(() => [
+    { key: 'installed' as CatalogView, label: 'Installiert', count: this.overview()?.models.length ?? 0 },
+    { key: 'candidates' as CatalogView, label: 'Kandidaten', count: this.overview()?.candidates?.length ?? 0 },
+  ]);
 
   /** Origin cards with the models the filter lets through; cards that end up empty are left out. */
   readonly groups = computed(() => {
@@ -214,6 +228,32 @@ export class Catalog implements OnInit {
       this.usageError.set(message(e));
     } finally {
       this.usageSaving.set(false);
+    }
+  }
+
+  // ---- candidates ---------------------------------------------------------------------------------
+
+  /** Asks the registry (manifest, config, GGUF header) - nothing is pulled. The new candidate comes first. */
+  async checkCandidate(name: string): Promise<void> {
+    if (this.checking() !== null) return;
+    this.checking.set(name);
+    this.candidateError.set(null);
+    try {
+      const r = await this.api.invoke(catalogCheckCandidate, { body: { name } });
+      this.accept(r.overview);
+    } catch (e) {
+      this.candidateError.set(message(e));
+    } finally {
+      this.checking.set(null);
+    }
+  }
+
+  async forgetCandidate(name: string): Promise<void> {
+    this.candidateError.set(null);
+    try {
+      this.accept(await this.api.invoke(catalogForgetCandidate, { name }));
+    } catch (e) {
+      this.candidateError.set(message(e));
     }
   }
 

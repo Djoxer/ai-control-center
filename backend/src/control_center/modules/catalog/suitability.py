@@ -48,24 +48,33 @@ def opencode_block(name: str, context: int, cfg: CatalogSettings) -> str:
             f'}}')
 
 
+UNTESTED = "Tool-Calls noch nicht geprüft – ein Testlauf prüft sie mit."
+NO_TOOLS = "Ollama meldet für dieses Modell keine Tool-Unterstützung."
+# a candidate is not installed yet: the registry only says whether the template knows tools
+CANDIDATE_UNTESTED = "Tool-Calls erst nach dem Download messbar – ein Testlauf prüft sie dann mit."
+CANDIDATE_NO_TOOLS = "Das Template kennt keine Werkzeuge – Ollama wird Tool-Anfragen ablehnen."
+
+
 def opencode_fit(name: str, ctx: ContextResult, now: Judgement, at_min: tuple[ContextResult, Judgement] | None,
                  tools: ToolCheck | None, tools_at: datetime | None, eval_tps: float | None,
-                 cfg: CatalogSettings, to_schema, tool_capability: bool = True) -> OpencodeFit:
+                 cfg: CatalogSettings, to_schema, tool_capability: bool = True,
+                 untested: str = UNTESTED, no_tools: str = NO_TOOLS) -> OpencodeFit:
     """now = verdict at the effective context; at_min = (context, verdict) when asked for opencode_min_context,
     only computed when the effective context is smaller. to_schema converts a Judgement for the API.
-    tool_capability = Ollama lists "tools" for the model: without it no test is needed to say no."""
+    tool_capability = Ollama lists "tools" for the model: without it no test is needed to say no.
+    untested / no_tools: the reason lines for both cases (candidates word them differently)."""
     minimum = cfg.opencode_min_context
     reasons: list[str] = []
-    no = maybe = untested = False
+    no = maybe = pending = False
 
     # 1) tool calls
     sim = " (Simulation)" if tools is not None and tools.simulated else ""
     if tools is None and not tool_capability:
         no = True
-        reasons.append("Ollama meldet für dieses Modell keine Tool-Unterstützung.")
+        reasons.append(no_tools)
     elif tools is None:
-        untested = True
-        reasons.append("Tool-Calls noch nicht geprüft – ein Testlauf prüft sie mit.")
+        pending = True
+        reasons.append(untested)
     elif tools.skipped:
         no = True
         reasons.append(tools.skipped)
@@ -110,7 +119,7 @@ def opencode_fit(name: str, ctx: ContextResult, now: Judgement, at_min: tuple[Co
         maybe = True
         reasons.append("VRAM knapp – andere Last auf der Karte kann es kippen.")
 
-    state: FitState = "no" if no else "maybe" if maybe else "unknown" if untested else "fits"
+    state: FitState = "no" if no else "maybe" if maybe else "unknown" if pending else "fits"
     return OpencodeFit(
         state=state, reasons=[SUMMARY[state], *reasons],
         tools_passed=None if tools is None or tools.skipped else tools.passed,

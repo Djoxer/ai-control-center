@@ -1,7 +1,8 @@
 import { HttpErrorResponse } from '@angular/common/http';
 
-import { benchStatus, catalogModel, catalogOverview, opencodeFit } from '../testing/catalog-overview';
+import { benchStatus, candidate, catalogModel, catalogOverview, opencodeFit } from '../testing/catalog-overview';
 import {
+  candidateFacts, candidateFit, downloadText, readText, stepViews, tokensShort,
   PHASE_ORDER, USAGE, benchStateView, benchSummary, budgetFacts, capabilityChips, contextExplain, contextSource,
   extraText, fitView, gib, inUse, matchesUsage, toolsSummary, usageChips, usageLabel,
   groupViews, isBenchRunning, isNewerBench, isNewerOverview, message, observationText, originWord, parameterList,
@@ -195,5 +196,48 @@ describe('catalog state helpers', () => {
       .toContain('Katalog-Modul läuft nicht');
     expect(message(new HttpErrorResponse({ status: 500 }))).toBe('HTTP 500');
     expect(message(new Error('boom'))).toBe('boom');
+  });
+
+  it('names context steps short, with a mark and the need in the tooltip', () => {
+    expect([2048, 40960, 262144, 1000].map(tokensShort)).toEqual(['2k', '40k', '256k', '1.000']);
+    const views = stepViews([
+      { tokens: 8192, needBytes: 9 * GIB, extraBytes: GIB, state: 'fits' },
+      { tokens: 49152, needBytes: 13 * GIB, extraBytes: 0, state: 'tight' },
+      { tokens: 65536, needBytes: null, extraBytes: 0, state: 'split' },
+      { tokens: 131072, needBytes: 20 * GIB, extraBytes: 0, state: 'unknown' },
+    ]);
+    expect(views.map((v) => v.label)).toEqual(['8k ✓', '48k !', '64k ✗', '128k ?']);
+    expect(views[0].title).toBe('8.192 Token: ≈ 10,0 GiB – passt');            // extra included
+    expect(views[2].title).toBe('65.536 Token: Bedarf unbekannt – Teil-Offload');
+    expect(views[1].classes).toContain('border-amber-400/40');
+    expect(stepViews(null)).toEqual([]);
+  });
+
+  it('says up to which context a candidate fits', () => {
+    expect(candidateFit(candidate(), 14 * GIB)).toBe(
+      'Passt bis 32.768 Token, knapp bis 49.152 – darüber kippt es in den Teil-Offload.');
+    expect(candidateFit(candidate({ loadsUpTo: 32768 }), 14 * GIB)).toBe(
+      'Passt bis 32.768 Token – darüber kippt es in den Teil-Offload.');
+    expect(candidateFit(candidate({ fitsUpTo: 131072, loadsUpTo: 131072 }), 14 * GIB)).toBe(
+      'Passt bei jedem Kontext bis 131.072 Token.');
+    expect(candidateFit(candidate({ fitsUpTo: null, loadsUpTo: 2048 }), 14 * GIB)).toBe(
+      'Nur knapp, bis 2.048 Token – andere Last auf der Karte kippt es.');
+    expect(candidateFit(candidate({ fitsUpTo: null, loadsUpTo: null, weightsBytes: 17.3 * GIB }), 14 * GIB)).toBe(
+      'Passt bei keinem Kontext: schon die Gewichte (17,3 GiB) sind größer als das Budget (14,0 GiB).');
+    expect(candidateFit(candidate({ fitsUpTo: null, loadsUpTo: null }), 14 * GIB)).toBe(
+      'Passt bei keinem Kontext komplett auf die Karte.');
+    expect(candidateFit(candidate({ steps: [{ tokens: 2048, state: 'unknown' }] }), null)).toContain('Keine Prognose');
+    expect(candidateFit(candidate({ steps: [] }), 14 * GIB)).toContain('Keine Prognose');
+    expect(candidateFit(candidate({ error: 'Cloud-Modell: …' }), 14 * GIB)).toBe('Cloud-Modell: …');
+  });
+
+  it('describes download, facts and how much was read', () => {
+    expect(downloadText(candidate())).toBe('8,6 GiB');
+    expect(downloadText(candidate({ downloadBytes: 6.1 * GIB, projectorBytes: 0.86 * GIB }))).toBe(
+      '6,1 GiB · davon Bild-Encoder 0,9 GiB');
+    expect(downloadText(candidate({ weightsBytes: 0 }))).toBe('—');
+    expect(candidateFacts(candidate())).toBe('qwen3 · 14.8B · Q4_K_M');
+    expect(candidateFacts(candidate({ architecture: null, parameterSize: null }))).toBe('qwen3 · Q4_K_M');
+    expect([0, 79_872, 1024 ** 2, 8.5 * 1024 ** 2].map(readText)).toEqual(['0 KB', '78 KB', '1,0 MiB', '8,5 MiB']);
   });
 });

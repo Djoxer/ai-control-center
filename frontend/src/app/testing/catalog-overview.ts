@@ -1,4 +1,5 @@
 import { BenchStatus } from '../api/models/bench-status';
+import { Candidate } from '../api/models/candidate';
 import { CatalogModel } from '../api/models/catalog-model';
 import { CatalogOverview } from '../api/models/catalog-overview';
 import { OpencodeFit } from '../api/models/opencode-fit';
@@ -87,5 +88,35 @@ export const catalogOverview = (over: Partial<CatalogOverview> = {}): CatalogOve
   ],
   groups: [{ origin: 'qwen3.5:9b', installed: true, members: ['qwen3.5:9b', 'qwen3.5-9b-64k:latest'] }],
   removed: [],
+  candidates: [],
+  library: { simulated: false, hosts: ['registry.ollama.ai', 'hf.co'] },
+  ...over,
+});
+
+/** A model of the library, checked before the pull: fits up to 32k, "knapp" at 48k, splits from 64k on. */
+export const candidate = (over: Partial<Candidate> = {}): Candidate => ({
+  name: 'qwen3:14b', host: 'registry.ollama.ai', page: 'https://ollama.com/library/qwen3:14b',
+  checkedAt: '2026-10-09T08:30:00Z', simulated: false, pull: 'ollama pull qwen3:14b',
+  downloadBytes: 8.64 * GIB, weightsBytes: 8.64 * GIB, projectorBytes: 0, family: 'qwen3', parameterSize: '14.8B',
+  quantization: 'Q4_K_M', architecture: 'qwen3', capabilities: ['completion', 'tools', 'thinking'],
+  capabilityNotes: ['Werkzeuge: das Template nutzt .Tools.'], parameters: { temperature: ['0.6'] },
+  requires: null, requiresOk: null,
+  context: { effective: 65536, source: 'server', own: null, server: 65536, trained: 131072, clamped: false, parallel: 1 },
+  estimate: { ...catalogModel().estimate!, weightsBytes: 8.64 * GIB, needBytes: 15.2 * GIB, formulaBytes: 15.2 * GIB },
+  verdict: { state: 'split', basis: 'estimated', needBytes: 15.2 * GIB, availableBytes: 14.15 * GIB, extraBytes: 0,
+    message: '≈ 15,2 GiB von 14,1 GiB verfügbar – Teil-Offload zu erwarten, Absturzgefahr. num_ctx verkleinern.' },
+  steps: [
+    { tokens: 8192, needBytes: 9.7 * GIB, extraBytes: 0, state: 'fits' },
+    { tokens: 32768, needBytes: 12 * GIB, extraBytes: 0, state: 'fits' },
+    { tokens: 49152, needBytes: 13.6 * GIB, extraBytes: 0, state: 'tight' },
+    { tokens: 65536, needBytes: 15.2 * GIB, extraBytes: 0, state: 'split' },
+    { tokens: 131072, needBytes: 21.6 * GIB, extraBytes: 0, state: 'split' },
+  ],
+  fitsUpTo: 32768, loadsUpTo: 49152,
+  opencode: opencodeFit({ state: 'no', reasons: ['Nicht geeignet für OpenCode',
+    'Tool-Calls erst nach dem Download messbar – ein Testlauf prüft sie dann mit.',
+    'Kontext 65.536 Token – reicht für OpenCode.', 'Läuft beim wirksamen Kontext nicht komplett auf der GPU.'],
+    toolsPassed: null, toolsTotal: null, toolsAt: null, evalTps: null }),
+  installed: false, sameWeights: [], headerBytes: 79_872, headerComplete: true, notes: [], error: null,
   ...over,
 });

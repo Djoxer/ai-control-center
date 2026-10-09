@@ -24,6 +24,8 @@ gpu = "nvml"                     # nvml | fake | none (no NVIDIA GPU, no error)
 host = "psutil"                  # psutil | fake
 fake_scenario = "normal"         # synthetic: normal | offload | idle | ollama-down; captured: real-normal | real-idle | real-ollama-down | real-catalog
 timeout_s = 2.0                  # per call; a hanging source must not stall the others
+library = "http"                 # http | fake: Ollama's model library for the candidate check (catalog)
+library_hosts = ["registry.ollama.ai", "hf.co"]   # the only registries the server asks
 
 [modules]
 disabled = []                    # e.g. ["catalog"] to switch a module off without touching code
@@ -59,6 +61,10 @@ test_tool_num_predict = 2048     # room for thinking models before they call the
 # OpenCode: context an agent session needs, output tokens the generated opencode.json block reserves
 opencode_min_context = 65536
 opencode_output_tokens = 8192
+# Candidate check before a pull: manifest + GGUF header from the registry ([adapters] library)
+registry_timeout_s = 20          # per request
+registry_header_max_mib = 32     # read at most this much of a weights file (the header ends after 1-8 MiB)
+keep_candidates = 30             # checked candidates kept, the oldest are dropped
 
 [modules.logs]
 tail_interval_s = 1.0            # live tail: seconds between checks for new lines

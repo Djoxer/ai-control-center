@@ -1,0 +1,13 @@
+{{- if .Tools }}<|im_start|>system
+# Tools
+<tools>
+{{- range .Tools }}
+{{ . }}
+{{- end }}
+</tools><|im_end|>
+{{ end }}{{- range .Messages }}<|im_start|>{{ .Role }}
+{{ .Content }}<|im_end|>
+{{ end }}<|im_start|>assistant
+{{- if .Think }}
+<think>
+{{ end }}

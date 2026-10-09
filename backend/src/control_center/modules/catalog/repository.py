@@ -1,6 +1,6 @@
 """SQLite storage of the catalog: installed models, what was observed while they ran, test runs.
 
-Five tables, deliberately plain:
+Six tables, deliberately plain:
 - catalog_models: one row per model name. Key columns for queries, the rest as JSON in `data`
   (ModelRecord). New fields in the record need no migration - older rows just lack them.
 - catalog_observations: one row per model digest x context length x GPU. "Measured" in the catalog
@@ -9,6 +9,7 @@ Five tables, deliberately plain:
 - catalog_state: small key/value facts that must survive a restart (VRAM of other programs).
 - catalog_usage: what the team uses a model for (tags + note), by NAME - clients address models by name,
   and a re-pulled model (new digest) keeps its job.
+- catalog_candidates: models of Ollama's library checked before a pull - what the registry said, as JSON.
 
 Removed models keep their row (removed_at set) for keep_removed_days - their measurements stay
 visible and come back if the model is pulled again.
@@ -77,6 +78,14 @@ usage = Table(
     Column("tags", Text, nullable=False),              # JSON list of tag keys
     Column("note", Text),
     Column("updated", Float, nullable=False),
+)
+
+
+candidates = Table(
+    "catalog_candidates", metadata,
+    Column("name", String, primary_key=True),
+    Column("checked", Float, nullable=False, index=True),
+    Column("data", Text, nullable=False),              # CandidateFacts as JSON
 )
 
 
@@ -242,6 +251,34 @@ class CatalogRepository:
             stmt = stmt.on_conflict_do_update(index_elements=[usage.c.name], set_={
                 "tags": stmt.excluded.tags, "note": stmt.excluded.note, "updated": stmt.excluded.updated})
             await conn.execute(stmt)
+
+    # ---- candidates ---------------------------------------------------------------------------
+
+    async def load_candidates(self) -> list[dict]:
+        """Newest check first; unreadable rows are skipped."""
+        async with self._engine.connect() as conn:
+            rows = (await conn.execute(select(candidates.c.data).order_by(candidates.c.checked.desc()))).all()
+        out = []
+        for (data,) in rows:
+            try:
+                out.append(json.loads(data))
+            except ValueError:
+                continue
+        return out
+
+    async def save_candidate(self, name: str, checked: float, data: dict, keep: int) -> None:
+        """Insert or replace, then drop all but the `keep` newest checks."""
+        stmt = insert(candidates).values(name=name, checked=checked, data=json.dumps(data, ensure_ascii=False))
+        stmt = stmt.on_conflict_do_update(index_elements=[candidates.c.name], set_={
+            "checked": stmt.excluded.checked, "data": stmt.excluded.data})
+        async with self._engine.begin() as conn:
+            await conn.execute(stmt)
+            newest = select(candidates.c.name).order_by(candidates.c.checked.desc()).limit(keep)
+            await conn.execute(delete(candidates).where(candidates.c.name.not_in(newest)))
+
+    async def delete_candidate(self, name: str) -> None:
+        async with self._engine.begin() as conn:
+            await conn.execute(delete(candidates).where(candidates.c.name == name))
 
     # ---- small facts --------------------------------------------------------------------------
 

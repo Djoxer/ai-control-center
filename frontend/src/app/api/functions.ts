@@ -5,6 +5,10 @@ export type { CatalogBenches$Params as CatalogBenches$Params } from './fn/catalo
 export { catalogBenches as catalogBenches } from './fn/catalog/catalog-benches';
 export type { CatalogStartBench$Params as CatalogStartBench$Params } from './fn/catalog/catalog-start-bench';
 export { catalogStartBench as catalogStartBench } from './fn/catalog/catalog-start-bench';
+export type { CatalogCheckCandidate$Params as CatalogCheckCandidate$Params } from './fn/catalog/catalog-check-candidate';
+export { catalogCheckCandidate as catalogCheckCandidate } from './fn/catalog/catalog-check-candidate';
+export type { CatalogForgetCandidate$Params as CatalogForgetCandidate$Params } from './fn/catalog/catalog-forget-candidate';
+export { catalogForgetCandidate as catalogForgetCandidate } from './fn/catalog/catalog-forget-candidate';
 export type { CatalogOverview$Params as CatalogOverview$Params } from './fn/catalog/catalog-overview';
 export { catalogOverview as catalogOverview } from './fn/catalog/catalog-overview';
 export type { CatalogPreflight$Params as CatalogPreflight$Params } from './fn/catalog/catalog-preflight';

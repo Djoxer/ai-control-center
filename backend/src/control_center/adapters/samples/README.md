@@ -51,3 +51,6 @@ launcher twins are hidden. Check `host.json` before committing anyway: plain arg
 Modelfiles keep only `FROM`/`ADAPTER`/`PARAMETER` lines with blob paths as `<blobs>/sha256-…`, license
 texts shrink to their first line, MESSAGE lines are dropped. Model NAMES stay - check
 `ollama-tags.json` before committing if a model is named after a customer project.
+
+The model library of the candidate check (`[adapters] library = "fake"`) is not part of a scenario - the
+registry is outside the AI box. Its synthetic samples live in `../library-samples` (see the README there).

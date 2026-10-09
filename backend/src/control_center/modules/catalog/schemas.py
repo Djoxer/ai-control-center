@@ -5,7 +5,8 @@ Every number carries its origin, because the page colors by it:
 - "measured" = seen in /api/ps while the model ran on this GPU, or measured by a test run,
 - "estimated" = computed from the GGUF metadata before loading (calibrated by measurements of the same
   weights where there are some),
-- (later, part c) "adopted" = taken over from BenchLM.
+- (later, part c2b) "adopted" = taken over from BenchLM.
+Candidates are models of Ollama's library checked before a pull: facts from the registry, verdict estimated.
 """
 from __future__ import annotations
 
@@ -225,6 +226,55 @@ class OpencodeFit(CamelModel):
     block: str                              # ready-to-paste entry for provider.ollama.models in opencode.json
 
 
+class ContextStep(CamelModel):
+    """One context length of a candidate: what the card would have to hold, and the verdict."""
+    tokens: int
+    need_bytes: int | None = None           # Ollama's count (estimate, calibrated when the weights were measured)
+    extra_bytes: int = 0                    # beyond Ollama's count (test run of the same weights)
+    state: VerdictState
+
+
+class Candidate(CamelModel):
+    """A model from Ollama's library, checked BEFORE the pull: the same estimate and verdict as an installed
+    one, from the manifest and the GGUF header. Facts are from the time of the check, the verdict is fresh."""
+    name: str                               # as Ollama will list it after the pull
+    host: str                               # registry.ollama.ai, hf.co
+    page: str | None = None                 # web page of the model
+    checked_at: datetime
+    simulated: bool = False                 # answered by the fake library (library-samples)
+    pull: str                               # "ollama pull <name>"
+    download_bytes: int                     # all layers = what /api/tags will report as size
+    weights_bytes: int
+    projector_bytes: int = 0                # vision encoder as its own file
+    family: str | None = None
+    parameter_size: str | None = None
+    quantization: str | None = None
+    architecture: str | None = None
+    capabilities: list[str] = Field(default_factory=list)   # derived like Ollama does - final after the pull
+    capability_notes: list[str] = Field(default_factory=list)
+    parameters: dict[str, list[str]] = Field(default_factory=dict)
+    requires: str | None = None             # minimum Ollama version (config of the model)
+    requires_ok: bool | None = None         # None = unknown (no requirement or Ollama version unknown)
+    context: ContextInfo | None = None
+    estimate: VramEstimate | None = None
+    verdict: Verdict | None = None
+    steps: list[ContextStep] = Field(default_factory=list)  # ascending context lengths up to the trained one
+    fits_up_to: int | None = None           # largest step with "passt"
+    loads_up_to: int | None = None          # largest step that still loads fully ("passt" or "knapp")
+    opencode: OpencodeFit | None = None
+    installed: bool = False                 # this very name is installed
+    same_weights: list[str] = Field(default_factory=list)  # installed models with the same weights file
+    header_bytes: int = 0                   # bytes of the weights file that were read
+    header_complete: bool = False
+    notes: list[str] = Field(default_factory=list)
+    error: str | None = None                # why there is no estimate (cloud model, no GGUF, broken header)
+
+
+class LibraryInfo(CamelModel):
+    simulated: bool = False
+    hosts: list[str] = Field(default_factory=list)
+
+
 class CatalogModel(CamelModel):
     name: str
     digest: str
@@ -289,6 +339,8 @@ class CatalogOverview(CamelModel):
     models: list[CatalogModel]
     groups: list[ModelGroup]
     removed: list[RemovedModel]
+    candidates: list[Candidate] = Field(default_factory=list)   # newest check first
+    library: LibraryInfo = Field(default_factory=LibraryInfo)
 
 
 class RefreshRequest(CamelModel):
@@ -299,6 +351,16 @@ class UsageRequest(CamelModel):
     name: str
     tags: list[UsageTag] = Field(default_factory=list, max_length=5)
     note: str | None = Field(None, max_length=200)
+
+
+class CandidateRequest(CamelModel):
+    name: str = Field(min_length=1, max_length=300,
+                      description="as for ollama pull: qwen3-coder:30b, user/model:tag, hf.co/org/repo:tag")
+
+
+class CandidateResult(CamelModel):
+    name: str                               # normalized name of the checked candidate
+    overview: CatalogOverview
 
 
 class Preflight(CamelModel):
