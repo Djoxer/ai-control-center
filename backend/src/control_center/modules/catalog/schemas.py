@@ -11,7 +11,7 @@ Candidates are models of Ollama's library checked before a pull: facts from the 
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import Field
 
@@ -253,6 +253,8 @@ class Candidate(CamelModel):
     capabilities: list[str] = Field(default_factory=list)   # derived like Ollama does - final after the pull
     capability_notes: list[str] = Field(default_factory=list)
     parameters: dict[str, list[str]] = Field(default_factory=dict)
+    # GGUF metadata as read (scalars, short lists) - shown folded on the card: what the formula worked with
+    model_info: dict[str, Any] = Field(default_factory=dict)
     requires: str | None = None             # minimum Ollama version (config of the model)
     requires_ok: bool | None = None         # None = unknown (no requirement or Ollama version unknown)
     context: ContextInfo | None = None

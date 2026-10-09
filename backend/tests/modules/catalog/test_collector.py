@@ -87,3 +87,11 @@ def test_read_server_config_only_reads_the_head(tmp_path):
     big = tmp_path / "server.log"
     big.write_text("x" * (1024 * 1024 + 10) + "\n" + LINE + "\n", encoding="utf-8")
     assert read_server_config([str(big)]) is None      # beyond the first MB: not worth reading a huge log
+
+
+def test_keep_info_keeps_short_number_and_flag_lists():
+    from control_center.modules.catalog.collector import keep_info
+    info = {"a.block_count": 4, "a.attention.sliding_window_pattern": [True, False, True, False],
+            "a.mixed": [1, "x"], "tokenizer.ggml.tokens": None, "a.long": list(range(600)), "a.name": "x"}
+    assert keep_info(info) == {"a.block_count": 4, "a.attention.sliding_window_pattern": [True, False, True, False],
+                               "a.name": "x"}

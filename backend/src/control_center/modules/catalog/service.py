@@ -641,6 +641,7 @@ class CatalogService:
             weights_bytes=facts.weights_bytes, projector_bytes=facts.projector_bytes, family=rec.family,
             parameter_size=rec.parameter_size, quantization=rec.quantization, architecture=rec.architecture,
             capabilities=rec.capabilities, capability_notes=facts.capability_notes, parameters=rec.parameters,
+            model_info=rec.model_info,
             requires=facts.requires, requires_ok=ok, installed=mine is not None, same_weights=same,
             header_bytes=facts.header_bytes, header_complete=facts.header_complete, notes=notes, error=facts.error)
         if not facts.weights_bytes:

@@ -69,7 +69,14 @@ def test_a_small_file_is_read_in_one_piece():
     data = _header(10)
     lib = StubLibrary(data)
     header, read = _read(lib, len(data), cap=1024 * KIB, first=1024 * KIB)
-    assert header.complete and lib.calls == [(0, len(data))]                # never more than the file has
+    assert header.complete and lib.calls == [(0, 1024 * KIB)] and read == len(data)   # the storage says where it ends
+
+
+def test_the_manifest_size_is_no_limit_for_the_header():
+    """Sizes in a manifest can be wrong (09.10.: config of qwen3-coder:30b declared 539, delivered 542)."""
+    data = _header(3000)
+    header, _ = _read(StubLibrary(data), size=100, cap=1024 * KIB)
+    assert header.complete and header.kv["tokenizer.ggml.eos_token_id"] == 2
 
 
 @pytest.mark.parametrize(("data", "out"), [
@@ -147,16 +154,17 @@ def test_facts_of_every_sample():
 
 
 class OneModelLibrary(FakeLibrary):
-    """A FakeLibrary whose manifest and config come from the test."""
+    """A FakeLibrary whose manifest and config come from the test. config_short: the manifest declares the
+    config this many bytes smaller than it is (seen in the real registry)."""
 
-    def __init__(self, config: dict, layers: list[dict], blobs: dict[str, bytes]):
+    def __init__(self, config: dict, layers: list[dict], blobs: dict[str, bytes], config_short: int = 0):
         super().__init__()
-        self.cfg, self.layers, self.blobs = config, layers, blobs
+        self.cfg, self.layers, self.blobs, self.short = config, layers, blobs, config_short
 
     async def manifest(self, ref, timeout):
         cfg = json.dumps(self.cfg).encode()
         self.blobs["sha256:" + "c" * 64] = cfg
-        return parse_manifest(json.dumps({"config": {"digest": "sha256:" + "c" * 64, "size": len(cfg)},
+        return parse_manifest(json.dumps({"config": {"digest": "sha256:" + "c" * 64, "size": len(cfg) - self.short},
                                           "layers": self.layers}).encode())
 
     async def blob(self, ref, digest, start, length, timeout):
@@ -181,7 +189,7 @@ def test_unusual_models_end_up_as_error_or_note():
     assert two.error is None and two.weights_bytes == 2 * len(weights) and "2 Gewichtsdateien" in two.notes[0]
     broken = run({}, [_layer("model", b"PK..", w1), _layer("params", b"{oops", p)], {w1: b"PK..", p: b"{oops"})
     assert broken.error.startswith("Keine GGUF-Datei") and broken.notes == [
-        "Parameter nicht lesbar (kein JSON) – ohne diese Angaben gerechnet."]
+        "Parameter nicht lesbar (kein JSON, beginnt mit „{oops“) – ohne diese Angaben gerechnet."]
     empty = run({}, [_layer("params", b"{}", p)], {p: b"{}"})
     assert empty.error == "Keine Gewichte im Manifest – nichts, was auf die Karte käme."
 
@@ -207,3 +215,29 @@ def test_minimum_ollama_version(installed, required, ok):
 
 def test_version_tuple():
     assert version_tuple(" 0.13.0-rc1") == (0, 13, 0) and version_tuple("") is None
+
+
+def test_a_config_bigger_than_declared_is_read_completely():
+    """qwen3-coder:30b on 09.10.: manifest 539 bytes, storage 542 - the parser and renderer sat in the last ones."""
+    weights, w1 = write_header({"general.architecture": "qwen3moe"}), "sha256:" + "1" * 64
+    lib = OneModelLibrary({"model_type": "30.5B", "file_type": "Q4_K_M", "parser": "qwen3-coder"},
+                          [_layer("model", weights, w1)], {w1: weights}, config_short=3)
+    f = asyncio.run(fetch_candidate(lib, parse_ref("x:1"), CatalogSettings(), now=0))
+    assert f.notes == [] and (f.parser, f.record.parameter_size) == ("qwen3-coder", "30.5B")
+    assert "tools" in f.record.capabilities
+
+
+def test_unknown_in_a_hf_config_falls_back_to_the_gguf():
+    weights, w1 = write_header({"general.architecture": "llama", "general.file_type": 15}), "sha256:" + "1" * 64
+    lib = OneModelLibrary({"model_family": "llama", "model_type": "3.21B", "file_type": "unknown"},
+                          [_layer("model", weights, w1)], {w1: weights})
+    r = asyncio.run(fetch_candidate(lib, parse_ref("x:1"), CatalogSettings(), now=0)).record
+    assert (r.quantization, r.parameter_size) == ("Q4_K_M", "3.21B")
+
+
+def test_an_unreadable_answer_shows_how_it_began():
+    weights, w1, p = write_header({"general.architecture": "llama"}), "sha256:" + "1" * 64, "sha256:" + "3" * 64
+    junk = b"\x1f\x8b\x08\x00<html>" + b"x" * 100
+    lib = OneModelLibrary({}, [_layer("model", weights, w1), _layer("params", junk, p)], {w1: weights, p: junk})
+    note = asyncio.run(fetch_candidate(lib, parse_ref("x:1"), CatalogSettings(), now=0)).notes[0]
+    assert note.startswith("Parameter nicht lesbar (kein JSON, beginnt mit „·") and "<html>" in note and "…“" in note

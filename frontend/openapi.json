@@ -613,6 +613,11 @@
             ],
             "title": "Loadsupto"
           },
+          "modelInfo": {
+            "additionalProperties": true,
+            "title": "Modelinfo",
+            "type": "object"
+          },
           "name": {
             "title": "Name",
             "type": "string"

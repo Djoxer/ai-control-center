@@ -27,6 +27,9 @@ export interface Candidate {
   host: string;
   installed?: boolean;
   loadsUpTo?: (number | null);
+  modelInfo?: {
+[key: string]: any;
+};
   name: string;
   notes?: Array<string>;
   opencode?: (OpencodeFit | null);

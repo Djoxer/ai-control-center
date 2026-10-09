@@ -2,7 +2,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 
 import { benchStatus, candidate, catalogModel, catalogOverview, opencodeFit } from '../testing/catalog-overview';
 import {
-  candidateFacts, candidateFit, downloadText, readText, stepViews, tokensShort,
+  candidateFacts, candidateFit, downloadText, modelInfoRows, readText, stepViews, tokensShort,
   PHASE_ORDER, USAGE, benchStateView, benchSummary, budgetFacts, capabilityChips, contextExplain, contextSource,
   extraText, fitView, gib, inUse, matchesUsage, toolsSummary, usageChips, usageLabel,
   groupViews, isBenchRunning, isNewerBench, isNewerOverview, message, observationText, originWord, parameterList,
@@ -239,5 +239,16 @@ describe('catalog state helpers', () => {
     expect(candidateFacts(candidate())).toBe('qwen3 · 14.8B · Q4_K_M');
     expect(candidateFacts(candidate({ architecture: null, parameterSize: null }))).toBe('qwen3 · Q4_K_M');
     expect([0, 79_872, 1024 ** 2, 8.5 * 1024 ** 2].map(readText)).toEqual(['0 KB', '78 KB', '1,0 MiB', '8,5 MiB']);
+  });
+
+  it('lists the GGUF metadata sorted, long lists shortened', () => {
+    expect(modelInfoRows({ 'qwen35.block_count': 32, 'general.architecture': 'qwen35',
+      'qwen35.attention.head_count_kv': [0, 0, 0, 4, 0, 0, 0, 4, 0, 0], 'x.flags': [true, false] })).toEqual([
+      { label: 'general.architecture', value: 'qwen35' },
+      { label: 'qwen35.attention.head_count_kv', value: '[0, 0, 0, 4, 0, 0, 0, 4, … 10 Werte]' },
+      { label: 'qwen35.block_count', value: '32' },
+      { label: 'x.flags', value: '[true, false]' },
+    ]);
+    expect(modelInfoRows(null)).toEqual([]);
   });
 });

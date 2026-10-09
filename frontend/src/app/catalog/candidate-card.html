@@ -70,6 +70,13 @@
         </ul>
         <p class="mt-2 text-white">{{ fit() }}</p>
       </div>
+      @if (rough()) {
+        <div [class]="infoCallout" role="note">
+          <app-icon name="info" class="mt-0.5 size-5" />
+          <p><span class="font-semibold">Ungenau:</span> Diese Architektur passt nicht ganz in die Formel, gerechnet ist
+            die sichere Seite (eher zu viel). Genau wird es erst mit einer Messung nach dem Download.</p>
+        </div>
+      }
     } @else {
       <p class="text-gray-400">{{ c.error ?? 'Keine Prognose.' }}</p>
     }
@@ -91,6 +98,25 @@
     }
     @if (c.capabilityNotes?.length) {
       <p [class]="ui.meta">Fähigkeiten laut Registry (endgültig nach dem Download): {{ c.capabilityNotes!.join(' ') }}</p>
+    }
+    @if (c.estimate?.notes?.length || info().length) {
+      <details class="text-xs">
+        <summary class="cursor-pointer text-gray-400">Rechnung und Modelldaten</summary>
+        @if (c.estimate?.notes?.length) {
+          <ul class="mt-2 list-disc space-y-0.5 pl-5 text-gray-400">
+            @for (n of c.estimate!.notes; track n) { <li>{{ n }}</li> }
+          </ul>
+        }
+        @if (info().length) {
+          <p [class]="ui.meta" class="mt-3">GGUF-Metadaten, wie gelesen ({{ info().length }} Einträge, Tokenizer-Tabellen
+            ausgelassen):</p>
+          <dl class="mt-1 grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-0.5 font-mono">
+            @for (r of info(); track r.label) {
+              <dt class="break-all text-gray-500">{{ r.label }}</dt><dd class="break-all text-gray-300">{{ r.value }}</dd>
+            }
+          </dl>
+        }
+      </details>
     }
   </div>
 

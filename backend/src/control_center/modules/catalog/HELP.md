@@ -260,6 +260,10 @@ Die Karte eines Kandidaten zeigt:
 - **Hinweise**: „Schon installiert“ (gleiche Gewichte), „Installiert ist ein anderer Stand“ (gleicher Name,
   andere Gewichte), „Die Gewichte liegen schon auf der Platte“ (ein Pull lädt nur den Rest). „Braucht Ollama ≥ …“
   erscheint gelb, wenn die Konfiguration des Modells eine neuere Ollama-Version verlangt als installiert ist.
+- **Ungenau** (blauer Hinweis): Die Architektur passt nicht ganz in die Formel (z. B. ein Sliding-Window-Plan, den
+  der Katalog nicht kennt). Gerechnet ist dann die sichere Seite, also eher zu viel.
+- **Rechnung und Modelldaten** (aufklappen): die Hinweise der Schätzung und alle gelesenen GGUF-Metadaten. Damit
+  lässt sich nachvollziehen, womit die Formel gerechnet hat.
 - **`ollama pull …`** zum Kopieren.
 
 Die Fähigkeiten (Tools, Bild, Denkt) leitet der Katalog so ab, wie Ollama es tut. Endgültig sind sie erst nach

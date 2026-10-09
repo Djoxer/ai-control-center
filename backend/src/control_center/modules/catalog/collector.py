@@ -84,8 +84,8 @@ def keep_info(info: dict[str, Any]) -> dict[str, Any]:
         if isinstance(value, (str, int, float, bool)):
             out[key] = value
         elif isinstance(value, list) and len(value) <= MAX_INFO_LIST and all(
-                isinstance(v, (int, float)) and not isinstance(v, bool) for v in value):
-            out[key] = value
+                isinstance(v, (int, float)) for v in value):
+            out[key] = value                      # numbers and flags per layer (bool lists: e.g. window patterns)
     return out
 
 

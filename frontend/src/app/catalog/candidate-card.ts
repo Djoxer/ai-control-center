@@ -7,8 +7,8 @@ import { Icon } from '../layout/icon';
 import { Menu } from '../ui/menu';
 import { ui } from '../ui/tokens';
 import {
-  candidateFacts, candidateFit, capabilityChips, contextSource, downloadText, extraText, fitView, gib, readText,
-  stepViews, verdictView, vramText, when,
+  candidateFacts, candidateFit, capabilityChips, contextSource, downloadText, extraText, fitView, gib, modelInfoRows,
+  readText, stepViews, verdictView, vramText, when,
 } from './state';
 
 /**
@@ -61,11 +61,18 @@ export class CandidateCard {
     return v ? extraText(v) : '';
   });
   readonly opencode = computed(() => fitView(this.candidate().opencode));
+  /** The formula does not know this architecture well (and no measurement corrects it): say so on the card. */
+  readonly rough = computed(() => {
+    const e = this.candidate().estimate;
+    return !!e && e.confidence === 'low' && !e.calibrated;
+  });
+  readonly info = computed(() => modelInfoRows(this.candidate().modelInfo));
   /** The minimum version is the one note that blocks a pull: it gets the warning color. */
   readonly warnings = computed(() => (this.candidate().notes ?? []).filter((n) => n.startsWith('Braucht Ollama')));
   readonly notes = computed(() => (this.candidate().notes ?? []).filter((n) => !n.startsWith('Braucht Ollama')));
   readonly estimated = ui.origin.estimated;
   readonly warnCallout = `${ui.calloutFrame} ${ui.callout.warning}`;
+  readonly infoCallout = `${ui.calloutFrame} ${ui.callout.info}`;
 
   async copy(text: string): Promise<void> {
     this.copied.set(await this.clipboard.copy(text));

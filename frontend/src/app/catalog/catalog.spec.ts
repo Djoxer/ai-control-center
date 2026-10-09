@@ -548,6 +548,23 @@ describe('Catalog page', () => {
     expect(text).toContain('Metadaten 78 KB gelesen');
     expect((el.querySelector('app-catalog-candidates input') as HTMLInputElement).value).toBe('');   // ready for the next
     expect(button('Kandidaten').textContent).toContain('· 1');
+    expect(card.querySelector('[role=note]')).toBeNull();              // a normal estimate: no "Ungenau"
+  });
+
+  it('says when the formula is rough and shows what it worked with', async () => {
+    const rough = candidate({ name: 'gemma4:latest',
+      estimate: { ...candidate().estimate!, confidence: 'low', calibrated: null,
+        notes: ['48 Schichten × 8 KV-Köpfe × 256+256 × q8_0',
+          'Sliding Window mit unbekanntem Schichtplan – volle Länge gerechnet (zu hoch)'] },
+      modelInfo: { 'general.architecture': 'gemma4', 'gemma4.attention.sliding_window': 512 } });
+    await candidatesView(catalogOverview({ candidates: [rough] }));
+    const card = cards()[0];
+    expect(card.querySelector('[role=note]')?.textContent).toContain('Ungenau:');
+    const folded = card.querySelector('details') as HTMLDetailsElement;
+    expect(folded.querySelector('summary')?.textContent).toContain('Rechnung und Modelldaten');
+    expect(folded.textContent).toContain('Sliding Window mit unbekanntem Schichtplan');
+    expect(folded.textContent).toContain('gemma4.attention.sliding_window');
+    expect(folded.textContent).toContain('2 Einträge');
   });
 
   it('keeps the name and shows why a check failed', async () => {

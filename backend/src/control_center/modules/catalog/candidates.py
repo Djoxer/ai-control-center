@@ -87,18 +87,28 @@ class CandidateFacts:
 
 async def _small(library: LibraryAdapter, ref: ModelRef, layer: Layer | None, limit: int,
                  timeout: float) -> bytes | None:
+    """Up to `limit` bytes, whatever size the manifest declares: on 09.10. the registry declared 539 bytes for
+    the config of qwen3-coder:30b and delivered 542 - reading exactly 539 cut the JSON short."""
     if layer is None:
         return None
-    return await library.blob(ref, layer.digest, 0, min(layer.size, limit), timeout)
+    return await library.blob(ref, layer.digest, 0, limit, timeout)
 
 
-def _json(data: bytes | None, what: str, notes: list[str]) -> dict[str, Any]:
+def _start(data: bytes) -> str:
+    """First characters of an unreadable answer, printable - says at a glance what came back instead."""
+    text = data[:60].decode("utf-8", errors="replace")
+    return "".join(c if c.isprintable() else "·" for c in text) + ("…" if len(data) > 60 else "")
+
+
+def _json(data: bytes | None, what: str, notes: list[str], limit: int = SMALL_MAX) -> dict[str, Any]:
     if not data:
         return {}
     try:
         value = json.loads(data)
     except ValueError:
-        notes.append(f"{what} nicht lesbar (kein JSON) – ohne diese Angaben gerechnet.")
+        cut = " (größer als die Lesegrenze)" if len(data) >= limit else ""
+        notes.append(f"{what} nicht lesbar (kein JSON{cut}, beginnt mit „{_start(data)}“) – ohne diese Angaben "
+                     f"gerechnet.")
         return {}
     return value if isinstance(value, dict) else {}
 
@@ -106,9 +116,10 @@ def _json(data: bytes | None, what: str, notes: list[str]) -> dict[str, Any]:
 async def read_header(library: LibraryAdapter, ref: ModelRef, layer: Layer, cap: int,
                       timeout: float, first: int = HEADER_FIRST) -> tuple[Header, int]:
     """GGUF header of the weights file in growing pieces (1, 2, 4 ... MiB) up to `cap` bytes.
-    At the cap: the entries read so far (Header.complete False). Raises GgufError."""
+    At the cap: the entries read so far (Header.complete False). Raises GgufError.
+    The end of the file is what the storage says (a shorter answer than asked), not the manifest's size."""
     buf = b""
-    want = min(first, cap, layer.size or first)
+    want = min(first, cap)
     while True:
         asked = want - len(buf)
         chunk = await library.blob(ref, layer.digest, len(buf), asked, timeout)
@@ -116,11 +127,11 @@ async def read_header(library: LibraryAdapter, ref: ModelRef, layer: Layer, cap:
         try:
             return parse_header(buf), len(buf)
         except NeedMore as more:
-            if len(chunk) < asked or (layer.size and len(buf) >= layer.size):
+            if len(chunk) < asked:
                 raise GgufError("Die Datei endet mitten in den Metadaten – unvollständig veröffentlicht?") from None
             if len(buf) >= cap:
                 return partial_header(buf, more), len(buf)
-            want = min(cap, max(len(buf) * 2, more.at), layer.size or cap)
+            want = min(cap, max(len(buf) * 2, more.at))
 
 
 async def fetch_candidate(library: LibraryAdapter, ref: ModelRef, cfg: CatalogSettings,
@@ -135,7 +146,7 @@ async def fetch_candidate(library: LibraryAdapter, ref: ModelRef, cfg: CatalogSe
     tmpl_layer = manifest.first("template")
     raw_tmpl = await _small(library, ref, tmpl_layer, TEMPLATE_MAX, timeout)
     template = raw_tmpl.decode("utf-8", errors="replace") if raw_tmpl is not None else None
-    if tmpl_layer is not None and tmpl_layer.size > TEMPLATE_MAX:
+    if raw_tmpl is not None and len(raw_tmpl) >= TEMPLATE_MAX:
         notes.append("Template sehr groß – nur der Anfang gelesen.")
 
     weights = manifest.first("model")
@@ -171,7 +182,10 @@ async def fetch_candidate(library: LibraryAdapter, ref: ModelRef, cfg: CatalogSe
 # ---- building the record ---------------------------------------------------------------------------------
 
 def _str(value: Any) -> str | None:
-    return value.strip() if isinstance(value, str) and value.strip() else None
+    """A usable text, or None. hf.co writes "unknown" into fields it cannot fill - that is no value either."""
+    if not isinstance(value, str) or not value.strip() or value.strip().lower() == "unknown":
+        return None
+    return value.strip()
 
 
 def _param_text(value: Any) -> str:

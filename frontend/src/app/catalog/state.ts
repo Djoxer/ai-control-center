@@ -439,3 +439,15 @@ export function readText(bytes: number | null | undefined): string {
   if (!bytes) return '0 KB';
   return bytes < 1024 ** 2 ? `${num(Math.ceil(bytes / 1024))} KB` : `${num(bytes / 1024 ** 2, 1)} MiB`;
 }
+
+/** GGUF metadata for the folded table: sorted keys, long lists shortened - "[0, 0, 0, 4, … 32 Werte]". */
+export function modelInfoRows(info: Record<string, unknown> | null | undefined): Fact[] {
+  const show = (v: unknown): string => {
+    if (Array.isArray(v)) {
+      const head = v.slice(0, 8).map((x) => String(x)).join(', ');
+      return v.length > 8 ? `[${head}, … ${v.length} Werte]` : `[${head}]`;
+    }
+    return String(v);
+  };
+  return Object.keys(info ?? {}).sort().map((key) => ({ label: key, value: show(info![key]) }));
+}
