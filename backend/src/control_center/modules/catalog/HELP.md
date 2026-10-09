@@ -233,6 +233,10 @@ passt. Die Ansicht **Kandidaten** stellt diese Frage vorher. Man tippt den Namen
 (`qwen3-coder:30b`, `gemma3:12b`, `nutzer/modell:tag`, `hf.co/organisation/repo:Q4_K_M`). Ein ganzer Befehl
 (`ollama pull …`) oder die Adresse der Modellseite auf ollama.com oder huggingface.co geht auch.
 
+**Ollama-Bibliothek** (rechts neben dem Umschalter) öffnet die Suche von ollama.com in einem neuen Tab und
+schaltet hier schon auf „Kandidaten“. Dort ein Modell suchen, den Namen samt Tag (Seite des Modells → „Tags“)
+oder einfach die Adresse der Modellseite kopieren und hier einfügen.
+
 Der Katalog fragt die Registry dasselbe wie Ollama beim Pull, hört aber früh auf:
 
 1. **Manifest**: welche Dateien, wie groß. Gewichte, Bild-Encoder (`projector`), Template, Parameter.

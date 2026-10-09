@@ -88,11 +88,18 @@
   }
 
   @if (overview()) {
-    <div class="flex flex-wrap gap-2" role="group" aria-label="Ansicht">
-      @for (v of views(); track v.key) {
-        <button type="button" [class]="ui.toggle" [attr.aria-pressed]="view() === v.key" (click)="view.set(v.key)">
-          {{ v.label }} <span class="text-gray-500">· {{ v.count }}</span></button>
-      }
+    <div class="flex flex-wrap items-center gap-2">
+      <div class="flex flex-wrap gap-2" role="group" aria-label="Ansicht">
+        @for (v of views(); track v.key) {
+          <button type="button" [class]="ui.toggle" [attr.aria-pressed]="view() === v.key" (click)="view.set(v.key)">
+            {{ v.label }} <span class="text-gray-500">· {{ v.count }}</span></button>
+        }
+      </div>
+      <!-- the library in a new tab; back here, the candidate field is ready for the copied name -->
+      <a [href]="libraryUrl" target="_blank" rel="noopener noreferrer" [class]="ui.button"
+         class="ml-auto flex items-center gap-2" title="Modelle suchen, Namen kopieren, unter „Kandidaten“ einfügen"
+         (click)="view.set('candidates')">
+        <app-icon name="external-link" class="size-4" /> Ollama-Bibliothek</a>
     </div>
   }
 

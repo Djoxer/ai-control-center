@@ -567,6 +567,19 @@ describe('Catalog page', () => {
     expect(folded.textContent).toContain('2 Einträge');
   });
 
+  it('links the Ollama library and switches to the candidates on the way out', async () => {
+    await open();
+    const link = [...el.querySelectorAll('a')].find((a) => a.textContent?.includes('Ollama-Bibliothek'))!;
+    expect(link.getAttribute('href')).toBe('https://ollama.com/search');
+    expect(link.getAttribute('target')).toBe('_blank');
+    expect(link.getAttribute('rel')).toBe('noopener noreferrer');
+    link.addEventListener('click', (e) => e.preventDefault());       // jsdom cannot open tabs
+    link.click();
+    await render();
+    expect(button('Kandidaten').getAttribute('aria-pressed')).toBe('true');
+    expect(el.querySelector('app-catalog-candidates input')).toBeTruthy();
+  });
+
   it('keeps the name and shows why a check failed', async () => {
     await candidatesView();
     type('evil.example/x/y');

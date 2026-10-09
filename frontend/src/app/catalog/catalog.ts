@@ -69,6 +69,8 @@ export class Catalog implements OnInit {
   readonly view = signal<CatalogView>('installed');
   readonly checking = signal<string | null>(null);     // candidate name being checked (as typed / of the card)
   readonly candidateError = signal<string | null>(null);
+  /** Search page of Ollama's library - names from there go straight into the candidate check. */
+  readonly libraryUrl = 'https://ollama.com/search';
   readonly views = computed(() => [
     { key: 'installed' as CatalogView, label: 'Installiert', count: this.overview()?.models.length ?? 0 },
     { key: 'candidates' as CatalogView, label: 'Kandidaten', count: this.overview()?.candidates?.length ?? 0 },
